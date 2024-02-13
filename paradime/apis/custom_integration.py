@@ -1,4 +1,5 @@
 from typing import List
+
 from paradime.apis.custom_integration_types import (
     Integration,
     Node,

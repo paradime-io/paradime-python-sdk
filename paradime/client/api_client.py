@@ -1,4 +1,5 @@
 from typing import Any
+
 import requests
 
 from paradime.client.api_exception import ParadimeException
