@@ -1,0 +1,2 @@
+class ParadimeException(Exception):
+    pass
