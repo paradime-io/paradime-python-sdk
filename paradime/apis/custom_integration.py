@@ -214,7 +214,7 @@ class CustomIntegration:
         self,
         *,
         name: str,
-        logo_url: str,
+        logo_url: str | None = None,
         node_types: List[NodeType],
     ) -> Integration:
         """
