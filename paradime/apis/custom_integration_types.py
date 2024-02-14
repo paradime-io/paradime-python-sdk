@@ -3,6 +3,8 @@ from typing import Any, Union
 
 from pydantic import BaseModel, Extra
 
+from paradime.apis.custom_integration_utils import generate_uid
+
 
 class ParadimeBaseModel(BaseModel):
     class Config:
@@ -90,7 +92,7 @@ class LineageDependencyCustomIntegration(ParadimeBaseModel):
     integration_uid: str | None
     integration_name: str | None
     node_type: str
-    node_stable_id: str | None
+    node_id: str | None
     node_name: str | None
 
     def _to_gql_dict(self) -> dict[str, Any]:
@@ -98,7 +100,7 @@ class LineageDependencyCustomIntegration(ParadimeBaseModel):
             "integrationUid": self.integration_uid or "",
             "integrationName": self.integration_name or "",
             "nodeType": self.node_type or "",
-            "nodeStableId": self.node_stable_id or "",
+            "nodeStableId": self.node_id or "",
             "nodeName": self.node_name or "",
         }
 
@@ -196,7 +198,7 @@ class NodeChartLikeAttributes(ParadimeBaseModel):
 class NodeChartLike(ParadimeBaseModel):
     name: str
     node_type: str
-    stable_id: str
+    id: str | None = None
     lineage: NodeLineage
     attributes: NodeChartLikeAttributes
 
@@ -204,7 +206,7 @@ class NodeChartLike(ParadimeBaseModel):
         return {
             "name": self.name,
             "nodeType": self.node_type,
-            "stableId": self.stable_id,
+            "stableId": self.id or generate_uid(self.name),
             "lineage": self.lineage._to_gql_dict(),
             "attributes": self.attributes._to_gql_dict(self.name),
         }
@@ -236,7 +238,7 @@ class NodeDashboardLikeAttributes(ParadimeBaseModel):
 class NodeDashboardLike(ParadimeBaseModel):
     name: str
     node_type: str
-    stable_id: str
+    id: str | None = None
     lineage: NodeLineage
     attributes: NodeDashboardLikeAttributes
 
@@ -244,7 +246,7 @@ class NodeDashboardLike(ParadimeBaseModel):
         return {
             "name": self.name,
             "nodeType": self.node_type,
-            "stableId": self.stable_id,
+            "stableId": self.id or generate_uid(self.name),
             "lineage": self.lineage._to_gql_dict(),
             "attributes": self.attributes._to_gql_dict(self.name),
         }
@@ -293,7 +295,7 @@ class NodeDatasourceLikeAttributes(ParadimeBaseModel):
 class NodeDatasourceLike(ParadimeBaseModel):
     name: str
     node_type: str
-    stable_id: str
+    id: str | None = None
     lineage: NodeLineage
     attributes: NodeDatasourceLikeAttributes
 
@@ -301,7 +303,7 @@ class NodeDatasourceLike(ParadimeBaseModel):
         return {
             "name": self.name,
             "nodeType": self.node_type,
-            "stableId": self.stable_id,
+            "stableId": self.id or generate_uid(self.name),
             "lineage": self.lineage._to_gql_dict(),
             "attributes": self.attributes._to_gql_dict(self.name),
         }
