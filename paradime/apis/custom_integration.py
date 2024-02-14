@@ -163,6 +163,17 @@ class CustomIntegration:
             for integration in response["listCustomIntegrations"]["integrations"]
         ]
 
+    def list_active(self) -> List[Integration]:
+        """
+        Retrieves a list of all active custom integrations.
+
+        Returns:
+            List[Integration]: A list of Integration objects representing the active custom integrations.
+        """
+
+        all_integrations = self.list_all()
+        return [integration for integration in all_integrations if integration.is_active]
+
     def get_by_name(self, name: str) -> Integration | None:
         """
         Retrieves active custom integration with the specified name.
@@ -174,9 +185,9 @@ class CustomIntegration:
             Integration | None: The integration object if found, None otherwise.
         """
 
-        all_integrations = self.list_all()
-        for integration in all_integrations:
-            if integration.name == name and integration.is_active:
+        active_integrations = self.list_active()
+        for integration in active_integrations:
+            if integration.name == name:
                 return integration
 
         return None
@@ -192,9 +203,9 @@ class CustomIntegration:
             Integration | None: The integration object if found, None otherwise.
         """
 
-        all_integrations = self.list_all()
+        all_integrations = self.list_active()
         for integration in all_integrations:
-            if integration.uid == uid and integration.is_active:
+            if integration.uid == uid:
                 return integration
 
         return None
