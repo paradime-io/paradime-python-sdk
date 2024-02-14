@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 
 import requests
@@ -6,10 +7,18 @@ from paradime.client.api_exception import ParadimeException
 
 
 class APIClient:
-    def __init__(self, *, api_key: str, api_secret: str, api_endpoint: str):
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        api_secret: str,
+        api_endpoint: str,
+        timeout: timedelta = timedelta(seconds=60),
+    ):
         self.api_key = api_key
         self.api_secret = api_secret
         self.api_endpoint = api_endpoint
+        self.timeout = timeout
 
     def _get_request_headers(self) -> dict[str, str]:
         return {
@@ -38,7 +47,7 @@ class APIClient:
             url=self.api_endpoint,
             json={"query": query, "variables": variables},
             headers=self._get_request_headers(),
-            timeout=60,
+            timeout=self.timeout.total_seconds(),
         )
         self._raise_for_errors(response)
 
