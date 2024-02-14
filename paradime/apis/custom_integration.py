@@ -18,8 +18,16 @@ class CustomIntegration:
 
     def create(self, *, name: str, logo_url: str, node_types: List[NodeType]) -> str:
         query = """
-            mutation addCustomIntegration($logoUrl: String!, $name: String!, $nodeTypes: [IntegrationNodeTypeInfo!]!) {
-                addCustomIntegration(logoUrl: $logoUrl, name: $name, nodeTypes: $nodeTypes) {
+            mutation addCustomIntegration(
+                $logoUrl: String!,
+                $name: String!,
+                $nodeTypes: [IntegrationNodeTypeInfo!]!
+            ) {
+                addCustomIntegration(
+                    logoUrl: $logoUrl,
+                    name: $name,
+                    nodeTypes: $nodeTypes
+                ) {
                     ok
                     integrationUid
                 }
@@ -53,8 +61,20 @@ class CustomIntegration:
         active: bool | None = None,
     ) -> None:
         query = """
-            mutation updateCustomIntegration($integrationUid: String!, $name: String, $logoUrl: String, $nodeTypes: [IntegrationNodeTypeInfo!], $active: Boolean) {
-                updateCustomIntegration(integrationUid: $integrationUid, name: $name, logoUrl: $logoUrl, nodeTypes: $nodeTypes, active: $active) {
+            mutation updateCustomIntegration(
+                $integrationUid: String!,
+                $name: String,
+                $logoUrl: String,
+                $nodeTypes: [IntegrationNodeTypeInfo!],
+                $active: Boolean
+            ) {
+                updateCustomIntegration(
+                    integrationUid: $integrationUid,
+                    name: $name,
+                    logoUrl: $logoUrl,
+                    nodeTypes: $nodeTypes,
+                    active: $active
+                ) {
                     ok
                 }
             }
@@ -64,16 +84,18 @@ class CustomIntegration:
             "integrationUid": integration_uid,
             "name": name,
             "logoUrl": logo_url,
-            "nodeTypes": [
-                {
-                    "nodeType": node_type.node_type,
-                    "iconName": node_type.icon_name,
-                    "color": node_type.color,
-                }
-                for node_type in node_types
-            ]
-            if node_types
-            else None,
+            "nodeTypes": (
+                [
+                    {
+                        "nodeType": node_type.node_type,
+                        "iconName": node_type.icon_name,
+                        "color": node_type.color,
+                    }
+                    for node_type in node_types
+                ]
+                if node_types
+                else None
+            ),
             "active": active,
         }
 
@@ -152,9 +174,7 @@ class CustomIntegration:
                 active=True,
             )
         else:
-            integration_uid = self.create(
-                name=name, logo_url=logo_url, node_types=node_types
-            )
+            integration_uid = self.create(name=name, logo_url=logo_url, node_types=node_types)
             integration = self.get(integration_uid)
 
         return integration
@@ -168,8 +188,22 @@ class CustomIntegration:
         snapshot_id: int | None = None,
     ) -> int:
         query = """
-            mutation addCustomIntegrationNodes($chartLikeNodes: [IntegrationNodeChartLike!]!, $dashboardLikeNodes: [IntegrationNodeDashboardLike!]!, $datasourceLikeNodes: [IntegrationNodeDatasourceLike!]!, $integrationUid: String!, $snapshotHasMoreNodes: Boolean!, $snapshotId: Int) {
-                addCustomIntegrationNodes(chartLikeNodes: $chartLikeNodes, dashboardLikeNodes: $dashboardLikeNodes, datasourceLikeNodes: $datasourceLikeNodes, integrationUid: $integrationUid, snapshotHasMoreNodes: $snapshotHasMoreNodes, snapshotId: $snapshotId) {
+            mutation addCustomIntegrationNodes(
+                $chartLikeNodes: [IntegrationNodeChartLike!]!,
+                $dashboardLikeNodes: [IntegrationNodeDashboardLike!]!,
+                $datasourceLikeNodes: [IntegrationNodeDatasourceLike!]!,
+                $integrationUid: String!,
+                $snapshotHasMoreNodes: Boolean!,
+                $snapshotId: Int
+            ) {
+                addCustomIntegrationNodes(
+                    chartLikeNodes: $chartLikeNodes,
+                    dashboardLikeNodes: $dashboardLikeNodes,
+                    datasourceLikeNodes: $datasourceLikeNodes,
+                    integrationUid: $integrationUid,
+                    snapshotHasMoreNodes: $snapshotHasMoreNodes,
+                    snapshotId: $snapshotId
+                ) {
                     ok
                     snapshotId
                 }
@@ -181,14 +215,10 @@ class CustomIntegration:
                 node._to_gql_dict() for node in nodes if isinstance(node, NodeChartLike)
             ],
             "dashboardLikeNodes": [
-                node._to_gql_dict()
-                for node in nodes
-                if isinstance(node, NodeDashboardLike)
+                node._to_gql_dict() for node in nodes if isinstance(node, NodeDashboardLike)
             ],
             "datasourceLikeNodes": [
-                node._to_gql_dict()
-                for node in nodes
-                if isinstance(node, NodeDatasourceLike)
+                node._to_gql_dict() for node in nodes if isinstance(node, NodeDatasourceLike)
             ],
             "integrationUid": integration_uid,
             "snapshotHasMoreNodes": snapshot_has_more_nodes,

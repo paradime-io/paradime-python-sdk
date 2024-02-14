@@ -40,3 +40,6 @@ use_parentheses = true
 line_length = 100
 combine_as_imports = true
 src_paths = ["paradime"]
+
+[tool.black]
+line-length = 100

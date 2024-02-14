@@ -103,9 +103,7 @@ class LineageEdgeCustomIntegration(ParadimeBaseModel):
         }
 
 
-LineageEdge = (
-    LineageEdgeSqlModel | LineageEdgeNativeIntegration | LineageEdgeCustomIntegration
-)
+LineageEdge = LineageEdgeSqlModel | LineageEdgeNativeIntegration | LineageEdgeCustomIntegration
 
 
 class NodeLineage(ParadimeBaseModel):
@@ -187,9 +185,7 @@ class NodeChartLikeAttributes(ParadimeBaseModel):
             "owner": self.owner or "",
             "description": self.description or "",
             "tags": self.tags or [],
-            "fields": [field._to_gql_dict() for field in self.fields]
-            if self.fields
-            else [],
+            "fields": ([field._to_gql_dict() for field in self.fields] if self.fields else []),
         }
 
 
@@ -286,9 +282,7 @@ class NodeDatasourceLikeAttributes(ParadimeBaseModel):
             "database": self.database_name or "",
             "schema": self.schema_name or "",
             "table": self.table_name or "",
-            "fields": [field._to_gql_dict() for field in self.fields]
-            if self.fields
-            else [],
+            "fields": ([field._to_gql_dict() for field in self.fields] if self.fields else []),
         }
 
 

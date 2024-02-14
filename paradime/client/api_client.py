@@ -27,9 +27,7 @@ class APIClient:
         try:
             response.raise_for_status()
         except Exception as e:
-            raise ParadimeException(
-                f"Error: {response.status_code} - {response.text}"
-            ) from e
+            raise ParadimeException(f"Error: {response.status_code} - {response.text}") from e
 
     def _raise_for_errors(self, response: requests.Response) -> None:
         self._raise_for_response_status_errors(response)
