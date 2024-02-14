@@ -4,3 +4,11 @@ class ParadimeException(Exception):
     """
 
     pass
+
+
+class ParadimeAPIException(ParadimeException):
+    """
+    Exception for errors in the Paradime API.
+    """
+
+    pass

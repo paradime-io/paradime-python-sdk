@@ -2,7 +2,7 @@ from typing import Any
 
 import requests
 
-from paradime.client.api_exception import ParadimeException
+from paradime.client.api_exception import ParadimeAPIException
 
 
 class APIClient:
@@ -51,12 +51,12 @@ class APIClient:
             response (requests.Response): The API response.
 
         Raises:
-            ParadimeException: If there are errors in the response body.
+            ParadimeAPIException: If there are errors in the response body.
         """
 
         response_json = response.json()
         if "errors" in response_json:
-            raise ParadimeException(f"{response_json['errors']}")
+            raise ParadimeAPIException(f"{response_json['errors']}")
 
     def _raise_for_response_status_errors(self, response: requests.Response) -> None:
         """
@@ -72,7 +72,7 @@ class APIClient:
         try:
             response.raise_for_status()
         except Exception as e:
-            raise ParadimeException(f"Error: {response.status_code} - {response.text}") from e
+            raise ParadimeAPIException(f"Error: {response.status_code} - {response.text}") from e
 
     def _raise_for_errors(self, response: requests.Response) -> None:
         """
@@ -82,7 +82,7 @@ class APIClient:
             response (requests.Response): The API response.
 
         Raises:
-            ParadimeException: If there are errors in the API response.
+            ParadimeAPIException: If there are errors in the API response.
         """
 
         self._raise_for_response_status_errors(response)
@@ -100,7 +100,7 @@ class APIClient:
             dict: The response data from the API.
 
         Raises:
-            ParadimeException: If there are errors in the API response.
+            ParadimeAPIException: If there are errors in the API response.
         """
 
         response = requests.post(
