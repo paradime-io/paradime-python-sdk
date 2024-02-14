@@ -40,7 +40,7 @@ class Integration(ParadimeBaseModel):
 # -------- Lineage --------
 
 
-class LineageEdgeSqlModel(ParadimeBaseModel):
+class LineageDependencyDbtObject(ParadimeBaseModel):
     database_name: str | None
     schema_name: str | None
     table_name: str
@@ -73,7 +73,7 @@ class NativeIntegrationNodeType(Enum):
     POWER_BI_DASHBOARD = "PowerBIDashboard"
 
 
-class LineageEdgeNativeIntegration(ParadimeBaseModel):
+class LineageDependencyNativeIntegration(ParadimeBaseModel):
     node_type: NativeIntegrationNodeType
     node_id: str | None
     node_name: str | None
@@ -86,7 +86,7 @@ class LineageEdgeNativeIntegration(ParadimeBaseModel):
         }
 
 
-class LineageEdgeCustomIntegration(ParadimeBaseModel):
+class LineageDependencyCustomIntegration(ParadimeBaseModel):
     integration_uid: str | None
     integration_name: str | None
     node_type: str
@@ -103,47 +103,51 @@ class LineageEdgeCustomIntegration(ParadimeBaseModel):
         }
 
 
-LineageEdge = LineageEdgeSqlModel | LineageEdgeNativeIntegration | LineageEdgeCustomIntegration
+LineageDependency = (
+    LineageDependencyDbtObject
+    | LineageDependencyNativeIntegration
+    | LineageDependencyCustomIntegration
+)
 
 
 class NodeLineage(ParadimeBaseModel):
-    upstream_edges: list[LineageEdge] = []
-    downstream_edges: list[LineageEdge] = []
+    upstream_dependencies: list[LineageDependency] = []
+    downstream_dependencies: list[LineageDependency] = []
 
     def _to_gql_dict(self) -> dict[str, Any]:
         return {
             "upstreamReferences": {
                 "referencesToSqlTables": [
                     edge._to_gql_dict()
-                    for edge in self.upstream_edges
-                    if isinstance(edge, LineageEdgeSqlModel)
+                    for edge in self.upstream_dependencies
+                    if isinstance(edge, LineageDependencyDbtObject)
                 ],
                 "referencesToNativeIntegrations": [
                     edge._to_gql_dict()
-                    for edge in self.upstream_edges
-                    if isinstance(edge, LineageEdgeNativeIntegration)
+                    for edge in self.upstream_dependencies
+                    if isinstance(edge, LineageDependencyNativeIntegration)
                 ],
                 "referencesToCustomIntegrations": [
                     edge._to_gql_dict()
-                    for edge in self.upstream_edges
-                    if isinstance(edge, LineageEdgeCustomIntegration)
+                    for edge in self.upstream_dependencies
+                    if isinstance(edge, LineageDependencyCustomIntegration)
                 ],
             },
             "downstreamReferences": {
                 "referencesToSqlTables": [
                     edge._to_gql_dict()
-                    for edge in self.downstream_edges
-                    if isinstance(edge, LineageEdgeSqlModel)
+                    for edge in self.downstream_dependencies
+                    if isinstance(edge, LineageDependencyDbtObject)
                 ],
                 "referencesToNativeIntegrations": [
                     edge._to_gql_dict()
-                    for edge in self.downstream_edges
-                    if isinstance(edge, LineageEdgeNativeIntegration)
+                    for edge in self.downstream_dependencies
+                    if isinstance(edge, LineageDependencyNativeIntegration)
                 ],
                 "referencesToCustomIntegrations": [
                     edge._to_gql_dict()
-                    for edge in self.downstream_edges
-                    if isinstance(edge, LineageEdgeCustomIntegration)
+                    for edge in self.downstream_dependencies
+                    if isinstance(edge, LineageDependencyCustomIntegration)
                 ],
             },
         }
