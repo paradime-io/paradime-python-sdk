@@ -16,7 +16,7 @@ class CustomIntegration:
     def __init__(self, client: APIClient):
         self.client = client
 
-    def create(self, *, name: str, logo_url: str, node_types: List[NodeType]) -> str:
+    def create(self, *, name: str, logo_url: str | None, node_types: List[NodeType]) -> str:
         query = """
             mutation addCustomIntegration(
                 $logoUrl: String!,

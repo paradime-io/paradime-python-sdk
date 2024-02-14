@@ -26,8 +26,8 @@ class NodeColor(StrEnum):
 
 class NodeType(ParadimeBaseModel):
     node_type: str
-    icon_name: str
-    color: NodeColor
+    icon_name: str | None = None
+    color: NodeColor | None = None
 
 
 class Integration(ParadimeBaseModel):
