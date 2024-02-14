@@ -6,6 +6,16 @@ from paradime.client.api_exception import ParadimeException
 
 
 class APIClient:
+    """
+    A client for making API requests to the Paradime API.
+
+    Args:
+        api_key (str): The API key for authentication.
+        api_secret (str): The API secret for authentication.
+        api_endpoint (str): The endpoint URL for the API.
+        timeout (int, optional): The timeout for API requests in seconds. Defaults to 60 seconds.
+    """
+
     def __init__(
         self,
         *,
@@ -20,6 +30,13 @@ class APIClient:
         self.timeout = timeout
 
     def _get_request_headers(self) -> dict[str, str]:
+        """
+        Get the request headers for Paradime API requests.
+
+        Returns:
+            dict: The request headers.
+        """
+
         return {
             "Content-Type": "application/json",
             "X-API-KEY": self.api_key,
@@ -27,21 +44,65 @@ class APIClient:
         }
 
     def _raise_for_gql_response_body_errors(self, response: requests.Response) -> None:
+        """
+        Raise an exception for GraphQL response body errors.
+
+        Args:
+            response (requests.Response): The API response.
+
+        Raises:
+            ParadimeException: If there are errors in the response body.
+        """
+
         response_json = response.json()
         if "errors" in response_json:
             raise ParadimeException(f"{response_json['errors']}")
 
     def _raise_for_response_status_errors(self, response: requests.Response) -> None:
+        """
+        Raise an exception for response status errors.
+
+        Args:
+            response (requests.Response): The API response.
+
+        Raises:
+            ParadimeException: If there is an error in the response status.
+        """
+
         try:
             response.raise_for_status()
         except Exception as e:
             raise ParadimeException(f"Error: {response.status_code} - {response.text}") from e
 
     def _raise_for_errors(self, response: requests.Response) -> None:
+        """
+        Raise an exception for any errors in the API response.
+
+        Args:
+            response (requests.Response): The API response.
+
+        Raises:
+            ParadimeException: If there are errors in the API response.
+        """
+
         self._raise_for_response_status_errors(response)
         self._raise_for_gql_response_body_errors(response)
 
     def _call_gql(self, query: str, variables: dict[str, Any] = {}) -> dict[str, Any]:
+        """
+        Make a GraphQL API request.
+
+        Args:
+            query (str): The GraphQL query.
+            variables (dict, optional): The variables for the query. Defaults to {}.
+
+        Returns:
+            dict: The response data from the API.
+
+        Raises:
+            ParadimeException: If there are errors in the API response.
+        """
+
         response = requests.post(
             url=self.api_endpoint,
             json={"query": query, "variables": variables},

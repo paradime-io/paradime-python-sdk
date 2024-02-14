@@ -3,6 +3,18 @@ from paradime.client.api_client import APIClient
 
 
 class Paradime(APIClient):
+    """
+    A client for making API requests to the Paradime API.
+
+    Attributes:
+        custom_integration (CustomIntegration): The custom integration API client.
+
+    Args:
+        api_key (str): The API key for authentication. Generate this from Paradime account settings.
+        api_secret (str): The API secret for authentication. Generate this from Paradime account settings.
+        api_endpoint (str): The API endpoint URL. Generate this from Paradime account settings.
+    """
+
     custom_integration: CustomIntegration
 
     def __init__(self, *, api_key: str, api_secret: str, api_endpoint: str):

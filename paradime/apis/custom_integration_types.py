@@ -44,6 +44,9 @@ class NodeType(ParadimeBaseModel):
     icon_name: str | None = None
     color: NodeColor | None = None
 
+    def _to_gql_dict(self) -> dict[str, Any]:
+        return {"nodeType": self.node_type, "iconName": self.icon_name, "color": self.color}
+
 
 class Integration(ParadimeBaseModel):
     """

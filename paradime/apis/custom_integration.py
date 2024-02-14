@@ -17,6 +17,18 @@ class CustomIntegration:
         self.client = client
 
     def create(self, *, name: str, logo_url: str | None, node_types: List[NodeType]) -> str:
+        """
+        Creates a custom integration with the specified name, logo URL, and node types.
+
+        Args:
+            name (str): The name of the custom integration.
+            logo_url (str | None): The URL of the logo for the custom integration. Optional. If not provided, a default logo will be used.
+            node_types (List[NodeType]): A list of NodeType objects representing the node types for the custom integration.
+
+        Returns:
+            str: The integration UID of the created custom integration.
+        """
+
         query = """
             mutation addCustomIntegration(
                 $logoUrl: String!,
@@ -60,6 +72,18 @@ class CustomIntegration:
         node_types: List[NodeType] | None = None,
         active: bool | None = None,
     ) -> None:
+        """
+        Update a custom integration with the specified parameters.
+        Only the parameters that are not None will be updated.
+
+        Args:
+            integration_uid (str): The unique identifier of the integration.
+            name (str, optional): The new name of the integration. Defaults to None.
+            logo_url (str, optional): The new logo URL of the integration. Defaults to None.
+            node_types (List[NodeType], optional): The new list of node types for the integration. Overrides the existing node types. Defaults to None.
+            active (bool, optional): Whether the integration should be active. Defaults to None.
+        """
+
         query = """
             mutation updateCustomIntegration(
                 $integrationUid: String!,
@@ -85,16 +109,7 @@ class CustomIntegration:
             "name": name,
             "logoUrl": logo_url,
             "nodeTypes": (
-                [
-                    {
-                        "nodeType": node_type.node_type,
-                        "iconName": node_type.icon_name,
-                        "color": node_type.color,
-                    }
-                    for node_type in node_types
-                ]
-                if node_types
-                else None
+                [node_type._to_gql_dict() for node_type in node_types] if node_types else None
             ),
             "active": active,
         }
@@ -103,7 +118,14 @@ class CustomIntegration:
 
         return None
 
-    def list(self) -> List[Integration]:
+    def list_all(self) -> List[Integration]:
+        """
+        Retrieves a list of all custom integrations. This includes both active and inactive integrations.
+
+        Returns:
+            List[Integration]: A list of Integration objects representing the custom integrations.
+        """
+
         query = """
             query listCustomIntegrations {
                 listCustomIntegrations {
@@ -142,7 +164,17 @@ class CustomIntegration:
         ]
 
     def get_by_name(self, name: str) -> Integration | None:
-        all_integrations = self.list()
+        """
+        Retrieves active custom integration with the specified name.
+
+        Args:
+            name (str): The name of the integration to retrieve.
+
+        Returns:
+            Integration | None: The integration object if found, None otherwise.
+        """
+
+        all_integrations = self.list_all()
         for integration in all_integrations:
             if integration.name == name and integration.is_active:
                 return integration
@@ -150,7 +182,17 @@ class CustomIntegration:
         return None
 
     def get(self, uid: str) -> Integration | None:
-        all_integrations = self.list()
+        """
+        Retrieves an integration with the specified UID.
+
+        Args:
+            uid (str): The UID of the integration to retrieve.
+
+        Returns:
+            Integration | None: The integration object if found, None otherwise.
+        """
+
+        all_integrations = self.list_all()
         for integration in all_integrations:
             if integration.uid == uid and integration.is_active:
                 return integration
@@ -164,6 +206,18 @@ class CustomIntegration:
         logo_url: str,
         node_types: List[NodeType],
     ) -> Integration:
+        """
+        Upserts an integration by either updating an existing integration with the given name or creating a new integration if it doesn't exist.
+
+        Args:
+            name (str): The name of the integration.
+            logo_url (str): The URL of the integration's logo.
+            node_types (List[NodeType]): A list of node types associated with the integration.
+
+        Returns:
+            Integration: The upserted integration.
+        """
+
         integration = self.get_by_name(name)
         if integration:
             self.update(
@@ -191,6 +245,26 @@ class CustomIntegration:
         snapshot_has_more_nodes: bool,
         snapshot_id: int | None = None,
     ) -> int:
+        """
+        Adds nodes to a snapshot in the custom integration.
+
+        A snapshot is a collection of nodes that are added to the custom integration.
+        The nodes are added in batches, and the snapshot ID is used to keep track of the nodes added to the snapshot.
+        To update the nodes of an integration, a new snapshot is created and the nodes are added to the snapshot.
+
+        This method is useful when adding a large number of nodes to the custom integration.
+        It allows adding nodes in batches and keeps track of the nodes added to the snapshot.
+
+        Args:
+            integration_uid (str): The UID of the custom integration.
+            nodes (List[Node]): The list of nodes to be added to the snapshot.
+            snapshot_has_more_nodes (bool): Indicates whether the snapshot has more nodes. Set False when adding the last batch of nodes.
+            snapshot_id (int, optional): The ID of the snapshot. Defaults to None. If not provided, a new snapshot will be created. If provided, the nodes will be added to the existing snapshot.
+
+        Returns:
+            int: The ID of the snapshot after adding the nodes.
+        """
+
         query = """
             mutation addCustomIntegrationNodes(
                 $chartLikeNodes: [IntegrationNodeChartLike!]!,
@@ -239,6 +313,15 @@ class CustomIntegration:
         integration_uid: str,
         nodes: List[Node],
     ) -> None:
+        """
+        Adds all nodes to a new snapshot in the custom integration.
+
+        To add nodes in a streaming fashion, use the add_nodes_to_snapshot method.
+
+        Args:
+            integration_uid (str): The unique identifier of the integration.
+            nodes (List[Node]): The list of all nodes to be added to the integration.
+        """
         num_nodes_per_request = 10
         num_of_requests = len(nodes) // num_nodes_per_request + 1
 
