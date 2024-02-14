@@ -112,7 +112,7 @@ LineageDependency = (
 )
 
 
-class NodeLineage(ParadimeBaseModel):
+class Lineage(ParadimeBaseModel):
     upstream_dependencies: list[LineageDependency] = []
     downstream_dependencies: list[LineageDependency] = []
 
@@ -199,7 +199,7 @@ class NodeChartLike(ParadimeBaseModel):
     name: str
     node_type: str
     id: str | None = None
-    lineage: NodeLineage
+    lineage: Lineage
     attributes: NodeChartLikeAttributes
 
     def _to_gql_dict(self) -> dict[str, Any]:
@@ -239,7 +239,7 @@ class NodeDashboardLike(ParadimeBaseModel):
     name: str
     node_type: str
     id: str | None = None
-    lineage: NodeLineage
+    lineage: Lineage
     attributes: NodeDashboardLikeAttributes
 
     def _to_gql_dict(self) -> dict[str, Any]:
@@ -296,7 +296,7 @@ class NodeDatasourceLike(ParadimeBaseModel):
     name: str
     node_type: str
     id: str | None = None
-    lineage: NodeLineage
+    lineage: Lineage
     attributes: NodeDatasourceLikeAttributes
 
     def _to_gql_dict(self) -> dict[str, Any]:
