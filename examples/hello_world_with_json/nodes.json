@@ -1,0 +1,32 @@
+[
+    {
+        "name": "My Datasource 1",
+        "node_type": "ParaDatasource",
+        "attributes": {
+            "description": "This is my first datasource"
+        },
+        "lineage": {
+            "upstream_dependencies": [
+                {
+                    "table_name": "order_items"
+                }
+            ]
+        }
+    },
+    {
+        "name": "My Chart 1",
+        "node_type": "ParaChart",
+        "attributes": {
+            "description": "This is my first chart"
+        },
+        "lineage": {
+            "upstream_dependencies": [
+                {
+                    "integration_name": "MyParadimeIntegration",
+                    "node_type": "ParaDatasource",
+                    "node_name": "My Datasource 1"
+                }
+            ]
+        }
+    }
+]

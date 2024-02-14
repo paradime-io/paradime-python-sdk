@@ -1,0 +1,12 @@
+[
+    {
+        "node_type": "ParaDatasource",
+        "icon_name": "database",
+        "color": "ORANGE"
+    },
+    {
+        "node_type": "ParaChart",
+        "icon_name": "pie-chart",
+        "color": "TEAL"
+    }
+]
