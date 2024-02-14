@@ -1,4 +1,3 @@
-from datetime import timedelta
 from typing import Any
 
 import requests
@@ -13,7 +12,7 @@ class APIClient:
         api_key: str,
         api_secret: str,
         api_endpoint: str,
-        timeout: timedelta = timedelta(seconds=60),
+        timeout: int = 60,
     ):
         self.api_key = api_key
         self.api_secret = api_secret
@@ -47,7 +46,7 @@ class APIClient:
             url=self.api_endpoint,
             json={"query": query, "variables": variables},
             headers=self._get_request_headers(),
-            timeout=self.timeout.total_seconds(),
+            timeout=self.timeout,
         )
         self._raise_for_errors(response)
 
