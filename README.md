@@ -16,6 +16,8 @@ pip install paradime-io
 
 ## Usage
 
+Generate your API key, secret and endpoint from Paradime workspace settings.
+
 ```python
 from paradime import Paradime
 
@@ -25,7 +27,7 @@ paradime = Paradime(
     api_secret="API_SECRET",
 )
 
-# ... use the paradime client to interact with the API
+# Use the paradime client to interact with the API
 ```
 
 ## Examples
