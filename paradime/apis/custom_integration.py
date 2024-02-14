@@ -141,21 +141,21 @@ class CustomIntegration:
             for integration in response["listCustomIntegrations"]["integrations"]
         ]
 
-    def get_by_name(self, name: str) -> Integration:
+    def get_by_name(self, name: str) -> Integration | None:
         all_integrations = self.list()
         for integration in all_integrations:
             if integration.name == name and integration.is_active:
                 return integration
 
-        raise ParadimeException(f"Integration with name {name!r} not found")
+        return None
 
-    def get(self, uid: str) -> Integration:
+    def get(self, uid: str) -> Integration | None:
         all_integrations = self.list()
         for integration in all_integrations:
             if integration.uid == uid and integration.is_active:
                 return integration
 
-        raise ParadimeException(f"Integration with uid {uid!r} not found")
+        return None
 
     def upsert(
         self,
@@ -176,6 +176,10 @@ class CustomIntegration:
         else:
             integration_uid = self.create(name=name, logo_url=logo_url, node_types=node_types)
             integration = self.get(integration_uid)
+            if not integration:
+                raise ParadimeException(
+                    f"Failed to find integration with uid {integration_uid!r}. This should not have happened and is likely a bug. Please contact support."
+                )
 
         return integration
 
