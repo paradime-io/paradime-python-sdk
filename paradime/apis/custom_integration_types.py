@@ -170,7 +170,6 @@ class NodeChartLikeAttributesField(ParadimeBaseModel):
 
 
 class NodeChartLikeAttributes(ParadimeBaseModel):
-    name: str
     created_at: int | None = None
     last_modified_at: int | None = None
     url: str | None = None
@@ -179,9 +178,9 @@ class NodeChartLikeAttributes(ParadimeBaseModel):
     tags: list[str] | None = None
     fields: list[NodeChartLikeAttributesField] | None = None
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self, name: str) -> dict[str, Any]:
         return {
-            "name": self.name,
+            "name": name,
             "createdAt": self.created_at or 0,
             "lastModifiedAt": self.last_modified_at or 0,
             "url": self.url or "",
@@ -207,7 +206,7 @@ class NodeChartLike(ParadimeBaseModel):
             "nodeType": self.node_type,
             "stableId": self.stable_id,
             "lineage": self.lineage._to_gql_dict(),
-            "attributes": self.attributes._to_gql_dict(),
+            "attributes": self.attributes._to_gql_dict(self.name),
         }
 
 
@@ -215,7 +214,6 @@ class NodeChartLike(ParadimeBaseModel):
 
 
 class NodeDashboardLikeAttributes(ParadimeBaseModel):
-    name: str
     created_at: int | None = None
     last_modified_at: int | None = None
     url: str | None = None
@@ -223,9 +221,9 @@ class NodeDashboardLikeAttributes(ParadimeBaseModel):
     description: str | None = None
     tags: list[str] | None = None
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self, name: str) -> dict[str, Any]:
         return {
-            "name": self.name,
+            "name": name,
             "createdAt": self.created_at or 0,
             "lastModifiedAt": self.last_modified_at or 0,
             "url": self.url or "",
@@ -248,7 +246,7 @@ class NodeDashboardLike(ParadimeBaseModel):
             "nodeType": self.node_type,
             "stableId": self.stable_id,
             "lineage": self.lineage._to_gql_dict(),
-            "attributes": self.attributes._to_gql_dict(),
+            "attributes": self.attributes._to_gql_dict(self.name),
         }
 
 
@@ -271,7 +269,6 @@ class NodeDatasourceLikeAttributesField(ParadimeBaseModel):
 
 
 class NodeDatasourceLikeAttributes(ParadimeBaseModel):
-    name: str
     created_at: int | None = None
     description: str | None = None
     url: str | None = None
@@ -280,9 +277,9 @@ class NodeDatasourceLikeAttributes(ParadimeBaseModel):
     table_name: str | None = None
     fields: list[NodeDatasourceLikeAttributesField] | None = None
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self, name: str) -> dict[str, Any]:
         return {
-            "name": self.name,
+            "name": name,
             "createdAt": self.created_at or 0,
             "description": self.description or "",
             "url": self.url or "",
@@ -308,7 +305,7 @@ class NodeDatasourceLike(ParadimeBaseModel):
             "nodeType": self.node_type,
             "stableId": self.stable_id,
             "lineage": self.lineage._to_gql_dict(),
-            "attributes": self.attributes._to_gql_dict(),
+            "attributes": self.attributes._to_gql_dict(self.name),
         }
 
 
