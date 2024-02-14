@@ -16,6 +16,10 @@ class ParadimeBaseModel(BaseModel):
 
 
 class NodeColor(StrEnum):
+    """
+    Represents the colors available for the node types.
+    """
+
     LEAF = "LEAF"
     CYAN = "CYAN"
     CORAL = "CORAL"
@@ -27,12 +31,31 @@ class NodeColor(StrEnum):
 
 
 class NodeType(ParadimeBaseModel):
+    """
+    Represents a node type for the integration.
+
+    Attributes:
+        node_type (str): Name of the node type. This can be any string. For example, "Dashboard", "Look", "Worksheet", etc.
+        icon_name (str, optional): The name of the icon associated with the node type. Refer: https://blueprintjs.com/docs/#icons/icons-list for the list of available icons. Default is 'intersection'.
+        color (NodeColor, optional): The color associated with the node type. Available colors are: LEAF, CYAN, CORAL, VIOLET, ORANGE, MANDY, TEAL, GREEN. Default is ORANGE.
+    """
+
     node_type: str
     icon_name: str | None = None
     color: NodeColor | None = None
 
 
 class Integration(ParadimeBaseModel):
+    """
+    Represents a custom integration.
+
+    Attributes:
+        uid (str): The unique identifier of the integration.
+        name (str): The name of the integration.
+        is_active (bool): Indicates whether the integration is active or not.
+        node_types (list[NodeType]): The list of node types associated with the integration.
+    """
+
     uid: str
     name: str
     is_active: bool
@@ -43,6 +66,16 @@ class Integration(ParadimeBaseModel):
 
 
 class LineageDependencyDbtObject(ParadimeBaseModel):
+    """
+    Represents a dbt object in the lineage. Use this to connect the integration nodes with dbt objects.
+    At least the table_name should be provided. All other fields are optional, but it is recommended to provide them for better lineage tracking.
+
+    Attributes:
+        database_name (str, optional): The name of the database.
+        schema_name (str, optional): The name of the schema.
+        table_name (str): The name of the table.
+    """
+
     database_name: str | None
     schema_name: str | None
     table_name: str
@@ -56,6 +89,11 @@ class LineageDependencyDbtObject(ParadimeBaseModel):
 
 
 class NativeIntegrationNodeType(Enum):
+    """
+    Represents the types of integration nodes that are native to Paradime.
+    Use these to connect the custom integration nodes with native integration nodes.
+    """
+
     TABLEAU_DATASOURCE = "TableauDatasource"
     TABLEAU_WORKSHEET = "TableauWorksheet"
     TABLEAU_DASHBOARD = "TableauDashboard"
@@ -76,6 +114,17 @@ class NativeIntegrationNodeType(Enum):
 
 
 class LineageDependencyNativeIntegration(ParadimeBaseModel):
+    """
+    Represents a native integration in the lineage dependency. Use this to connect the integration nodes with Paradime native integration nodes.
+    node_type should be one of the values from NativeIntegrationNodeType.
+    At least one of node_id or node_name should be provided. Both can be provided as well.
+
+    Attributes:
+        node_type (NativeIntegrationNodeType): The type of the native integration node.
+        node_id (str, optional): The unique identifier of the native integration node. Optional, but required if node_name is not provided.
+        node_name (str, optional): The name of the native integration node. Optional, but required if node_id is not provided.
+    """
+
     node_type: NativeIntegrationNodeType
     node_id: str | None
     node_name: str | None
@@ -89,17 +138,30 @@ class LineageDependencyNativeIntegration(ParadimeBaseModel):
 
 
 class LineageDependencyCustomIntegration(ParadimeBaseModel):
+    """
+    Represents a custom integration for lineage dependency. Use this to connect the integration nodes with other custom integration nodes.
+    At least one of integration_uid or integration_name should be provided. Both can be provided as well.
+    At least one of node_id or node_name should be provided. Both can be provided as well.
+
+    Attributes:
+        node_type (str): The type of the custom integration node.
+        integration_uid (str, optional): The unique identifier of the custom integration. Optional, but required if integration_name is not provided.
+        integration_name (str, optional): The name of the custom integration. Optional, but required if integration_uid is not provided.
+        node_id (str, optional): The unique identifier of the custom integration node. Optional, but required if node_name is not provided.
+        node_name (str, optional): The name of the custom integration node. Optional, but required if node_id is not provided.
+    """
+
+    node_type: str
     integration_uid: str | None
     integration_name: str | None
-    node_type: str
     node_id: str | None
     node_name: str | None
 
     def _to_gql_dict(self) -> dict[str, Any]:
         return {
+            "nodeType": self.node_type or "",
             "integrationUid": self.integration_uid or "",
             "integrationName": self.integration_name or "",
-            "nodeType": self.node_type or "",
             "nodeStableId": self.node_id or "",
             "nodeName": self.node_name or "",
         }
@@ -113,6 +175,14 @@ LineageDependency = (
 
 
 class Lineage(ParadimeBaseModel):
+    """
+    Represents the lineage of a node. Use this to connect the integration nodes with other nodes.
+
+    Attributes:
+        upstream_dependencies (list[LineageDependency], optional): The list of upstream dependencies. Defaults to [].
+        downstream_dependencies (list[LineageDependency], optional): The list of downstream dependencies. Defaults to [].
+    """
+
     upstream_dependencies: list[LineageDependency] = []
     downstream_dependencies: list[LineageDependency] = []
 
@@ -159,6 +229,16 @@ class Lineage(ParadimeBaseModel):
 
 
 class NodeChartLikeAttributesField(ParadimeBaseModel):
+    """
+    Represents a field associated with a chart-like node.
+
+    Attributes:
+        name (str, optional): The name of the field.
+        description (str, optional): The description of the field.
+        type (str, optional): The type of the field.
+        data_type (str, optional): The data type of the field.
+    """
+
     name: str | None
     description: str | None
     type: str | None
@@ -174,6 +254,19 @@ class NodeChartLikeAttributesField(ParadimeBaseModel):
 
 
 class NodeChartLikeAttributes(ParadimeBaseModel):
+    """
+    Represents the attributes of a chart-like node.
+
+    Attributes:
+        created_at (int, optional): The epoch timestamp when the node was created.
+        last_modified_at (int, optional): The epoch timestamp when the node was last modified.
+        url (str, optional): The URL of the node.
+        owner (str, optional): The owner of the node.
+        description (str, optional): The description of the node.
+        tags (list[str], optional): The tags associated with the node.
+        fields (list[NodeChartLikeAttributesField], optional): The fields associated with the node.
+    """
+
     created_at: int | None = None
     last_modified_at: int | None = None
     url: str | None = None
@@ -196,6 +289,17 @@ class NodeChartLikeAttributes(ParadimeBaseModel):
 
 
 class NodeChartLike(ParadimeBaseModel):
+    """
+    Represents a node that is similar to a chart. Use this to create a chart-like node in the integration.
+
+    Attributes:
+        name (str): The name of the node.
+        node_type (str): The type of the node.
+        id (str, optional): The ID of the node. Optional. If not provided, a unique ID will be generated.
+        lineage (Lineage): The lineage of the node.
+        attributes (NodeChartLikeAttributes): The attributes of the node.
+    """
+
     name: str
     node_type: str
     id: str | None = None
@@ -216,6 +320,18 @@ class NodeChartLike(ParadimeBaseModel):
 
 
 class NodeDashboardLikeAttributes(ParadimeBaseModel):
+    """
+    Represents the attributes of a dashboard-like node.
+
+    Attributes:
+        created_at (int, optional): The epoch timestamp when the node was created.
+        last_modified_at (int, optional): The epoch timestamp when the node was last modified.
+        url (str, optional): The URL of the node.
+        owner (str, optional): The owner of the node.
+        description (str, optional): The description of the node.
+        tags (list[str], optional): The tags associated with the node.
+    """
+
     created_at: int | None = None
     last_modified_at: int | None = None
     url: str | None = None
@@ -236,6 +352,17 @@ class NodeDashboardLikeAttributes(ParadimeBaseModel):
 
 
 class NodeDashboardLike(ParadimeBaseModel):
+    """
+    Represents a node that is similar to a dashboard. Use this to create a dashboard-like node in the integration.
+
+    Attributes:
+        name (str): The name of the node.
+        node_type (str): The type of the node.
+        id (str, optional): The ID of the node. Optional. If not provided, a unique ID will be generated.
+        lineage (Lineage): The lineage of the node.
+        attributes (NodeDashboardLikeAttributes): The attributes of the node.
+    """
+
     name: str
     node_type: str
     id: str | None = None
@@ -256,6 +383,16 @@ class NodeDashboardLike(ParadimeBaseModel):
 
 
 class NodeDatasourceLikeAttributesField(ParadimeBaseModel):
+    """
+    Represents a field associated with a datasource-like node.
+
+    Attributes:
+        name (str, optional): The name of the field.
+        description (str, optional): The description of the field.
+        type (str, optional): The type of the field.
+        data_type (str, optional): The data type of the field.
+    """
+
     name: str | None
     description: str | None
     type: str | None
@@ -271,6 +408,19 @@ class NodeDatasourceLikeAttributesField(ParadimeBaseModel):
 
 
 class NodeDatasourceLikeAttributes(ParadimeBaseModel):
+    """
+    Represents the attributes of a datasource-like node.
+
+    Attributes:
+        created_at (int, optional): The epoch timestamp when the node was created.
+        description (str, optional): The description of the node.
+        url (str, optional): The URL of the node.
+        database_name (str, optional): The name of the database.
+        schema_name (str, optional): The name of the schema.
+        table_name (str, optional): The name of the table.
+        fields (list[NodeDatasourceLikeAttributesField], optional): The fields associated with the node.
+    """
+
     created_at: int | None = None
     description: str | None = None
     url: str | None = None
@@ -293,6 +443,17 @@ class NodeDatasourceLikeAttributes(ParadimeBaseModel):
 
 
 class NodeDatasourceLike(ParadimeBaseModel):
+    """
+    Represents a node that is similar to a datasource. Use this to create a datasource-like node in the integration.
+
+    Attributes:
+        name (str): The name of the node.
+        node_type (str): The type of the node.
+        id (str, optional): The ID of the node. Optional. If not provided, a unique ID will be generated.
+        lineage (Lineage): The lineage of the node.
+        attributes (NodeDatasourceLikeAttributes): The attributes of the node.
+    """
+
     name: str
     node_type: str
     id: str | None = None
