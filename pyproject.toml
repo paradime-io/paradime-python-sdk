@@ -1,9 +1,12 @@
 [tool.poetry]
-name = "paradime"
+name = "paradime-io"
 version = "0.1.0"
 description = "Paradime - Python SDK"
 authors = ["Bhuvan Singla <bhuvan@paradime.io>"]
 readme = "README.md"
+packages = [
+	{ include = "paradime", from = "." },
+]
 
 [tool.poetry.dependencies]
 python = ">=3.8"
