@@ -4,6 +4,7 @@ from paradime.apis.custom_integration_types import (
     LineageDependencyCustomIntegration,
     LineageDependencyDbtObject,
     NodeChartLike,
+    NodeChartLikeAttributes,
     NodeColor,
     NodeDatasourceLike,
     NodeDatasourceLikeAttributes,
@@ -59,7 +60,7 @@ paradime.custom_integration.add_nodes(
         NodeChartLike(
             name="My Chart 1",
             node_type="ParaChart",
-            attributes=NodeDatasourceLikeAttributes(
+            attributes=NodeChartLikeAttributes(
                 description="This is my first chart",
                 # Add more attributes here
             ),
