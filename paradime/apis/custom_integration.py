@@ -31,7 +31,7 @@ class CustomIntegration:
 
         query = """
             mutation addCustomIntegration(
-                $logoUrl: String!,
+                $logoUrl: String,
                 $name: String!,
                 $nodeTypes: [IntegrationNodeTypeInfo!]!
             ) {
