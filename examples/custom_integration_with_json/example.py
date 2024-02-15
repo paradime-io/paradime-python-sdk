@@ -1,4 +1,5 @@
 # First party modules
+import json
 from pathlib import Path
 from typing import List
 
@@ -11,8 +12,8 @@ from paradime.apis.custom_integration_types import Node, NodeType
 paradime = Paradime(api_endpoint="API_ENDPOINT", api_key="API_KEY", api_secret="API_SECRET")
 
 # Load node types and nodes from JSON files
-node_types = parse_obj_as(List[NodeType], Path("node_types.json").read_text())
-nodes = parse_obj_as(List[Node], Path("nodes.json").read_text())
+node_types = parse_obj_as(List[NodeType], json.loads(Path("node_types.json").read_text()))
+nodes = parse_obj_as(List[Node], json.loads(Path("nodes.json").read_text()))
 
 # Create a custom integration or update it if it already exists
 my_integration = paradime.custom_integration.upsert(
