@@ -26,7 +26,25 @@
                     "node_type": "ParaDatasource",
                     "node_name": "My Datasource 1"
                 }
+            ],
+            "downstream_dependencies": [
+                {
+                    "integration_name": "MyParadimeIntegration",
+                    "node_type": "ParaDashboard",
+                    "node_name": "My Dashboard 1"
+                }
             ]
+        }
+    },
+    {
+        "name": "My Dashboard 1",
+        "node_type": "ParaDashboard",
+        "attributes": {
+            "description": "This is my first dashboard"
+        },
+        "lineage": {
+            "upstream_dependencies": [],
+            "downstream_dependencies": []
         }
     }
 ]

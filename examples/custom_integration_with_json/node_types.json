@@ -8,5 +8,10 @@
         "node_type": "ParaChart",
         "icon_name": "pie-chart",
         "color": "TEAL"
+    },
+    {
+        "node_type": "ParaDashboard",
+        "icon_name": "dashboard",
+        "color": "CORAL"
     }
 ]

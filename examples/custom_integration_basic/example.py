@@ -6,6 +6,8 @@ from paradime.apis.custom_integration_types import (
     NodeChartLike,
     NodeChartLikeAttributes,
     NodeColor,
+    NodeDashboardLike,
+    NodeDashboardLikeAttributes,
     NodeDatasourceLike,
     NodeDatasourceLikeAttributes,
     NodeType,
@@ -29,16 +31,21 @@ my_integration = paradime.custom_integration.upsert(
             icon_name="pie-chart",
             color=NodeColor.TEAL,
         ),
+        NodeType(
+            node_type="ParaDashboard",
+            icon_name="dashboard",
+            color=NodeColor.CORAL,
+        ),
     ],
 )
 
 # Add nodes to the custom integration.
 #
-# This example adds a datasource and a chart to the custom integration.
-# The chart has an upstream dependency on the datasource.
+# This example adds a datasource, a chart, and a dashboard to the custom integration.
+# The chart has an upstream dependency on the datasource and a downstream dependency on the dashboard.
 # The datasource has an upstream dependency on a dbt model named "order_items".
 #
-# So effectively,'order_items' -> 'My Datasource 1' -> 'My Chart 1'
+# So effectively,'order_items' -> 'My Datasource 1' -> 'My Chart 1' -> 'My Dashboard 1'
 paradime.custom_integration.add_nodes(
     integration_uid=my_integration.uid,
     nodes=[
@@ -72,6 +79,25 @@ paradime.custom_integration.add_nodes(
                         node_name="My Datasource 1",
                     ),
                 ],
+                downstream_dependencies=[
+                    LineageDependencyCustomIntegration(
+                        integration_name=my_integration.name,
+                        node_type="ParaDashboard",
+                        node_name="My Dashboard 1",
+                    ),
+                ],
+            ),
+        ),
+        NodeDashboardLike(
+            name="My Dashboard 1",
+            node_type="ParaDashboard",
+            attributes=NodeDashboardLikeAttributes(
+                description="This is my first dashboard",
+                # Add more attributes here
+            ),
+            lineage=Lineage(
+                upstream_dependencies=[],
+                downstream_dependencies=[],
             ),
         ),
     ],
