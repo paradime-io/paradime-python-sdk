@@ -29,6 +29,21 @@ class APIClient:
         self.api_endpoint = api_endpoint
         self.timeout = timeout
 
+    def _get_sdk_version(self) -> str:
+        """
+        Get the version of the Paradime SDK.
+
+        Returns:
+            str: The version of the Paradime SDK.
+        """
+
+        try:
+            import importlib.metadata
+
+            return importlib.metadata.version("paradime")
+        except:
+            return "N/A"
+
     def _get_request_headers(self) -> dict[str, str]:
         """
         Get the request headers for Paradime API requests.
@@ -41,6 +56,7 @@ class APIClient:
             "Content-Type": "application/json",
             "X-API-KEY": self.api_key,
             "X-API-SECRET": self.api_secret,
+            "X-PYTHON-SDK-VERSION": self._get_sdk_version(),
         }
 
     def _raise_for_gql_response_body_errors(self, response: requests.Response) -> None:
