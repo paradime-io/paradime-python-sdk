@@ -40,7 +40,7 @@ class APIClient:
         try:
             import importlib.metadata
 
-            return importlib.metadata.version("paradime")
+            return importlib.metadata.version("paradime-io")
         except:
             return "N/A"
 
