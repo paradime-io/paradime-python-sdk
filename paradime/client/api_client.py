@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 
 import requests
 
@@ -44,7 +44,7 @@ class APIClient:
         except:
             return "N/A"
 
-    def _get_request_headers(self) -> dict[str, str]:
+    def _get_request_headers(self) -> Dict[str, str]:
         """
         Get the request headers for Paradime API requests.
 
@@ -104,7 +104,7 @@ class APIClient:
         self._raise_for_response_status_errors(response)
         self._raise_for_gql_response_body_errors(response)
 
-    def _call_gql(self, query: str, variables: dict[str, Any] = {}) -> dict[str, Any]:
+    def _call_gql(self, query: str, variables: Dict[str, Any] = {}) -> Dict[str, Any]:
         """
         Make a GraphQL API request.
 

@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Optional
 
-from paradime.apis.custom_integration_types import (
+from paradime.apis.custom_integration.types import (
     Integration,
     Node,
     NodeChartLike,
@@ -12,17 +12,17 @@ from paradime.client.api_client import APIClient
 from paradime.client.api_exception import ParadimeException
 
 
-class CustomIntegration:
+class CustomIntegrationClient:
     def __init__(self, client: APIClient):
         self.client = client
 
-    def create(self, *, name: str, logo_url: str | None, node_types: List[NodeType]) -> str:
+    def create(self, *, name: str, logo_url: Optional[str], node_types: List[NodeType]) -> str:
         """
         Creates a custom integration with the specified name, logo URL, and node types.
 
         Args:
             name (str): The name of the custom integration.
-            logo_url (str | None): The URL of the logo for the custom integration. Optional. If not provided, a default logo will be used.
+            logo_url (Optional[str]): The URL of the logo for the custom integration. Optional. If not provided, a default logo will be used.
             node_types (List[NodeType]): A list of NodeType objects representing the node types for the custom integration.
 
         Returns:
@@ -67,10 +67,10 @@ class CustomIntegration:
         self,
         *,
         integration_uid: str,
-        name: str | None = None,
-        logo_url: str | None = None,
-        node_types: List[NodeType] | None = None,
-        active: bool | None = None,
+        name: Optional[str] = None,
+        logo_url: Optional[str] = None,
+        node_types: Optional[List[NodeType]] = None,
+        active: Optional[bool] = None,
     ) -> None:
         """
         Update a custom integration with the specified parameters.
@@ -174,7 +174,7 @@ class CustomIntegration:
         all_integrations = self.list_all()
         return [integration for integration in all_integrations if integration.is_active]
 
-    def get_by_name(self, name: str) -> Integration | None:
+    def get_by_name(self, name: str) -> Optional[Integration]:
         """
         Retrieves active custom integration with the specified name.
 
@@ -192,7 +192,7 @@ class CustomIntegration:
 
         return None
 
-    def get(self, uid: str) -> Integration | None:
+    def get(self, uid: str) -> Optional[Integration]:
         """
         Retrieves an integration with the specified UID.
 
@@ -214,7 +214,7 @@ class CustomIntegration:
         self,
         *,
         name: str,
-        logo_url: str | None = None,
+        logo_url: Optional[str] = None,
         node_types: List[NodeType],
     ) -> Integration:
         """
@@ -254,7 +254,7 @@ class CustomIntegration:
         integration_uid: str,
         nodes: List[Node],
         snapshot_has_more_nodes: bool,
-        snapshot_id: int | None = None,
+        snapshot_id: Optional[int] = None,
     ) -> int:
         """
         Adds nodes to a snapshot in the custom integration.
