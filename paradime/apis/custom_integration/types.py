@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Extra
 
@@ -41,10 +41,10 @@ class NodeType(ParadimeBaseModel):
     """
 
     node_type: str
-    icon_name: str | None = None
-    color: NodeColor | None = None
+    icon_name: Optional[str] = None
+    color: Optional[NodeColor] = None
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {"nodeType": self.node_type, "iconName": self.icon_name, "color": self.color}
 
 
@@ -62,7 +62,7 @@ class Integration(ParadimeBaseModel):
     uid: str
     name: str
     is_active: bool
-    node_types: list[NodeType]
+    node_types: List[NodeType]
 
 
 # -------- Lineage --------
@@ -79,11 +79,11 @@ class LineageDependencyDbtObject(ParadimeBaseModel):
         table_name (str): The name of the table.
     """
 
-    database_name: str | None
-    schema_name: str | None
+    database_name: Optional[str]
+    schema_name: Optional[str]
     table_name: str
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {
             "database": self.database_name or "",
             "schema": self.schema_name or "",
@@ -129,10 +129,10 @@ class LineageDependencyNativeIntegration(ParadimeBaseModel):
     """
 
     node_type: NativeIntegrationNodeType
-    node_id: str | None
-    node_name: str | None
+    node_id: Optional[str]
+    node_name: Optional[str]
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {
             "nodeType": self.node_type.value,
             "nodeId": self.node_id or "",
@@ -155,12 +155,12 @@ class LineageDependencyCustomIntegration(ParadimeBaseModel):
     """
 
     node_type: str
-    integration_uid: str | None
-    integration_name: str | None
-    node_id: str | None
-    node_name: str | None
+    integration_uid: Optional[str]
+    integration_name: Optional[str]
+    node_id: Optional[str]
+    node_name: Optional[str]
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {
             "nodeType": self.node_type or "",
             "integrationUid": self.integration_uid or "",
@@ -170,11 +170,11 @@ class LineageDependencyCustomIntegration(ParadimeBaseModel):
         }
 
 
-LineageDependency = (
-    LineageDependencyDbtObject
-    | LineageDependencyNativeIntegration
-    | LineageDependencyCustomIntegration
-)
+LineageDependency = Union[
+    LineageDependencyDbtObject,
+    LineageDependencyNativeIntegration,
+    LineageDependencyCustomIntegration,
+]
 
 
 class Lineage(ParadimeBaseModel):
@@ -186,10 +186,10 @@ class Lineage(ParadimeBaseModel):
         downstream_dependencies (list[LineageDependency], optional): The list of downstream dependencies. Defaults to [].
     """
 
-    upstream_dependencies: list[LineageDependency] = []
-    downstream_dependencies: list[LineageDependency] = []
+    upstream_dependencies: List[LineageDependency] = []
+    downstream_dependencies: List[LineageDependency] = []
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {
             "upstreamReferences": {
                 "referencesToSqlTables": [
@@ -242,12 +242,12 @@ class NodeChartLikeAttributesField(ParadimeBaseModel):
         data_type (str, optional): The data type of the field.
     """
 
-    name: str | None
-    description: str | None
-    type: str | None
-    data_type: str | None
+    name: Optional[str]
+    description: Optional[str]
+    type: Optional[str]
+    data_type: Optional[str]
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name or "",
             "description": self.description or "",
@@ -270,15 +270,15 @@ class NodeChartLikeAttributes(ParadimeBaseModel):
         fields (list[NodeChartLikeAttributesField], optional): The fields associated with the node.
     """
 
-    created_at: int | None = None
-    last_modified_at: int | None = None
-    url: str | None = None
-    owner: str | None = None
-    description: str | None = None
-    tags: list[str] | None = None
-    fields: list[NodeChartLikeAttributesField] | None = None
+    created_at: Optional[int] = None
+    last_modified_at: Optional[int] = None
+    url: Optional[str] = None
+    owner: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+    fields: Optional[List[NodeChartLikeAttributesField]] = None
 
-    def _to_gql_dict(self, name: str) -> dict[str, Any]:
+    def _to_gql_dict(self, name: str) -> Dict[str, Any]:
         return {
             "name": name,
             "createdAt": self.created_at or 0,
@@ -305,11 +305,11 @@ class NodeChartLike(ParadimeBaseModel):
 
     name: str
     node_type: str
-    id: str | None = None
+    id: Optional[str] = None
     lineage: Lineage
     attributes: NodeChartLikeAttributes
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "nodeType": self.node_type,
@@ -335,14 +335,14 @@ class NodeDashboardLikeAttributes(ParadimeBaseModel):
         tags (list[str], optional): The tags associated with the node.
     """
 
-    created_at: int | None = None
-    last_modified_at: int | None = None
-    url: str | None = None
-    owner: str | None = None
-    description: str | None = None
-    tags: list[str] | None = None
+    created_at: Optional[int] = None
+    last_modified_at: Optional[int] = None
+    url: Optional[str] = None
+    owner: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
 
-    def _to_gql_dict(self, name: str) -> dict[str, Any]:
+    def _to_gql_dict(self, name: str) -> Dict[str, Any]:
         return {
             "name": name,
             "createdAt": self.created_at or 0,
@@ -368,11 +368,11 @@ class NodeDashboardLike(ParadimeBaseModel):
 
     name: str
     node_type: str
-    id: str | None = None
+    id: Optional[str] = None
     lineage: Lineage
     attributes: NodeDashboardLikeAttributes
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "nodeType": self.node_type,
@@ -396,12 +396,12 @@ class NodeDatasourceLikeAttributesField(ParadimeBaseModel):
         data_type (str, optional): The data type of the field.
     """
 
-    name: str | None
-    description: str | None
-    type: str | None
-    data_type: str | None
+    name: Optional[str]
+    description: Optional[str]
+    type: Optional[str]
+    data_type: Optional[str]
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name or "",
             "description": self.description or "",
@@ -424,15 +424,15 @@ class NodeDatasourceLikeAttributes(ParadimeBaseModel):
         fields (list[NodeDatasourceLikeAttributesField], optional): The fields associated with the node.
     """
 
-    created_at: int | None = None
-    description: str | None = None
-    url: str | None = None
-    database_name: str | None = None
-    schema_name: str | None = None
-    table_name: str | None = None
-    fields: list[NodeDatasourceLikeAttributesField] | None = None
+    created_at: Optional[int] = None
+    description: Optional[str] = None
+    url: Optional[str] = None
+    database_name: Optional[str] = None
+    schema_name: Optional[str] = None
+    table_name: Optional[str] = None
+    fields: Optional[List[NodeDatasourceLikeAttributesField]] = None
 
-    def _to_gql_dict(self, name: str) -> dict[str, Any]:
+    def _to_gql_dict(self, name: str) -> Dict[str, Any]:
         return {
             "name": name,
             "createdAt": self.created_at or 0,
@@ -459,11 +459,11 @@ class NodeDatasourceLike(ParadimeBaseModel):
 
     name: str
     node_type: str
-    id: str | None = None
+    id: Optional[str] = None
     lineage: Lineage
     attributes: NodeDatasourceLikeAttributes
 
-    def _to_gql_dict(self) -> dict[str, Any]:
+    def _to_gql_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "nodeType": self.node_type,

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -11,9 +12,9 @@ class AuditLog(BaseModel):
     workspace_name: str
     actor_type: str
     actor_user_id: int
-    actor_email: str | None
+    actor_email: Optional[str]
     event_source_id: int
     event_source: str
     event_id: int
     event_type: str
-    metadata_json: str | None
+    metadata_json: Optional[str]
