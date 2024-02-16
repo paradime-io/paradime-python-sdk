@@ -6,7 +6,7 @@ from typing import List
 from pydantic import parse_obj_as
 
 from paradime import Paradime
-from paradime.apis.custom_integration_types import Node, NodeType
+from paradime.apis.custom_integration.types import Node, NodeType
 
 # Create a Paradime client with your API credentials
 paradime = Paradime(api_endpoint="API_ENDPOINT", api_key="API_KEY", api_secret="API_SECRET")

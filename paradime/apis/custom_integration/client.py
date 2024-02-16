@@ -1,6 +1,6 @@
 from typing import List
 
-from paradime.apis.custom_integration_types import (
+from paradime.apis.custom_integration.types import (
     Integration,
     Node,
     NodeChartLike,
@@ -12,7 +12,7 @@ from paradime.client.api_client import APIClient
 from paradime.client.api_exception import ParadimeException
 
 
-class CustomIntegration:
+class CustomIntegrationClient:
     def __init__(self, client: APIClient):
         self.client = client
 

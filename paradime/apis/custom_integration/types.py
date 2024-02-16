@@ -1,9 +1,9 @@
-from enum import Enum, StrEnum
+from enum import Enum
 from typing import Any, Union
 
 from pydantic import BaseModel, Extra
 
-from paradime.apis.custom_integration_utils import generate_uid
+from paradime.apis.custom_integration.utils import generate_uid
 
 
 class ParadimeBaseModel(BaseModel):
@@ -15,7 +15,7 @@ class ParadimeBaseModel(BaseModel):
         extra = Extra.forbid
 
 
-class NodeColor(StrEnum):
+class NodeColor(str, Enum):
     """
     Represents the colors available for the node types.
     """

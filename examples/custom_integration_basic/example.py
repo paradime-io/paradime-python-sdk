@@ -1,5 +1,5 @@
 from paradime import Paradime
-from paradime.apis.custom_integration_types import (
+from paradime.apis.custom_integration.types import (
     Lineage,
     LineageDependencyCustomIntegration,
     LineageDependencyDbtObject,
