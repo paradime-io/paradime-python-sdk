@@ -4,7 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
-class BoltRunState(Enum):
+class BoltRunState(str, Enum):
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
     ERROR = "ERROR"
