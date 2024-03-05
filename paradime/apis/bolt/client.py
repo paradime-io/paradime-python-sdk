@@ -4,6 +4,7 @@ from paradime.apis.bolt.types import (
     BoltCommand,
     BoltCommandArtifact,
     BoltDeferredSchedule,
+    BoltRunState,
     BoltSchedule,
     BoltScheduleInfo,
     BoltSchedules,
@@ -192,7 +193,7 @@ class BoltClient:
             latest_run_id=response_json["latestRunId"],
         )
 
-    def get_run_status(self, run_id: int) -> str:
+    def get_run_status(self, run_id: int) -> Optional[BoltRunState]:
         """
         Retrieves the status of a run based on the provided run ID.
 
@@ -215,7 +216,7 @@ class BoltClient:
             "boltRunStatus"
         ]
 
-        return response_json["state"]
+        return BoltRunState.from_str(response_json["state"])
 
     def list_run_commands(self, run_id: int) -> List[BoltCommand]:
         """

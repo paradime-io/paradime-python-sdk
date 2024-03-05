@@ -4,6 +4,22 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
+class BoltRunState(Enum):
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    ERROR = "ERROR"
+    FAILED = "FAILED"
+    CANCELED = "CANCELED"
+    SKIPPED = "SKIPPED"
+
+    @classmethod
+    def from_str(cls, value: str) -> Optional["BoltRunState"]:
+        try:
+            return BoltRunState(value)
+        except ValueError:
+            return None
+
+
 class BoltDeferredSchedule(BaseModel):
     enabled: bool
     deferred_schedule_name: Optional[str]
