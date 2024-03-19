@@ -80,7 +80,7 @@ class Command:
     as_list: List[str]
 
 
-def is_valid_schedule_at_path(file_path: Path) -> str | None:
+def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
     try:
         schedules = _get_schedules(file_path)
     except Exception as e:
@@ -114,7 +114,7 @@ def is_valid_schedule_at_path(file_path: Path) -> str | None:
     return None
 
 
-def verify_single_schedule(schedule: ParadimeSchedule) -> str | None:
+def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[str]:
     schedule_name = schedule.name
 
     # check there are commands

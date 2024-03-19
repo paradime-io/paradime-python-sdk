@@ -23,7 +23,9 @@ def get_cli_client_or_exit() -> Paradime:
 def get_cli_client() -> Paradime:
     for env_var in ["API_ENDPOINT", "API_KEY", "API_SECRET"]:
         if os.getenv(env_var) is None:
-            raise ValueError(f"{env_var} environment variable is not set! To fix this either: \n 1. Export the environment variable (export {env_var}=...) or, \n 2. Use the `paradime login` command to set the API credentials locally.")
+            raise ValueError(
+                f"{env_var} environment variable is not set! To fix this either: \n 1. Export the environment variable (export {env_var}=...) or, \n 2. Use the `paradime login` command to set the API credentials locally."
+            )
 
     return Paradime(
         api_endpoint=os.getenv("API_ENDPOINT", ""),

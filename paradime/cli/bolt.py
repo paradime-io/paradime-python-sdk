@@ -1,19 +1,19 @@
 import sys
 import time
 from pathlib import Path
-from typing import Final
+from typing import Final, List
 
 import click
 
-from paradime.apis.bolt.schedule import (
+from paradime.apis.bolt.types import BoltRunState
+from paradime.client.api_exception import ParadimeAPIException
+from paradime.client.paradime_cli_client import get_cli_client, get_cli_client_or_exit
+from paradime.core.bolt.schedule import (
     SCHEDULE_FILE_NAME,
     is_allowed_command,
     is_valid_schedule_at_path,
     parse_command,
 )
-from paradime.apis.bolt.types import BoltRunState
-from paradime.client.api_exception import ParadimeAPIException
-from paradime.client.paradime_cli_client import get_cli_client, get_cli_client_or_exit
 
 WAIT_SLEEP: Final = 10
 
@@ -31,7 +31,7 @@ WAIT_SLEEP: Final = 10
 @click.argument("schedule_name")
 def run(
     branch: str,
-    command: list[str],
+    command: List[str],
     wait: bool,
     json: bool,
     schedule_name: str,
@@ -43,7 +43,11 @@ def run(
     if command:
         for _command in command:
             if not is_allowed_command(parse_command(_command)):
-                click.echo(f"Command {_command!r} is not allowed.")
+                click.echo(
+                    f"Command {_command!r} is not allowed."
+                    if not json
+                    else {"error": f"Command {_command!r} is not allowed."}
+                )
                 sys.exit(1)
 
     # trigger run
@@ -55,7 +59,9 @@ def run(
             commands=list(command) if command else None,
         )
     except ParadimeAPIException as e:
-        click.echo(f"Failed to trigger run: {e}")
+        click.echo(
+            f"Failed to trigger run: {e}" if not json else {"error": f"Failed to trigger run: {e}"}
+        )
         sys.exit(1)
 
     click.echo(
@@ -71,7 +77,11 @@ def run(
         while True:
             status = client.bolt.get_run_status(run_id)
             if not status:
-                click.echo("Unable to fetch status from bolt.")
+                click.echo(
+                    "Unable to fetch status from bolt."
+                    if not json
+                    else {"error": "Unable to fetch status from bolt."}
+                )
                 sys.exit(1)
 
             click.echo({"status": status.value} if json else status)
@@ -98,3 +108,16 @@ def verify(path: str) -> None:
     if error_string:
         click.echo(error_string)
         sys.exit(1)
+
+
+@click.group()
+def bolt() -> None:
+    """
+    Work with Paradime Bolt from the CLI.
+    """
+    pass
+
+
+# bolt
+bolt.add_command(run)
+bolt.add_command(verify)

@@ -9,7 +9,7 @@ packages = [
 ]
 
 [tool.poetry.scripts]
-paradime = 'paradime.cli:cli'
+paradime = 'paradime.cli.cli:cli'
 
 [tool.poetry.dependencies]
 python = ">=3.8"
