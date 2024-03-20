@@ -43,6 +43,7 @@ class APIClient:
             "X-API-KEY": self.api_key,
             "X-API-SECRET": self.api_secret,
             "X-PYTHON-SDK-VERSION": get_sdk_version(),
+            "X-AGENT": self.__class__.__name__,
         }
 
     def _raise_for_gql_response_body_errors(self, response: requests.Response) -> None:

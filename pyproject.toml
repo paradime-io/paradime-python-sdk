@@ -16,16 +16,18 @@ python = ">=3.8"
 pydantic = "1.10.14"
 requests = "^2.31.0"
 click = "^8.1.7"
-croniter = "^2.0.2"
+croniter = "^2.0.3"
 pyyaml = "^6.0.1"
 python-dotenv = "^1.0.1"
+tabulate = "^0.9.0"
 
 
 [tool.poetry.group.dev.dependencies]
-types-requests = "^2.31.0.20240125"
-mypy = "^1.8.0"
-black = "^24.2.0"
+types-requests = "^2.31.0.20240311"
+mypy = "^1.9.0"
+black = "^24.3.0"
 isort = "^5.13.2"
+ruff = "^0.3.3"
 
 [build-system]
 requires = ["poetry-core"]
