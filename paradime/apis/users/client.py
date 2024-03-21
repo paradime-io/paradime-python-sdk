@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List
 
 from paradime.apis.users.types import ActiveUser, InvitedUser, UserAccountType
 from paradime.client.api_client import APIClient
