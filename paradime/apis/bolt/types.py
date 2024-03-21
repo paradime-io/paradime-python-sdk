@@ -29,7 +29,7 @@ class BoltDeferredSchedule(BaseModel):
 class BoltSchedule(BaseModel):
     name: str
     schedule: str
-    owner: str
+    owner: Optional[str]
     last_run_at: Optional[str]
     last_run_state: Optional[str]
     next_run_at: Optional[str]
@@ -57,7 +57,7 @@ class BoltScheduleInfo(BaseModel):
     schedule: str
     uuid: str
     source: str
-    owner: str
+    owner: Optional[str]
     latest_run_id: Optional[int]
 
 
