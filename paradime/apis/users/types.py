@@ -15,7 +15,7 @@ class UserAccountType(str, Enum):
     SANDBOX_USER = "SANDBOX_USER"
 
 
-class InviteStatus(Enum):
+class InviteStatus(str, Enum):
     SENT = "SENT"
     EXPIRED = "EXPIRED"
 
