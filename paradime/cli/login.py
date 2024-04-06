@@ -1,5 +1,6 @@
 import click
 
+from paradime.cli.version import version
 from paradime.client.paradime_cli_client import get_credentials_path
 
 
@@ -8,6 +9,7 @@ def login() -> None:
     """
     Set the API credentials for the Paradime CLI.
     """
+    version()
     credentials_path = get_credentials_path()
     if credentials_path.exists():
         click.confirm(
@@ -15,7 +17,7 @@ def login() -> None:
             abort=True,
         )
 
-    click.echo("Generate new credentials here: https://app.paradime.io/account-settings/workspace")
+    click.echo("Generate API credentials here: https://app.paradime.io/account-settings/workspace")
 
     api_key = click.prompt("Enter API Key")
     api_secret = click.prompt("Enter API Secret", hide_input=True)
@@ -26,4 +28,4 @@ def login() -> None:
     credentials_path.write_text(
         f"API_ENDPOINT={api_endpoint}\nAPI_KEY={api_key}\nAPI_SECRET={api_secret}\n"
     )
-    click.echo(f"Writen credentials to '{credentials_path}'!")
+    click.echo(f"✨ Credentials written to '{credentials_path}'!")

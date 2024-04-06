@@ -24,13 +24,14 @@ def print_cli_header(version: str) -> None:
     console.print(Panel(version_title, padding=(1, 2), width=100), style="#827be6")
 
 
-def print_error_table(error: Any, json: bool) -> None:
+def print_error_table(error: str, json: bool) -> None:
     table = Table(border_style="#787885", box=box.SIMPLE, show_footer=True, width=100)
     table.add_column("🚨 Error", justify="left", style="red", no_wrap=False)
     if json:
-        table.add_row(JSON.from_data(error, highlight=False), style="#f44336")
+        error_text = JSON.from_data({"error": error}, highlight=False).text
     else:
-        table.add_row(Text(error), style="#f44336")
+        error_text = Text(error)
+    table.add_row(error_text, style="#f44336")
     console.print(table)
 
 
