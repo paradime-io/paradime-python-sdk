@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Final, List
 
 import click
+from rich_text_output import print_error_table
 
 from paradime.apis.bolt.types import BoltRunState
 from paradime.client.api_exception import ParadimeAPIException
@@ -14,6 +15,8 @@ from paradime.core.bolt.schedule import (
     is_valid_schedule_at_path,
     parse_command,
 )
+
+from version import version
 
 WAIT_SLEEP: Final = 10
 
@@ -39,15 +42,15 @@ def run(
     """
     Trigger a Paradime Bolt run.
     """
+    version()
     # verify
     if command:
         for _command in command:
             if not is_allowed_command(parse_command(_command)):
-                click.echo(
-                    f"Command {_command!r} is not allowed."
-                    if not json
-                    else {"error": f"Command {_command!r} is not allowed."}
-                )
+                if json:
+                    print_error_table({"error": f"Command {_command!r} is not allowed."}, True)
+                else:
+                    print_error_table(f"Command {_command!r} is not allowed.", False)
                 sys.exit(1)
 
     # trigger run
@@ -59,9 +62,10 @@ def run(
             commands=list(command) if command else None,
         )
     except ParadimeAPIException as e:
-        click.echo(
-            f"Failed to trigger run: {e}" if not json else {"error": f"Failed to trigger run: {e}"}
-        )
+        if json:
+            print_error_table({"error": f"Failed to trigger run: {e}"}, True)
+        else:
+            print_error_table(f"Failed to trigger run: {e}", False)
         sys.exit(1)
 
     click.echo(
@@ -77,11 +81,10 @@ def run(
         while True:
             status = client.bolt.get_run_status(run_id)
             if not status:
-                click.echo(
-                    "Unable to fetch status from bolt."
-                    if not json
-                    else {"error": "Unable to fetch status from bolt."}
-                )
+                if json:
+                    print_error_table({"error": "Unable to fetch status from bolt."}, True)
+                else:
+                    print_error_table( "Unable to fetch status from bolt.", False)
                 sys.exit(1)
 
             click.echo({"status": status.value} if json else status)
@@ -104,9 +107,10 @@ def verify(path: str) -> None:
     """
     Verify the paradime_schedules.yml file.
     """
+    version()
     error_string = is_valid_schedule_at_path(Path(path))
     if error_string:
-        click.echo(error_string)
+        print_error_table( error_string, False)
         sys.exit(1)
 
 
