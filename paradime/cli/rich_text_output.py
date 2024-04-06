@@ -24,4 +24,12 @@ def print_error_table(error: Any, json: bool) -> None:
     else:
         table.add_row(Text(error), style='#f44336')
     console.print(table)
-    
+
+def print_run_started(run_id: str) -> None:
+    console.print(Text('\n🎉 Bolt run has started'))
+    run_status_text = Text('\nCheck the run details at: \n', style='#787885')
+    run_status_text.append(Text(f"https://app.paradime.io/bolt/run_id/{run_id}", style='underline #9696a0'))
+    console.print(run_status_text)
+
+def print_run_status(status: str) -> None:
+    console.print(Text(f'\n✨ Current run status: {status}'))
