@@ -17,5 +17,6 @@ def version() -> None:
     """
     print_cli_header(get_sdk_version())
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     version()

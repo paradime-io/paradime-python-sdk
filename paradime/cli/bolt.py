@@ -77,7 +77,7 @@ def run(
                 if json:
                     print_error_table({"error": "Unable to fetch status from bolt."}, True)
                 else:
-                    print_error_table( "Unable to fetch status from bolt.", False)
+                    print_error_table("Unable to fetch status from bolt.", False)
                 sys.exit(1)
 
             print_run_status(status.value, run_id)
@@ -103,7 +103,7 @@ def verify(path: str) -> None:
     version()
     error_string = is_valid_schedule_at_path(Path(path))
     if error_string:
-        print_error_table( error_string, False)
+        print_error_table(error_string, False)
         sys.exit(1)
 
 
