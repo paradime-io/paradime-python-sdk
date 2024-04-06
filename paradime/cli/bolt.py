@@ -15,7 +15,6 @@ from paradime.core.bolt.schedule import (
     is_valid_schedule_at_path,
     parse_command,
 )
-
 from version import version
 
 WAIT_SLEEP: Final = 10
