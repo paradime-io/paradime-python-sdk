@@ -17,9 +17,9 @@ def login() -> None:
 
     click.echo("Generate new credentials here: https://app.paradime.io/account-settings/workspace")
 
-    api_key = click.prompt("Please enter the API Key")
-    api_secret = click.prompt("Please enter the API Secret", hide_input=True)
-    api_endpoint = click.prompt("Please enter the API Endpoint")
+    api_key = click.prompt("Enter API Key")
+    api_secret = click.prompt("Enter API Secret", hide_input=True)
+    api_endpoint = click.prompt("Enter API Endpoint")
 
     # write to env file
     credentials_path.parent.mkdir(parents=True, exist_ok=True)
