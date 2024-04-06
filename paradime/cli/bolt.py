@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Final, List
 
 import click
-from rich_text_output import print_error_table
+from rich_text_output import print_error_table, print_run_started, print_run_status
 
 from paradime.apis.bolt.types import BoltRunState
 from paradime.client.api_exception import ParadimeAPIException
@@ -68,14 +68,7 @@ def run(
             print_error_table(f"Failed to trigger run: {e}", False)
         sys.exit(1)
 
-    click.echo(
-        {
-            "run_id": run_id,
-            "url": f"https://app.paradime.io/bolt/run_id/{run_id}",
-        }
-        if json
-        else run_id
-    )
+    print_run_started(run_id)
 
     if wait:
         while True:
@@ -87,7 +80,7 @@ def run(
                     print_error_table( "Unable to fetch status from bolt.", False)
                 sys.exit(1)
 
-            click.echo({"status": status.value} if json else status)
+            print_run_status(status.value, run_id)
             if status is not BoltRunState.RUNNING:
                 break
             time.sleep(WAIT_SLEEP)
