@@ -4,9 +4,10 @@ from pathlib import Path
 from typing import Final, List
 
 import click
-from rich_text_output import print_error_table, print_run_started, print_run_status
 
 from paradime.apis.bolt.types import BoltRunState
+from paradime.cli.rich_text_output import print_error_table, print_run_started, print_run_status
+from paradime.cli.version import version
 from paradime.client.api_exception import ParadimeAPIException
 from paradime.client.paradime_cli_client import get_cli_client, get_cli_client_or_exit
 from paradime.core.bolt.schedule import (
@@ -15,7 +16,6 @@ from paradime.core.bolt.schedule import (
     is_valid_schedule_at_path,
     parse_command,
 )
-from version import version
 
 WAIT_SLEEP: Final = 10
 
@@ -79,7 +79,7 @@ def run(
                     print_error_table("Unable to fetch status from bolt.", False)
                 sys.exit(1)
 
-            print_run_status(status.value, run_id)
+            print_run_status(status.value)
             if status is not BoltRunState.RUNNING:
                 break
             time.sleep(WAIT_SLEEP)

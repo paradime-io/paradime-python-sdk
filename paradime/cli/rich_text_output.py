@@ -34,7 +34,7 @@ def print_error_table(error: Any, json: bool) -> None:
     console.print(table)
 
 
-def print_run_started(run_id: str) -> None:
+def print_run_started(run_id: int) -> None:
     console.print(Text("\n🎉 Bolt run has started"))
     run_status_text = Text("\nCheck the run details at: \n", style="#787885")
     run_status_text.append(
