@@ -26,6 +26,7 @@ types-requests = "^2.31.0.20240125"
 mypy = "^1.8.0"
 black = "^24.2.0"
 isort = "^5.13.2"
+ruff = "^0.3.5"
 
 [build-system]
 requires = ["poetry-core"]
