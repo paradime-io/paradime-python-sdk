@@ -7,7 +7,7 @@ import click
 
 from paradime.apis.bolt.types import BoltRunState
 from paradime.client.api_exception import ParadimeAPIException
-from paradime.client.paradime_cli_client import get_cli_client, get_cli_client_or_exit
+from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.core.bolt.schedule import (
     SCHEDULE_FILE_NAME,
     is_allowed_command,

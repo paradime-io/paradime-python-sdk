@@ -1,5 +1,11 @@
 from typing import List, Optional
 
+import requests
+
+from paradime.apis.bolt.exception import (
+    BoltScheduleArtifactNotFoundException,
+    BoltScheduleLatestRunNotFoundException,
+)
 from paradime.apis.bolt.types import (
     BoltCommand,
     BoltCommandArtifact,
@@ -347,3 +353,72 @@ class BoltClient:
         """
 
         self.client._call_gql(query=query, variables={"runId": int(run_id)})
+
+    def get_latest_artifact_url(
+        self, *, schedule_name: str, artifact_path: str, command_index: Optional[int] = None
+    ) -> str:
+        """
+        Retrieves the URL of the latest artifact for a given schedule.
+
+        Args:
+            schedule_name (str): The name of the schedule.
+            artifact_path (str): The path of the artifact.
+            command_index (Optional[int]): The index of the command in the schedule. Defaults to searching through all commands from the last command to the first.
+
+        Returns:
+            str: The URL of the latest artifact.
+        """
+
+        # Get the latest run ID for the schedule
+        schedule = self.get_schedule(schedule_name)
+        latest_run_id = schedule.latest_run_id
+        if not latest_run_id:
+            raise BoltScheduleLatestRunNotFoundException(
+                f"No latest run ID found for schedule {schedule_name!r}."
+            )
+
+        # Get all the commands for the schedule
+        all_commands = self.list_run_commands(latest_run_id)
+        commands_to_look = all_commands[::-1]
+        if command_index is not None:
+            commands_to_look = [all_commands[command_index]]
+
+        # Find the artifact
+        artifact_id = None
+        for command in commands_to_look:
+            artifacts = self.list_command_artifacts(command.id)
+            for artifact in artifacts:
+                if artifact.path == artifact_path:
+                    artifact_id = artifact.id
+                    break
+        if artifact_id is None:
+            raise BoltScheduleArtifactNotFoundException(
+                f"No artifact found for schedule {schedule_name!r} and run id {latest_run_id}."
+            )
+
+        # Get the URL of the artifact
+        artifact_url = self.get_artifact_url(artifact_id)
+
+        return artifact_url
+
+    def get_latest_manifest_json(
+        self, schedule_name: str, command_index: Optional[int] = None
+    ) -> dict:
+        """
+        Retrieves the latest manifest JSON for a given schedule.
+
+        Args:
+            schedule_name (str): The name of the schedule.
+            command_index (Optional[int]): The index of the command in the schedule. Defaults to None.
+
+        Returns:
+            dict: The content of the latest manifest JSON.
+        """
+
+        manifest_url = self.get_latest_artifact_url(
+            schedule_name=schedule_name,
+            artifact_path="target/manifest.json",
+            command_index=command_index,
+        )
+
+        return requests.get(manifest_url).json()
