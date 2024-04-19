@@ -1,5 +1,6 @@
 from typing import Any
 
+import click
 from rich import box
 from rich.console import Console
 from rich.json import JSON
@@ -25,17 +26,24 @@ def print_cli_header(version: str) -> None:
 
 
 def print_error_table(error: str, json: bool) -> None:
+    if json:
+        click.echo({"error": error})
+        return
+
     table = Table(border_style="#787885", box=box.SIMPLE, show_footer=True, width=100)
     table.add_column("🚨 Error", justify="left", style="red", no_wrap=False)
-    if json:
-        error_text = JSON.from_data({"error": error}, highlight=False).text
-    else:
-        error_text = Text(error)
+    error_text = Text(error)
     table.add_row(error_text, style="#f44336")
     console.print(table)
 
 
-def print_run_started(run_id: int) -> None:
+def print_run_started(run_id: int, json: bool) -> None:
+    if json:
+        click.echo({
+            "run_id": run_id,
+            "url": f"https://app.paradime.io/bolt/run_id/{run_id}",
+        })
+        return
     console.print(Text("\n🎉 Bolt run has started"))
     run_status_text = Text("\nCheck the run details at: \n", style="#787885")
     run_status_text.append(
@@ -44,5 +52,7 @@ def print_run_started(run_id: int) -> None:
     console.print(run_status_text)
 
 
-def print_run_status(status: str) -> None:
+def print_run_status(status: str, json: bool) -> None:
+    if json:
+        return
     console.print(Text(f"\n✨ Current run status: {status}"))

@@ -41,7 +41,10 @@ def run(
     """
     Trigger a Paradime Bolt run.
     """
-    version()
+    print(schedule_name)
+    if not json:
+        version()
+
     # verify
     if command:
         for _command in command:
@@ -61,7 +64,7 @@ def run(
         print_error_table(f"Failed to trigger run: {e}", json=json)
         sys.exit(1)
 
-    print_run_started(run_id)
+    print_run_started(run_id, json)
 
     if wait:
         while True:
@@ -70,7 +73,7 @@ def run(
                 print_error_table("Unable to fetch status from bolt.", json=json)
                 sys.exit(1)
 
-            print_run_status(status.value)
+            print_run_status(status.value, json)
             if status is not BoltRunState.RUNNING:
                 break
             time.sleep(WAIT_SLEEP)
