@@ -1,6 +1,6 @@
 import click
 
-from paradime.cli.version import version
+from paradime.cli.version import print_version
 from paradime.client.paradime_cli_client import get_credentials_path
 
 
@@ -9,7 +9,7 @@ def login() -> None:
     """
     Set the API credentials for the Paradime CLI.
     """
-    version()
+    print_version()
     credentials_path = get_credentials_path()
     if credentials_path.exists():
         click.confirm(

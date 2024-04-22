@@ -58,7 +58,7 @@ class APIClient:
 
         response_json = response.json()
         if "errors" in response_json:
-            raise ParadimeAPIException(f"{response_json['errors']}")
+            raise ParadimeAPIException(f"{response_json['errors'][0]['message']}")
 
     def _raise_for_response_status_errors(self, response: requests.Response) -> None:
         """

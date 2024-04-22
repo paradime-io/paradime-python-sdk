@@ -6,8 +6,12 @@ from typing import Final, List
 import click
 
 from paradime.apis.bolt.types import BoltRunState
-from paradime.cli.rich_text_output import print_error_table, print_run_started, print_run_status
-from paradime.cli.version import version
+from paradime.cli.rich_text_output import (
+    print_error_table,
+    print_run_started,
+    print_run_status,
+)
+from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.core.bolt.schedule import (
@@ -41,9 +45,8 @@ def run(
     """
     Trigger a Paradime Bolt run.
     """
-    print(schedule_name)
     if not json:
-        version()
+        print_version()
 
     # verify
     if command:
@@ -93,7 +96,7 @@ def verify(path: str) -> None:
     """
     Verify the paradime_schedules.yml file.
     """
-    version()
+    print_version()
     error_string = is_valid_schedule_at_path(Path(path))
     if error_string:
         print_error_table(error_string, json=False)

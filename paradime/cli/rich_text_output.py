@@ -1,9 +1,6 @@
-from typing import Any
-
 import click
 from rich import box
 from rich.console import Console
-from rich.json import JSON
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -12,14 +9,14 @@ console = Console()
 
 
 def print_cli_header(version: str) -> None:
-    version_title = Text(f"Paradime CLI ", style="green").append(f"v{version}", style="bold green")
+    version_title = Text("Paradime CLI ", style="green").append(f"v{version}", style="bold green")
     version_title.append(
-        f"\n\nUse the Paradime CLI to login and trigger Bolt dbt schedules from the terminal.",
+        "\n\nUse the Paradime CLI to login and trigger Bolt dbt schedules from the terminal.",
         style="#9696a0",
     )
-    version_title.append(f"\n\nRead examples of using the CLI and the SDK: ", style="#9696a0")
+    version_title.append("\n\nRead examples of using the CLI and the SDK: ", style="#9696a0")
     version_title.append(
-        f"https://github.com/paradime-io/paradime-python-sdk/tree/main/examples",
+        "https://github.com/paradime-io/paradime-python-sdk/tree/main/examples",
         style="underline #9696a0",
     )
     console.print(Panel(version_title, padding=(1, 2), width=100), style="#827be6")
@@ -39,10 +36,12 @@ def print_error_table(error: str, json: bool) -> None:
 
 def print_run_started(run_id: int, json: bool) -> None:
     if json:
-        click.echo({
-            "run_id": run_id,
-            "url": f"https://app.paradime.io/bolt/run_id/{run_id}",
-        })
+        click.echo(
+            {
+                "run_id": run_id,
+                "url": f"https://app.paradime.io/bolt/run_id/{run_id}",
+            }
+        )
         return
     console.print(Text("\n🎉 Bolt run has started"))
     run_status_text = Text("\nCheck the run details at: \n", style="#787885")
