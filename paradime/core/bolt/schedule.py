@@ -1,16 +1,20 @@
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, Final, List, Optional, Union
 
 import yaml  # type: ignore[import-untyped]
 from croniter import croniter  # type: ignore[import-untyped]
-from pydantic import BaseModel, Extra, root_validator
+from pydantic import BaseModel, Extra, root_validator, validator
 
-SCHEDULE_FILE_NAME = "paradime_schedules.yml"
-VALID_ON_EVENTS = ("failed", "passed")
+SCHEDULE_FILE_NAME: Final = "paradime_schedules.yml"
+FAILED_EVENT: Final = "failed"
+PASSED_EVENT: Final = "passed"
+VALID_ON_EVENTS: Final = (FAILED_EVENT, PASSED_EVENT)
 
 ALLOWED_COMMANDS = ["dbt", "re_data", "edr", "lightdash"]
+
+ErrorString = str
 
 
 class ParadimeScheduleBase(BaseModel):
@@ -49,6 +53,20 @@ class Hightouch(ParadimeScheduleBase):
     slugs: List[str]
 
 
+class ScheduleTrigger(ParadimeScheduleBase):
+    enabled: bool
+    schedule_name: str
+    workspace_name: str
+    on: List[str]
+
+    @validator("on")
+    def validate_on(cls, on: List[str]) -> List[str]:
+        for on_value in on:
+            if on_value not in VALID_ON_EVENTS:
+                raise ValueError(f"'{on_value}' not a valid event ({VALID_ON_EVENTS})")
+        return on
+
+
 class ParadimeSchedule(ParadimeScheduleBase):
     name: str
     schedule: str
@@ -69,18 +87,16 @@ class ParadimeSchedule(ParadimeScheduleBase):
 
     hightouch: Optional[Hightouch] = None
 
+    schedule_trigger: Optional[ScheduleTrigger] = None
+    is_ui: Optional[bool] = False
+
 
 class ParadimeSchedules(ParadimeScheduleBase):
     version: int = 1
     schedules: List[ParadimeSchedule]
 
 
-@dataclass(frozen=True)
-class Command:
-    as_list: List[str]
-
-
-def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
+def is_valid_schedule_at_path(file_path: Path) -> Optional[ErrorString]:
     try:
         schedules = _get_schedules(file_path)
     except Exception as e:
@@ -89,6 +105,10 @@ def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
     if not schedules:
         return f"No schedules found in {file_path}"
 
+    return verify_schedules(schedules)
+
+
+def verify_schedules(schedules: ParadimeSchedules) -> Optional[ErrorString]:
     # check no duplicate schedule names
     schedule_names = [schedule.name for schedule in schedules.schedules]
     if len(schedule_names) > len(set(schedule_names)):
@@ -106,6 +126,15 @@ def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
             if schedule.turbo_ci.deferred_manifest_schedule not in schedule_names:
                 return f"Deferred_manifest_schedule: '{schedule.turbo_ci.deferred_manifest_schedule}' does not refer to another schedule name"
 
+    # check schedule trigger
+    for schedule in schedules.schedules:
+        if (
+            schedule.schedule_trigger
+            and schedule.schedule_trigger.enabled
+            and schedule.schedule_trigger.schedule_name not in schedule_names
+        ):
+            return f"Schedule trigger: '{schedule.schedule_trigger.schedule_name}' does not refer to another schedule name"
+
     # Verify schedules individually
     for schedule in schedules.schedules:
         if error := verify_single_schedule(schedule):
@@ -114,7 +143,7 @@ def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
     return None
 
 
-def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[str]:
+def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[ErrorString]:
     schedule_name = schedule.name
 
     # check there are commands
@@ -150,6 +179,11 @@ def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[str]:
                 )
 
     return None
+
+
+@dataclass(frozen=True)
+class Command:
+    as_list: List[str]
 
 
 def parse_command(command: str) -> Command:
