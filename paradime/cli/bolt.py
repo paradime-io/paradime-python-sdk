@@ -48,7 +48,7 @@ def run(
     if command:
         for _command in command:
             if not is_allowed_command(parse_command(_command)):
-                print_error_table(f"Command {_command!r} is not allowed.", json=json)
+                print_error_table(f"Command {_command!r} is not allowed.", is_json=json)
                 sys.exit(1)
 
     # trigger run
@@ -60,7 +60,7 @@ def run(
             commands=list(command) if command else None,
         )
     except ParadimeAPIException as e:
-        print_error_table(f"Failed to trigger run: {e}", json=json)
+        print_error_table(f"Failed to trigger run: {e}", is_json=json)
         sys.exit(1)
 
     print_run_started(run_id, json)
@@ -69,7 +69,7 @@ def run(
         while True:
             status = client.bolt.get_run_status(run_id)
             if not status:
-                print_error_table("Unable to fetch status from bolt.", json=json)
+                print_error_table("Unable to fetch status from bolt.", is_json=json)
                 sys.exit(1)
 
             print_run_status(status.value, json)
@@ -95,7 +95,7 @@ def verify(path: str) -> None:
     print_version()
     error_string = is_valid_schedule_at_path(Path(path))
     if error_string:
-        print_error_table(error_string, json=False)
+        print_error_table(error_string, is_json=False)
         sys.exit(1)
 
 

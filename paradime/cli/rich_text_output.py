@@ -1,4 +1,4 @@
-import json as j
+import json
 
 import click
 from rich import box
@@ -24,9 +24,9 @@ def print_cli_header(version: str) -> None:
     console.print(Panel(version_title, padding=(1, 2), width=100), style="#827be6")
 
 
-def print_error_table(error: str, json: bool) -> None:
-    if json:
-        click.echo(j.dumps({"error": error}))
+def print_error_table(error: str, is_json: bool) -> None:
+    if is_json:
+        click.echo(json.dumps({"error": error}))
         return
 
     table = Table(border_style="#787885", box=box.SIMPLE, show_footer=True, width=100)
@@ -36,10 +36,10 @@ def print_error_table(error: str, json: bool) -> None:
     console.print(table)
 
 
-def print_run_started(run_id: int, json: bool) -> None:
-    if json:
+def print_run_started(run_id: int, is_json: bool) -> None:
+    if is_json:
         click.echo(
-            j.dumps(
+            json.dumps(
                 {
                     "run_id": run_id,
                     "url": f"https://app.paradime.io/bolt/run_id/{run_id}",
