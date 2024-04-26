@@ -1,3 +1,5 @@
+import json as j
+
 import click
 from rich import box
 from rich.console import Console
@@ -24,7 +26,7 @@ def print_cli_header(version: str) -> None:
 
 def print_error_table(error: str, json: bool) -> None:
     if json:
-        click.echo({"error": error})
+        click.echo(j.dumps({"error": error}))
         return
 
     table = Table(border_style="#787885", box=box.SIMPLE, show_footer=True, width=100)
@@ -37,10 +39,12 @@ def print_error_table(error: str, json: bool) -> None:
 def print_run_started(run_id: int, json: bool) -> None:
     if json:
         click.echo(
-            {
-                "run_id": run_id,
-                "url": f"https://app.paradime.io/bolt/run_id/{run_id}",
-            }
+            j.dumps(
+                {
+                    "run_id": run_id,
+                    "url": f"https://app.paradime.io/bolt/run_id/{run_id}",
+                }
+            )
         )
         return
     console.print(Text("\n🎉 Bolt run has started"))

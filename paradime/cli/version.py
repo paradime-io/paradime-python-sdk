@@ -12,7 +12,7 @@ def version() -> None:
     print_version()
 
 
-def print_version():
+def print_version() -> None:
     print_cli_header(get_sdk_version())
 
 

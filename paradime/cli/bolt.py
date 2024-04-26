@@ -6,11 +6,7 @@ from typing import Final, List
 import click
 
 from paradime.apis.bolt.types import BoltRunState
-from paradime.cli.rich_text_output import (
-    print_error_table,
-    print_run_started,
-    print_run_status,
-)
+from paradime.cli.rich_text_output import print_error_table, print_run_started, print_run_status
 from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
