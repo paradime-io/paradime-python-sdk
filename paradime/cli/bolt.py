@@ -6,6 +6,8 @@ from typing import Final, List
 import click
 
 from paradime.apis.bolt.types import BoltRunState
+from paradime.cli.rich_text_output import print_error_table, print_run_started, print_run_status
+from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.core.bolt.schedule import (
@@ -39,15 +41,14 @@ def run(
     """
     Trigger a Paradime Bolt run.
     """
+    if not json:
+        print_version()
+
     # verify
     if command:
         for _command in command:
             if not is_allowed_command(parse_command(_command)):
-                click.echo(
-                    f"Command {_command!r} is not allowed."
-                    if not json
-                    else {"error": f"Command {_command!r} is not allowed."}
-                )
+                print_error_table(f"Command {_command!r} is not allowed.", is_json=json)
                 sys.exit(1)
 
     # trigger run
@@ -59,32 +60,19 @@ def run(
             commands=list(command) if command else None,
         )
     except ParadimeAPIException as e:
-        click.echo(
-            f"Failed to trigger run: {e}" if not json else {"error": f"Failed to trigger run: {e}"}
-        )
+        print_error_table(f"Failed to trigger run: {e}", is_json=json)
         sys.exit(1)
 
-    click.echo(
-        {
-            "run_id": run_id,
-            "url": f"https://app.paradime.io/bolt/run_id/{run_id}",
-        }
-        if json
-        else run_id
-    )
+    print_run_started(run_id, json)
 
     if wait:
         while True:
             status = client.bolt.get_run_status(run_id)
             if not status:
-                click.echo(
-                    "Unable to fetch status from bolt."
-                    if not json
-                    else {"error": "Unable to fetch status from bolt."}
-                )
+                print_error_table("Unable to fetch status from bolt.", is_json=json)
                 sys.exit(1)
 
-            click.echo({"status": status.value} if json else status)
+            print_run_status(status.value, json)
             if status is not BoltRunState.RUNNING:
                 break
             time.sleep(WAIT_SLEEP)
@@ -104,9 +92,10 @@ def verify(path: str) -> None:
     """
     Verify the paradime_schedules.yml file.
     """
+    print_version()
     error_string = is_valid_schedule_at_path(Path(path))
     if error_string:
-        click.echo(error_string)
+        print_error_table(error_string, is_json=False)
         sys.exit(1)
 
 

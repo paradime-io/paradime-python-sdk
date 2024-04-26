@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "paradime-io"
-version = "4.1.1"
+version = "4.2.0"
 description = "Paradime - Python SDK"
 authors = ["Bhuvan Singla <bhuvan@paradime.io>", "Maximilian Mitchell <max@paradime.io>"]
 readme = "README.md"
@@ -13,12 +13,13 @@ paradime = 'paradime.cli.cli:cli'
 
 [tool.poetry.dependencies]
 python = ">=3.8"
-pydantic = "^1.10.0"
+pydantic = "1.10.14"
 requests = "^2.31.0"
-click = "^8.1.0"
+click = "^8.1.7"
 croniter = "^2.0.2"
 pyyaml = "^6.0.1"
-python-dotenv = "^1.0.0"
+python-dotenv = "^1.0.1"
+typer = "^0.12.1"
 
 
 [tool.poetry.group.dev.dependencies]
