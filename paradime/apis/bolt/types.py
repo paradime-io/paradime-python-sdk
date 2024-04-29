@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 
 class BoltRunState(str, Enum):
+    STARTING = "STARTING"
     RUNNING = "RUNNING"
     SUCCESS = "SUCCESS"
     ERROR = "ERROR"
