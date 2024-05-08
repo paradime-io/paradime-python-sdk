@@ -57,14 +57,14 @@ class ScheduleTrigger(ParadimeScheduleBase):
     enabled: bool
     schedule_name: str
     workspace_name: str
-    on: List[str]
+    trigger_on: List[str]
 
-    @validator("on")
-    def validate_on(cls, on: List[str]) -> List[str]:
-        for on_value in on:
-            if on_value not in VALID_ON_EVENTS:
-                raise ValueError(f"'{on_value}' not a valid event ({VALID_ON_EVENTS})")
-        return on
+    @validator("trigger_on")
+    def validate_trigger_on(cls, trigger_on: List[str]) -> List[str]:
+        for trigger_on_value in trigger_on:
+            if trigger_on_value not in VALID_ON_EVENTS:
+                raise ValueError(f"'{trigger_on_value}' not a valid event ({VALID_ON_EVENTS})")
+        return trigger_on
 
 
 class ParadimeSchedule(ParadimeScheduleBase):
