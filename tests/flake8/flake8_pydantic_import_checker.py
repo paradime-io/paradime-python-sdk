@@ -1,5 +1,5 @@
 import ast
-from typing import Iterator
+from typing import Iterator, Tuple
 
 
 class PydanticImportChecker(ast.NodeVisitor):
@@ -9,7 +9,7 @@ class PydanticImportChecker(ast.NodeVisitor):
     def __init__(self, tree: ast.AST) -> None:
         self.tree = tree
 
-    def run(self) -> Iterator[tuple[int, int, str, type]]:
+    def run(self) -> Iterator[Tuple[int, int, str, type]]:
         for node in ast.walk(self.tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
@@ -19,7 +19,7 @@ class PydanticImportChecker(ast.NodeVisitor):
                 if node.module == "pydantic":
                     yield self.error(node, "PYD002")
 
-    def error(self, node: ast.AST, error_code: str) -> tuple[int, int, str, type]:
+    def error(self, node: ast.AST, error_code: str) -> Tuple[int, int, str, type]:
         if error_code == "PYD001":
             msg = "PYD001 Direct import of 'pydantic' is not allowed. Use 'paradime.tools.pydantic' instead."
         elif error_code == "PYD002":

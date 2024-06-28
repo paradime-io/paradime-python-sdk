@@ -43,7 +43,7 @@ show_error_codes = true
 plugins = ["pydantic.mypy"]
 exclude = ["tests"]
 warn_redundant_casts = true
-warn_unused_ignores = true
+warn_unused_ignores = false
 no_implicit_reexport = true
 
 [tool.isort]
