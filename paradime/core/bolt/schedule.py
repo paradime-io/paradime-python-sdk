@@ -5,7 +5,8 @@ from typing import Any, List, Optional, Union
 
 import yaml  # type: ignore[import-untyped]
 from croniter import croniter  # type: ignore[import-untyped]
-from pydantic import BaseModel, Extra, root_validator
+
+from paradime.tools.pydantic import BaseModel, Extra, root_validator
 
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
 VALID_ON_EVENTS = ("failed", "passed")

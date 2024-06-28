@@ -1,9 +1,8 @@
 from typing import List
 
-from pydantic import parse_obj_as
-
 from paradime.apis.workspaces.types import Workspace
 from paradime.client.api_client import APIClient
+from paradime.tools.pydantic import parse_obj_as
 
 
 class WorkspacesClient:

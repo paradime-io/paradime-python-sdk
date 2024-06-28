@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from paradime.tools.pydantic import BaseModel
 
 
 class Workspace(BaseModel):

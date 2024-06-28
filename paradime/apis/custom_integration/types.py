@@ -1,9 +1,8 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Extra
-
 from paradime.apis.custom_integration.utils import generate_uid
+from paradime.tools.pydantic import BaseModel, Extra
 
 
 class ParadimeBaseModel(BaseModel):
@@ -79,8 +78,8 @@ class LineageDependencyDbtObject(ParadimeBaseModel):
         table_name (str): The name of the table.
     """
 
-    database_name: Optional[str]
-    schema_name: Optional[str]
+    database_name: Optional[str] = None
+    schema_name: Optional[str] = None
     table_name: str
 
     def _to_gql_dict(self) -> Dict[str, Any]:
@@ -155,10 +154,10 @@ class LineageDependencyCustomIntegration(ParadimeBaseModel):
     """
 
     node_type: str
-    integration_uid: Optional[str]
-    integration_name: Optional[str]
-    node_id: Optional[str]
-    node_name: Optional[str]
+    integration_uid: Optional[str] = None
+    integration_name: Optional[str] = None
+    node_id: Optional[str] = None
+    node_name: Optional[str] = None
 
     def _to_gql_dict(self) -> Dict[str, Any]:
         return {
