@@ -1,9 +1,8 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Extra
-
 from paradime.apis.custom_integration.utils import generate_uid
+from paradime.tools.pydantic import BaseModel, Extra
 
 
 class ParadimeBaseModel(BaseModel):

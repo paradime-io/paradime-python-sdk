@@ -1,6 +1,6 @@
 from enum import Enum
 
-from pydantic import BaseModel
+from paradime.tools.pydantic import BaseModel
 
 
 class UserAccountType(str, Enum):

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel
+from paradime.tools.pydantic import BaseModel
 
 
 class BoltRunState(str, Enum):
