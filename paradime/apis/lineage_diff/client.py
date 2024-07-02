@@ -1,5 +1,6 @@
 import time
 from datetime import datetime, timedelta
+from typing import List
 
 from paradime.apis.lineage_diff.exception import LineageDiffReportFailedException
 from paradime.apis.lineage_diff.types import Report, ReportStatus
@@ -18,7 +19,7 @@ class LineageDiffClient:
         repository_name: str,
         base_commit_sha: str,
         head_commit_sha: str,
-        changed_file_paths: list[str],
+        changed_file_paths: List[str],
     ) -> str:
         """
         Triggers a lineage diff report for the specified parameters.
@@ -29,7 +30,7 @@ class LineageDiffClient:
             repository_name (str): The full name of the repository. E.g. "paradime-io/jaffle-shop".
             base_commit_sha (str): The SHA of the base commit.
             head_commit_sha (str): The SHA of the head commit.
-            changed_file_paths (list[str]): A list of file paths that have changed in the pull request.
+            changed_file_paths (List[str]): A list of file paths that have changed in the pull request.
 
         Returns:
             str: The UUID of the triggered lineage diff report.
@@ -119,7 +120,7 @@ class LineageDiffClient:
         repository_name: str,
         base_commit_sha: str,
         head_commit_sha: str,
-        changed_file_paths: list[str],
+        changed_file_paths: List[str],
         timeout: int = 3600,
     ) -> Report:
         """
@@ -131,7 +132,7 @@ class LineageDiffClient:
             repository_name (str): The full name of the repository. E.g. "paradime-io/jaffle-shop".
             base_commit_sha (str): The SHA of the base commit.
             head_commit_sha (str): The SHA of the head commit.
-            changed_file_paths (list[str]): A list of file paths that have changed in the pull request.
+            changed_file_paths (List[str]): A list of file paths that have changed in the pull request.
 
         Returns:
             Report: The lineage diff report.
