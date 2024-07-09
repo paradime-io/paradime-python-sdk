@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import click
 from rich import box
@@ -59,3 +60,15 @@ def print_run_status(status: str, json: bool) -> None:
     if json:
         return
     console.print(Text(f"\n✨ Current run status: {status}"))
+
+
+def print_artifact_downloading(*, schedule_name: str, artifact_path: str) -> None:
+    console.print(
+        Text(
+            f"\n⬇️  Downloading the latest artifact located at {artifact_path!r} from schedule {schedule_name!r}..."
+        )
+    )
+
+
+def print_artifact_downloaded(artifact_path: Path) -> None:
+    console.print(Text(f"\n📦 Artifact downloaded to {artifact_path.absolute().as_posix()!r}."))

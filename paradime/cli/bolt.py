@@ -1,14 +1,21 @@
 import sys
 import time
 from pathlib import Path
-from typing import Final, List
+from typing import Final, List, Optional
 
 import click
+import requests
 
 from paradime.apis.bolt.types import BoltRunState
-from paradime.cli.rich_text_output import print_error_table, print_run_started, print_run_status
+from paradime.cli.rich_text_output import (
+    print_artifact_downloaded,
+    print_artifact_downloading,
+    print_error_table,
+    print_run_started,
+    print_run_status,
+)
 from paradime.cli.version import print_version
-from paradime.client.api_exception import ParadimeAPIException
+from paradime.client.api_exception import ParadimeAPIException, ParadimeException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.core.bolt.schedule import (
     SCHEDULE_FILE_NAME,
@@ -99,6 +106,65 @@ def verify(path: str) -> None:
         sys.exit(1)
 
 
+@click.command()
+@click.option(
+    "--schedule-name",
+    help="The name of the Bolt schedule.",
+    required=True,
+)
+@click.option(
+    "--artifact-path",
+    help="The path to the artifact in the Bolt run.",
+    default="target/manifest.json",
+    show_default=True,
+)
+@click.option(
+    "--command-index",
+    help="The index of the command in the schedule. Defaults to searching through all commands from the last command to the first.",
+    default=None,
+    type=int,
+)
+@click.option(
+    "--output-path",
+    help="The path to save the artifact. Defaults to the current directory.",
+    default=None,
+)
+def artifact(
+    schedule_name: str,
+    artifact_path: str,
+    command_index: Optional[int] = None,
+    output_path: Optional[str] = None,
+) -> None:
+    """
+    Download the latest artifact from a Paradime Bolt schedule.
+    """
+    print_version()
+    client = get_cli_client_or_exit()
+    try:
+        print_artifact_downloading(schedule_name=schedule_name, artifact_path=artifact_path)
+
+        artifact_url = client.bolt.get_latest_artifact_url(
+            schedule_name=schedule_name,
+            artifact_path=artifact_path,
+            command_index=command_index,
+        )
+
+        file_name = Path(artifact_path).name
+        if output_path is None:  # save to current directory
+            output_file_path = Path.cwd() / file_name
+        elif Path(output_path).is_dir():
+            output_file_path = Path(output_path) / file_name
+        else:
+            output_file_path = Path(output_path)
+
+        output_file_path.write_text(requests.get(artifact_url).text)
+
+        print_artifact_downloaded(output_file_path)
+    except ParadimeException as e:
+        print_error_table(f"Failed to get artifact: {e}", is_json=False)
+        sys.exit(1)
+
+
 @click.group()
 def bolt() -> None:
     """
@@ -110,3 +176,4 @@ def bolt() -> None:
 # bolt
 bolt.add_command(run)
 bolt.add_command(verify)
+bolt.add_command(artifact)
