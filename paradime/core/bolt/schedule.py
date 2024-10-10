@@ -6,7 +6,7 @@ from typing import Any, List, Optional, Union
 import yaml  # type: ignore[import-untyped]
 from croniter import croniter  # type: ignore[import-untyped]
 
-from paradime.tools.pydantic import BaseModel, Extra, root_validator
+from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
 VALID_ON_EVENTS = ("failed", "passed")
@@ -50,6 +50,21 @@ class Hightouch(ParadimeScheduleBase):
     slugs: List[str]
 
 
+class ScheduleTrigger(ParadimeScheduleBase):
+    enabled: bool
+    schedule_name: str
+    workspace_name: str
+    trigger_on: List[str]
+
+    @validator("trigger_on")
+    def validate_trigger_on(cls, trigger_on: List[str]) -> List[str]:
+        for trigger_on_value in trigger_on:
+            if trigger_on_value not in VALID_ON_EVENTS:
+                raise ValueError(f"'{trigger_on_value}' not a valid event ({VALID_ON_EVENTS})")
+
+        return trigger_on
+
+
 class ParadimeSchedule(ParadimeScheduleBase):
     name: str
     schedule: str
@@ -69,6 +84,8 @@ class ParadimeSchedule(ParadimeScheduleBase):
     deferred_schedule: Optional[DeferredSchedule] = None
 
     hightouch: Optional[Hightouch] = None
+
+    schedule_trigger: Optional[ScheduleTrigger] = None
 
 
 class ParadimeSchedules(ParadimeScheduleBase):
