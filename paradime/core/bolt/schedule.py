@@ -9,9 +9,9 @@ from croniter import croniter  # type: ignore[import-untyped]
 from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
-VALID_ON_EVENTS = ("failed", "passed")
+VALID_ON_EVENTS = ("failed", "passed", "sla")
 
-ALLOWED_COMMANDS = ["dbt", "re_data", "edr", "lightdash"]
+ALLOWED_COMMANDS = ["dbt", "re_data", "edr", "lightdash", "python"]
 
 
 class ParadimeScheduleBase(BaseModel):
@@ -61,8 +61,43 @@ class ScheduleTrigger(ParadimeScheduleBase):
         for trigger_on_value in trigger_on:
             if trigger_on_value not in VALID_ON_EVENTS:
                 raise ValueError(f"'{trigger_on_value}' not a valid event ({VALID_ON_EVENTS})")
-
         return trigger_on
+
+
+class NotificationItem(BaseModel):
+    # channel and address can be used interchangeably but one is required
+    channel: Optional[str]
+    address: Optional[str]
+
+    events: List[str]
+
+    @validator("events")
+    def validate_events(cls, events: List[str]) -> List[str]:
+        for event in events:
+            if event.lower() not in VALID_ON_EVENTS:
+                raise ValueError(f"'{event}' not a valid event ({VALID_ON_EVENTS})")
+        return [event.lower() for event in events]
+
+    @root_validator()
+    @classmethod
+    def validate_all_fields_at_the_same_time(cls, values: Any) -> Any:
+        # channel and address can be used interchangeably
+        # with channel being the source of truth.
+        channel = values.get("channel") or values.get("address")
+        if not channel:
+            raise ValueError("Missing 'channel' or 'address'")
+        values["channel"] = channel
+        return values
+
+    def get_channel(self) -> str:
+        assert self.channel
+        return self.channel
+
+
+class Notifications(BaseModel):
+    emails: Optional[List[NotificationItem]]
+    slack_channels: Optional[List[NotificationItem]]
+    microsoft_teams: Optional[List[NotificationItem]]
 
 
 class ParadimeSchedule(ParadimeScheduleBase):
@@ -74,11 +109,16 @@ class ParadimeSchedule(ParadimeScheduleBase):
     git_branch: Optional[str] = None
     owner_email: Optional[str] = None
 
+    description: Optional[str] = None
+
     slack_notify: Union[str, List[str]] = [""]
     slack_on: List[str] = [""]
 
     email_notify: Union[str, List[str]] = [""]
     email_on: List[str] = [""]
+
+    notifications: Optional[Notifications] = None
+    sla_minutes: Optional[int] = None
 
     turbo_ci: Optional[DeferredSchedule] = None
     deferred_schedule: Optional[DeferredSchedule] = None
@@ -86,6 +126,10 @@ class ParadimeSchedule(ParadimeScheduleBase):
     hightouch: Optional[Hightouch] = None
 
     schedule_trigger: Optional[ScheduleTrigger] = None
+
+    trigger_on_merge: Optional[bool] = False
+
+    suspended: Optional[bool] = False
 
 
 class ParadimeSchedules(ParadimeScheduleBase):
