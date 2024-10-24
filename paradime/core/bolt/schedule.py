@@ -11,7 +11,7 @@ from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
 VALID_ON_EVENTS = ("failed", "passed", "sla")
 
-ALLOWED_COMMANDS = ["dbt", "re_data", "edr", "lightdash", "python"]
+ALLOWED_COMMANDS = ["dbt", "re_data", "edr", "lightdash", "python", "paradime", "montecarlo"]
 
 
 class ParadimeScheduleBase(BaseModel):
