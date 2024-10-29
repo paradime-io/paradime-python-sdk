@@ -165,8 +165,12 @@ def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
             else:
                 found_turbo_ci = True
 
-            if schedule.turbo_ci.deferred_manifest_schedule not in schedule_names:
-                return f"Deferred_manifest_schedule: '{schedule.turbo_ci.deferred_manifest_schedule}' does not refer to another schedule name"
+            if schedule.turbo_ci.deferred_schedule_name not in schedule_names:
+                return f"Turbo CI schedule error: '{schedule.turbo_ci.deferred_schedule_name}' does not refer to another schedule name"
+
+        if schedule.deferred_schedule and schedule.deferred_schedule.enabled:
+            if schedule.deferred_schedule.deferred_schedule_name not in schedule_names:
+                return f"Deferred schedule error: '{schedule.deferred_schedule.deferred_schedule_name}' does not refer to another schedule name"
 
     # Verify schedules individually
     for schedule in schedules.schedules:
