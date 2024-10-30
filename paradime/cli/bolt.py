@@ -13,6 +13,7 @@ from paradime.cli.rich_text_output import (
     print_error_table,
     print_run_started,
     print_run_status,
+    print_success,
 )
 from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
@@ -25,6 +26,48 @@ from paradime.core.bolt.schedule import (
 )
 
 WAIT_SLEEP: Final = 10
+
+
+@click.command()
+@click.argument("schedule_name")
+def unsuspend(schedule_name: str) -> None:
+    """
+    Enable a suspended Paradime Bolt schedule.
+    """
+    client = get_cli_client_or_exit()
+    client.bolt.suspend_schedule(
+        schedule_name=schedule_name,
+        suspend=False,
+    )
+
+    print_success("Successfully enabled schedule.", is_json=False)
+
+
+@click.command()
+@click.argument("schedule_name")
+def suspend(schedule_name: str) -> None:
+    """
+    Suspend a Paradime Bolt schedule.
+    """
+    client = get_cli_client_or_exit()
+    client.bolt.suspend_schedule(
+        schedule_name=schedule_name,
+        suspend=True,
+    )
+
+    print_success("Successfully suspended schedule.", is_json=False)
+
+
+@click.group()
+def schedule() -> None:
+    """
+    Work with Paradime Bolt from the CLI.
+    """
+    pass
+
+
+schedule.add_command(unsuspend)
+schedule.add_command(suspend)
 
 
 @click.command()
@@ -175,5 +218,6 @@ def bolt() -> None:
 
 # bolt
 bolt.add_command(run)
+bolt.add_command(schedule)
 bolt.add_command(verify)
 bolt.add_command(artifact)

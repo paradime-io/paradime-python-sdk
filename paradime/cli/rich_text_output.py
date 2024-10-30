@@ -56,6 +56,13 @@ def print_run_started(run_id: int, is_json: bool) -> None:
     console.print(run_status_text)
 
 
+def print_success(message: str, is_json: bool) -> None:
+    if is_json:
+        click.echo(json.dumps({"message": message}))
+        return
+    console.print(Text(f"🎉 {message}"), style="green")
+
+
 def print_run_status(status: str, json: bool) -> None:
     if json:
         return

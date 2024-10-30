@@ -52,6 +52,28 @@ class BoltClient:
 
         return response_json["runId"]
 
+    def suspend_schedule(self, *, schedule_name: str, suspend: bool) -> None:
+        """
+        Suspends a UI based schedule name.
+        Args:
+            schedule_name (str): The name of the schedule to suspend
+            suspend (bool): True to suspend the schedule, False to unsuspend the schedule
+
+        Note: This only works with schedule names created via the UI and not via YAML.
+        """
+
+        query = """
+            mutation SuspendBoltSchedule($scheduleName: String!, $suspend: Boolean!) {
+                suspendBoltSchedule(scheduleName: $scheduleName, suspend: $suspend) {
+                    ok
+                }
+            }
+        """
+
+        self.client._call_gql(
+            query=query, variables={"scheduleName": schedule_name, "suspend": suspend}
+        )["suspendBoltSchedule"]
+
     def list_schedules(
         self,
         *,
