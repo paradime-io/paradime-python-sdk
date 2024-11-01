@@ -1,4 +1,11 @@
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
 import requests
+
+from paradime.core.scripts.utils import handle_http_error
+
+logger = logging.getLogger(__name__)
 
 
 def trigger_tableau_refresh(
@@ -7,72 +14,87 @@ def trigger_tableau_refresh(
     personal_access_token_name: str,
     personal_access_token_secret: str,
     site_name: str,
-    workbook_name: str,
+    workbook_names: list[str],
     api_version: str,
-) -> str:
+) -> None:
     auth_response = requests.post(
         f"{host}/api/{api_version}/auth/signin",
         json={
             "credentials": {
                 "personalAccessTokenName": personal_access_token_name,
                 "personalAccessTokenSecret": personal_access_token_secret,
-                "site": {
-                    "contentUrl": site_name
-                }
+                "site": {"contentUrl": site_name},
             }
         },
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        }
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
     )
-    try:
-        auth_response.raise_for_status()
-    except Exception as e:
-        raise Exception(auth_response.text) from e
+    handle_http_error(auth_response)
 
     # Extract token to use for subsequent calls
-    auth_token = auth_response.json()["credentials"]["token"]
-    site_id = auth_response.json()["credentials"]["site"]["id"]
+    auth_token: str = auth_response.json()["credentials"]["token"]
+    site_id: str = auth_response.json()["credentials"]["site"]["id"]
 
+    # call refresh for the workbooks async
+    futures = []
+    with ThreadPoolExecutor() as executor:
+        for workbook_name in set(workbook_names):
+            logger.info(f"Triggering refresh for workbook: {workbook_name}...")
+            futures.append(
+                (
+                    workbook_name,
+                    executor.submit(
+                        _trigger_workbook_refresh,
+                        host=host,
+                        auth_token=auth_token,
+                        site_id=site_id,
+                        api_version=api_version,
+                        workbook_name=workbook_name,
+                    ),
+                )
+            )
+        for workbook_name, future in futures:
+            response_txt = future.result(timeout=60)
+            logger.info(f"{workbook_name}: {response_txt}")
+
+
+def _trigger_workbook_refresh(
+    *,
+    host: str,
+    auth_token: str,
+    site_id: str,
+    api_version: str,
+    workbook_name: str,
+) -> str:
     # find the workbook id
     workbook_response = requests.get(
-    f"{host}/api/{api_version}/sites/{site_id}/workbooks",
+        f"{host}/api/{api_version}/sites/{site_id}/workbooks",
         headers={
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "X-Tableau-Auth": auth_token
+            "X-Tableau-Auth": auth_token,
         },
-        params={
-            "filter": f"name:eq:{workbook_name}"
-        },
+        params={"filter": f"name:eq:{workbook_name}"},
     )
-
-    try:
-        workbook_response.raise_for_status()
-    except Exception as e:
-        raise Exception(workbook_response.text) from e
+    handle_http_error(workbook_response, f"Error searching for '{workbook_name}:'")
 
     workbooks_data = workbook_response.json()
     try:
-        workbook_name = workbooks_data["workbooks"]["workbook"][0]["id"]
+        workbook_id = workbooks_data["workbooks"]["workbook"][0]["id"]
     except KeyError:
         raise Exception(f"Could not find workbook with name '{workbook_name}'")
 
     # Refresh the workbook
     refresh_trigger = requests.post(
-        f"{host}/api/{api_version}/sites/{site_id}/workbooks/{workbook_name}/refresh",
+        f"{host}/api/{api_version}/sites/{site_id}/workbooks/{workbook_id}/refresh",
         json={},
         headers={
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "X-Tableau-Auth": auth_token
-        }
+            "X-Tableau-Auth": auth_token,
+        },
     )
-    try:
-        refresh_trigger.raise_for_status()
-    except Exception as e:
-        raise Exception(refresh_trigger.text) from e
+    handle_http_error(
+        refresh_trigger, f"Error triggering refresh for '{workbook_name}' ({workbook_id}):"
+    )
 
-    return refresh_trigger.text
-
+    return f"{workbook_name} response: {refresh_trigger.text}"

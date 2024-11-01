@@ -1,19 +1,19 @@
-import os
-from typing import Callable
+from typing import Callable, Optional
 
 import click
 
 
-def env_click_option(option_name: str, env_var: str, **kwargs) -> Callable:
-    help = kwargs.get("help", "")
-    if help:
-        del kwargs["help"]
+def env_click_option(option_name: str, env_var: Optional[str], **kwargs) -> Callable:
+    help = kwargs.pop("help", "")
+    if env_var:
+        help = f"{help}\n\n [env: {env_var}]"
+
     return click.option(
         f"--{option_name}",
         prompt=False,
         default=None,
         envvar=env_var,
-        required=True,
-        help=f"{help}\n\n [env: {env_var}]",
+        required=kwargs.pop("required", True),
+        help=help,
         **kwargs,
     )
