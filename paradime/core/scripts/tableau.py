@@ -1,12 +1,9 @@
-import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import requests
 
 from paradime.core.scripts.utils import handle_http_error
-
-logger = logging.getLogger(__name__)
 
 
 def trigger_tableau_refresh(
@@ -39,7 +36,7 @@ def trigger_tableau_refresh(
     futures = []
     with ThreadPoolExecutor() as executor:
         for workbook_name in set(workbook_names):
-            logger.info(f"Triggering refresh for workbook: {workbook_name}...")
+            print(f"Triggering refresh for workbook: {workbook_name}...")
             futures.append(
                 (
                     workbook_name,
@@ -55,7 +52,7 @@ def trigger_tableau_refresh(
             )
         for workbook_name, future in futures:
             response_txt = future.result(timeout=60)
-            logger.info(f"{workbook_name}: {response_txt}")
+            print(f"workbook_name: {workbook_name}, response_txt: {response_txt}")
 
 
 def _trigger_workbook_refresh(
@@ -98,4 +95,4 @@ def _trigger_workbook_refresh(
         refresh_trigger, f"Error triggering refresh for '{workbook_name}' ({workbook_id}):"
     )
 
-    return f"{workbook_name} response: {refresh_trigger.text}"
+    return refresh_trigger.text

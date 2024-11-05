@@ -1,26 +1,49 @@
+from __future__ import annotations
+
 import base64
 import json
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import Final, List, Optional
 
 import msal  # type: ignore[import-untyped]
 import requests
 
-from paradime.client.paradime_cli_client import logger
 from paradime.core.scripts.utils import handle_http_error
+
+POWER_BI_HOST: Final = "https://api.powerbi.com"
+
+
+@dataclass(frozen=True)
+class Dataset:
+    id: str
+    name: str
+    is_refreshable: bool
 
 
 def trigger_power_bi_refreshes(
     *,
-    host: str,
     tenant_id: str,
     client_id: str,
     client_secret: str,
     group_id: str,
-    dataset_ids: List[str],
+    dataset_names: List[str],
     refresh_request_body_b64: Optional[str],
 ) -> None:
-    access_token = _get_access_token(tenant_id, client_id, client_secret)
+    access_token = get_access_token(tenant_id, client_id, client_secret)
+
+    datasets = get_power_bi_datasets(
+        access_token=access_token,
+        group_id=group_id,
+    )
+
+    dataset_ids = set()
+    for dataset_name in dataset_names:
+        if dataset_name not in datasets:
+            raise Exception(
+                f"Unable to find dataset: '{dataset_name}' in datasets. Available are: {list(datasets.keys())}"
+            )
+        dataset_ids.add(datasets[dataset_name].id)
 
     # Refresh the dataset
     refresh_request_body = None
@@ -28,18 +51,17 @@ def trigger_power_bi_refreshes(
         try:
             refresh_request_body = json.loads(base64.b64decode(refresh_request_body_b64))
         except Exception as e:
-            logger.warning(f"Could not decode refresh body: {e}")
+            raise Exception(f"Could not decode refresh body: {e}")
 
     futures = []
     with ThreadPoolExecutor() as executor:
-        for dataset_id in set(dataset_ids):
-            logger.info(f"Triggering refresh for dataset: {dataset_id}...")
+        for dataset_id in dataset_ids:
+            print(f"Triggering refresh for dataset: {dataset_id}...")
             futures.append(
                 (
                     dataset_id,
                     executor.submit(
                         _refresh_power_bi_dataset,
-                        host=host,
                         access_token=access_token,
                         group_id=group_id,
                         dataset_id=dataset_id,
@@ -49,19 +71,18 @@ def trigger_power_bi_refreshes(
             )
         for dataset_id, future in futures:
             response_txt = future.result(timeout=60)
-            logger.info(f"{dataset_id}: {response_txt}")
+            print(f"dataset_id: {dataset_id}, response_txt:{response_txt}")
 
 
 def _refresh_power_bi_dataset(
     *,
-    host: str,
     access_token: str,
     group_id: str,
     dataset_id: str,
     refresh_request_body: Optional[dict],
 ) -> str:
     refresh_response = requests.post(
-        f"{host}/v1.0/myorg/groups/{group_id}/datasets/{dataset_id}/refreshes",
+        f"{POWER_BI_HOST}/v1.0/myorg/groups/{group_id}/datasets/{dataset_id}/refreshes",
         headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
         json=refresh_request_body or {},
     )
@@ -71,23 +92,29 @@ def _refresh_power_bi_dataset(
 
 def get_power_bi_datasets(
     *,
-    host: str,
-    tenant_id: str,
-    client_id: str,
-    client_secret: str,
+    access_token: str,
     group_id: str,
-) -> dict:
+) -> dict[str, Dataset]:
     """Get the datasets for the Power BI API."""
-    access_token = _get_access_token(tenant_id, client_id, client_secret)
     datasets_response = requests.get(
-        f"{host}/v1.0/myorg/groups/{group_id}/datasets",
+        f"{POWER_BI_HOST}/v1.0/myorg/groups/{group_id}/datasets",
         headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"},
     )
     handle_http_error(datasets_response)
-    return datasets_response.json()
+    response_json = datasets_response.json()
+    if "value" not in response_json:
+        raise ValueError(f"Invalid response from datasets list: {datasets_response.text}")
+    datasets = {}
+    for dataset in response_json["value"]:
+        datasets[dataset.get("name")] = Dataset(
+            id=dataset.get("id"),
+            name=dataset.get("name"),
+            is_refreshable=dataset.get("isRefreshable"),
+        )
+    return datasets
 
 
-def _get_access_token(tenant_id: str, client_id: str, client_secret: str) -> str:
+def get_access_token(tenant_id: str, client_id: str, client_secret: str) -> str:
     authority_url = "https://login.microsoftonline.com/" + tenant_id
     scope = ["https://analysis.windows.net/powerbi/api/.default"]
 

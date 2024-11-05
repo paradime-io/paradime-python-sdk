@@ -3,7 +3,11 @@ from typing import Final, List, Optional
 import click
 
 from paradime.cli.utils import env_click_option
-from paradime.core.scripts.power_bi import get_power_bi_datasets, trigger_power_bi_refreshes
+from paradime.core.scripts.power_bi import (
+    get_access_token,
+    get_power_bi_datasets,
+    trigger_power_bi_refreshes,
+)
 from paradime.core.scripts.tableau import trigger_tableau_refresh
 
 help_string: Final = (
@@ -69,11 +73,6 @@ def tableau_refresh(
 
 @click.command(context_settings=dict(max_content_width=160))
 @env_click_option(
-    "host",
-    "POWER_BI_HOST",
-    help="The base url of your power bi server (e.g. https://api.powerbi.com/)",
-)
-@env_click_option(
     "client-id",
     "POWER_BI_CLIENT_ID",
     help="The client id of your power bi application",
@@ -94,9 +93,9 @@ def tableau_refresh(
     help="The group id of your power bi workspace",
 )
 @env_click_option(
-    "dataset-id",
+    "dataset-name",
     env_var=None,
-    help="The dataset id(s) you want to refresh",
+    help="The dataset name(s) you want to refresh",
     multiple=True,
 )
 @env_click_option(
@@ -106,12 +105,11 @@ def tableau_refresh(
     required=False,
 )
 def power_bi_refresh(
-    host: str,
     tenant_id: str,
     client_id: str,
     client_secret: str,
     group_id: str,
-    dataset_id: List[str],
+    dataset_name: List[str],
     refresh_request_body_b64: Optional[str],
 ) -> None:
     """
@@ -120,22 +118,16 @@ def power_bi_refresh(
     click.echo(f"Power BI refresh started in group {group_id}...")
 
     trigger_power_bi_refreshes(
-        host=host,
         client_id=client_id,
         client_secret=client_secret,
         group_id=group_id,
-        dataset_ids=dataset_id,
+        dataset_names=dataset_name,
         refresh_request_body_b64=refresh_request_body_b64,
         tenant_id=tenant_id,
     )
 
 
 @click.command(context_settings=dict(max_content_width=160))
-@env_click_option(
-    "host",
-    "POWER_BI_HOST",
-    help="The base url of your power bi server (e.g. https://api.powerbi.com/)",
-)
 @env_click_option(
     "client-id",
     "POWER_BI_CLIENT_ID",
@@ -157,7 +149,6 @@ def power_bi_refresh(
     help="The tenant id of your power bi application",
 )
 def power_bi_list_datasets(
-    host: str,
     client_id: str,
     client_secret: str,
     group_id: str,
@@ -166,15 +157,13 @@ def power_bi_list_datasets(
     """
     List Power BI datasets.
     """
-    datasets_json = get_power_bi_datasets(
-        host=host,
-        tenant_id=tenant_id,
-        client_id=client_id,
-        client_secret=client_secret,
+    access_token = get_access_token(tenant_id, client_id, client_secret)
+    datasets = get_power_bi_datasets(
+        access_token=access_token,
         group_id=group_id,
     )
-    for dataset in datasets_json:
-        click.echo(dataset)
+    for dataset in datasets.values():
+        click.echo(f"{dataset.name}:{dataset.id}")
 
 
 run.add_command(tableau_refresh)
