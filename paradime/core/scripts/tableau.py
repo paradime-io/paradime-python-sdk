@@ -1,5 +1,6 @@
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from typing import List
 
 import requests
 
@@ -14,7 +15,7 @@ def trigger_tableau_refresh(
     personal_access_token_name: str,
     personal_access_token_secret: str,
     site_name: str,
-    workbook_names: list[str],
+    workbook_names: List[str],
     api_version: str,
 ) -> None:
     auth_response = requests.post(

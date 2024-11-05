@@ -1,4 +1,4 @@
-from typing import Final, Optional
+from typing import Final, List, Optional
 
 import click
 
@@ -47,7 +47,7 @@ def run() -> None:
 )
 def tableau_refresh(
     site_name: str,
-    workbook_name: list[str],
+    workbook_name: List[str],
     host: str,
     personal_access_token_secret: str,
     personal_access_token_name: str,
@@ -111,7 +111,7 @@ def power_bi_refresh(
     client_id: str,
     client_secret: str,
     group_id: str,
-    dataset_id: list[str],
+    dataset_id: List[str],
     refresh_request_body_b64: Optional[str],
 ) -> None:
     """

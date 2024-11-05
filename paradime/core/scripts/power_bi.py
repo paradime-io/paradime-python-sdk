@@ -1,9 +1,9 @@
 import base64
 import json
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
+from typing import List, Optional
 
-import msal
+import msal  # type: ignore[import-untyped]
 import requests
 
 from paradime.client.paradime_cli_client import logger
@@ -17,7 +17,7 @@ def trigger_power_bi_refreshes(
     client_id: str,
     client_secret: str,
     group_id: str,
-    dataset_ids: list[str],
+    dataset_ids: List[str],
     refresh_request_body_b64: Optional[str],
 ) -> None:
     access_token = _get_access_token(tenant_id, client_id, client_secret)

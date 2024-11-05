@@ -1,9 +1,9 @@
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import click
 
 
-def env_click_option(option_name: str, env_var: Optional[str], **kwargs) -> Callable:
+def env_click_option(option_name: str, env_var: Optional[str], **kwargs: Any) -> Callable:
     help = kwargs.pop("help", "")
     if env_var:
         help = f"{help}\n\n [env: {env_var}]"
