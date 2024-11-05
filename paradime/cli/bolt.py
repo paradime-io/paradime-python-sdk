@@ -18,12 +18,7 @@ from paradime.cli.rich_text_output import (
 from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
-from paradime.core.bolt.schedule import (
-    SCHEDULE_FILE_NAME,
-    is_allowed_command,
-    is_valid_schedule_at_path,
-    parse_command,
-)
+from paradime.core.bolt.schedule import SCHEDULE_FILE_NAME, is_valid_schedule_at_path
 
 WAIT_SLEEP: Final = 10
 
@@ -93,13 +88,6 @@ def run(
     """
     if not json:
         print_version()
-
-    # verify
-    if command:
-        for _command in command:
-            if not is_allowed_command(parse_command(_command)):
-                print_error_table(f"Command {_command!r} is not allowed.", is_json=json)
-                sys.exit(1)
 
     # trigger run
     client = get_cli_client_or_exit()
