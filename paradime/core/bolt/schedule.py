@@ -11,8 +11,6 @@ from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
 VALID_ON_EVENTS = ("failed", "passed", "sla")
 
-ALLOWED_COMMANDS = ["dbt", "re_data", "edr", "lightdash", "python"]
-
 
 class ParadimeScheduleBase(BaseModel):
     class Config:
@@ -187,11 +185,6 @@ def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[str]:
     if not schedule.commands:
         return f"{schedule_name}: Missing commands."
 
-    # check all commands start with 'dbt'
-    for command in schedule.commands:
-        if not is_allowed_command(parse_command(command)):
-            return f"{schedule_name}: Command {command!r} is not an allowed command. Allowed commands are: {ALLOWED_COMMANDS}."
-
     # verify cron schedule
     if (
         schedule.schedule.lower() != "off"
@@ -223,13 +216,6 @@ def parse_command(command: str) -> Command:
 
     cmd_as_list = shlex.split(command)
     return Command(as_list=cmd_as_list)
-
-
-def is_allowed_command(command: Command) -> bool:
-    """Check if the command is an allowed command."""
-
-    cmd = command.as_list
-    return bool(cmd) and cmd[0] in ALLOWED_COMMANDS
 
 
 def _get_schedules(path: Path) -> Optional[ParadimeSchedules]:
