@@ -70,8 +70,7 @@ def trigger_power_bi_refreshes(
                 )
             )
         for dataset_id, future in futures:
-            response_txt = future.result(timeout=60)
-            print(f"dataset_id: {dataset_id}, response_txt:{response_txt}")
+            future.result(timeout=60)
 
 
 def _refresh_power_bi_dataset(
