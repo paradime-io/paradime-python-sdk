@@ -11,7 +11,7 @@ def env_click_option(option_name: str, env_var: Optional[str], **kwargs: Any) ->
     return click.option(
         f"--{option_name}",
         prompt=False,
-        default=None,
+        default=kwargs.pop("default", None),
         envvar=env_var,
         required=kwargs.pop("required", True),
         help=help,

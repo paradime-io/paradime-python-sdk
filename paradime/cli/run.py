@@ -29,6 +29,9 @@ def run() -> None:
 @env_click_option(
     "site-name",
     "TABLEAU_SITE_NAME",
+    help="The name of the tableau site. Set this only if you are using a site other than the default site.",
+    required=False,
+    default="",
 )
 @env_click_option(
     "workbook-name",
@@ -67,7 +70,7 @@ def tableau_refresh(
         host=host,
         personal_access_token_name=personal_access_token_name,
         personal_access_token_secret=personal_access_token_secret,
-        site_name=site_name,
+        site_name=site_name or "",
         workbook_names=workbook_name,
         api_version="3.4",
     )
