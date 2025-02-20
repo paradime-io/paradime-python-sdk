@@ -1,3 +1,4 @@
+import logging
 import time
 from datetime import datetime, timedelta
 from typing import List
@@ -5,6 +6,9 @@ from typing import List
 from paradime.apis.lineage_diff.exception import LineageDiffReportFailedException
 from paradime.apis.lineage_diff.types import Report, ReportStatus
 from paradime.client.api_client import APIClient
+
+logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class LineageDiffClient:
@@ -146,7 +150,7 @@ class LineageDiffClient:
             changed_file_paths=changed_file_paths,
         )
 
-        print(
+        logger.info(
             f"[STARTED] Lineage diff report triggered. UUID: {uuid}. Waiting for report to be available..."
         )
 
@@ -154,19 +158,19 @@ class LineageDiffClient:
         while True:
             report = self.fetch_report(uuid=uuid)
             if report.status == ReportStatus.AVAILABLE:
-                print("[AVAILABLE] Lineage diff report is now available!")
+                logger.info("[AVAILABLE] Lineage diff report is now available!")
                 return report
             elif report.status == ReportStatus.FAILED:
                 error_message = (
                     f"[ERROR] Failed to generate lineage diff report. Message: {report.message}"
                 )
-                print(error_message)
+                logger.info(error_message)
                 raise LineageDiffReportFailedException(error_message)
             elif datetime.now() - start_time > timedelta(seconds=timeout):
                 timeout_message = f"[TIMEOUT] Timed out waiting for lineage diff report to be available. Last status: {report.status}. Last message: {report.message}"
                 raise TimeoutError(timeout_message)
 
-            print(
+            logger.info(
                 f"[IN PROGRESS] Lineage diff report is in progress. Message: {report.message}. URL: {report.url}"
             )
 
