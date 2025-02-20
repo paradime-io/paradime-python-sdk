@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Final, List, Optional
@@ -10,6 +11,10 @@ import msal  # type: ignore[import-untyped]
 import requests
 
 from paradime.core.scripts.utils import handle_http_error
+
+logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 POWER_BI_HOST: Final = "https://api.powerbi.com"
 
@@ -56,7 +61,7 @@ def trigger_power_bi_refreshes(
     futures = []
     with ThreadPoolExecutor() as executor:
         for dataset_id in dataset_ids:
-            print(f"Triggering refresh for dataset: {dataset_id}...")
+            logger.info(f"Refreshing Power BI dataset: {dataset_id}")
             futures.append(
                 (
                     dataset_id,
