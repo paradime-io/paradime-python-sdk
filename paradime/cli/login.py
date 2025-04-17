@@ -17,7 +17,7 @@ def login() -> None:
             abort=True,
         )
 
-    click.echo("Generate API credentials here: https://app.paradime.io/account-settings/workspace")
+    click.echo("Generate API credentials here: https://app.paradime.io/settings/current-workspace")
 
     api_key = click.prompt("Enter API Key")
     api_secret = click.prompt("Enter API Secret", hide_input=True)
