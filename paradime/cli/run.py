@@ -13,7 +13,7 @@ from paradime.core.scripts.power_bi import (
 from paradime.core.scripts.tableau import trigger_tableau_refresh
 
 help_string: Final = (
-    "\nTo set environment variables please go to https://app.paradime.io/account-settings/workspace"
+    "\nTo set environment variables please go to https://app.paradime.io/settings/env-variables"
 )
 
 
