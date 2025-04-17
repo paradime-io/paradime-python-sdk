@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "paradime-io"
-version = "4.10.2"
+version = "4.10.3"
 description = "Paradime - Python SDK"
 authors = ["Bhuvan Singla <bhuvan@paradime.io>", "Maximilian Mitchell <max@paradime.io>"]
 readme = "README.md"
