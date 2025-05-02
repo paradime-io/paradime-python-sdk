@@ -2,6 +2,7 @@ import click
 from dotenv import load_dotenv
 
 from paradime.cli.bolt import bolt
+from paradime.cli.catalog import catalog
 from paradime.cli.login import login
 from paradime.cli.run import run
 from paradime.cli.version import version
@@ -19,6 +20,7 @@ def cli() -> None:
 
 
 cli.add_command(bolt)
+cli.add_command(catalog)
 cli.add_command(version)
 cli.add_command(login)
 cli.add_command(run)

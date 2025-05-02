@@ -1,5 +1,6 @@
 from paradime.apis.audit_log.client import AuditLogClient
 from paradime.apis.bolt.client import BoltClient
+from paradime.apis.catalog.client import CatalogClient
 from paradime.apis.custom_integration.client import CustomIntegrationClient
 from paradime.apis.lineage_diff.client import LineageDiffClient
 from paradime.apis.users.client import UsersClient
@@ -14,6 +15,7 @@ class Paradime(APIClient):
     Attributes:
         audit_log (AuditLogClient): The audit log API client.
         bolt (BoltClient): The bolt API client.
+        catalog (CatalogClient): The catalog API client.
         custom_integration (CustomIntegrationClient): The custom integration API client.
         lineage_diff (LineageDiffClient): The lineage diff API client.
         users (UsersClient): The users API client.
@@ -27,6 +29,7 @@ class Paradime(APIClient):
 
     audit_log: AuditLogClient
     bolt: BoltClient
+    catalog: CatalogClient
     custom_integration: CustomIntegrationClient
     lineage_diff: LineageDiffClient
     users: UsersClient
@@ -37,6 +40,7 @@ class Paradime(APIClient):
 
         self.audit_log = AuditLogClient(client=self)
         self.bolt = BoltClient(client=self)
+        self.catalog = CatalogClient(client=self)
         self.custom_integration = CustomIntegrationClient(client=self)
         self.lineage_diff = LineageDiffClient(client=self)
         self.users = UsersClient(client=self)
