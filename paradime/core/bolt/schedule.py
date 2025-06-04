@@ -6,6 +6,7 @@ from typing import Any, List, Optional, Union
 import yaml  # type: ignore[import-untyped]
 from croniter import croniter  # type: ignore[import-untyped]
 
+from paradime.core.bolt.timezones import SUPPORTED_TIMEZONES
 from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
@@ -101,6 +102,7 @@ class Notifications(BaseModel):
 class ParadimeSchedule(ParadimeScheduleBase):
     name: str
     schedule: str
+    timezone: Optional[str] = None
     environment: str
     commands: List[str]
 
@@ -192,6 +194,10 @@ def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[str]:
         and not _cron_schedule_is_non_standard(schedule.schedule)
     ):
         return f"{schedule_name}: Schedule '{schedule.schedule}' is not a valid cron schedule."
+
+    # verify timezone
+    if schedule.timezone is not None and schedule.timezone not in SUPPORTED_TIMEZONES:
+        return f"{schedule_name}: Timezone '{schedule.timezone}' is not a valid timezone."
 
     # verify 'on' events
     for slack_on in schedule.slack_on:
