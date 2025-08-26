@@ -109,7 +109,7 @@ def tableau_refresh(
     "datasource-name",
     env_var=None,
     multiple=True,
-    help="The name or ID of the data source(s) you want to refresh",
+    help="The name or UUID of the data source(s) you want to refresh",
 )
 @env_click_option(
     "host",
@@ -194,7 +194,7 @@ def tableau_list_workbooks(
     personal_access_token_name: str,
 ) -> None:
     """
-    List all Tableau workbooks with their names and IDs.
+    List all Tableau workbooks with their names and UUIDs.
     """
     click.echo(f"Listing Tableau workbooks on site {site_name}...")
 
@@ -237,7 +237,7 @@ def tableau_list_datasources(
     personal_access_token_name: str,
 ) -> None:
     """
-    List all Tableau data sources with their names and IDs.
+    List all Tableau data sources with their names and UUIDs.
     """
     click.echo(f"Listing Tableau data sources on site {site_name}...")
 
