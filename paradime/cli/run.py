@@ -54,12 +54,26 @@ def run() -> None:
     "TABLEAU_PERSONAL_ACCESS_TOKEN_NAME",
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
 )
+@click.option(
+    "--wait-for-completion/--no-wait-for-completion",
+    default=True,
+    help="Wait for the refresh job to complete before returning. Shows progress and final status.",
+)
+@env_click_option(
+    "timeout-minutes",
+    "TABLEAU_REFRESH_TIMEOUT_MINUTES",
+    type=int,
+    default=30,
+    help="Maximum time to wait for refresh completion (in minutes). Only used with --wait-for-completion.",
+)
 def tableau_refresh(
     site_name: str,
     workbook_name: List[str],
     host: str,
     personal_access_token_secret: str,
     personal_access_token_name: str,
+    wait_for_completion: bool,
+    timeout_minutes: int,
 ) -> None:
     """
     Trigger a Tableau refresh for a specific workbook.
@@ -73,6 +87,8 @@ def tableau_refresh(
         site_name=site_name or "",
         workbook_names=workbook_name,
         api_version="3.4",
+        wait_for_completion=wait_for_completion,
+        timeout_minutes=timeout_minutes,
     )
 
 

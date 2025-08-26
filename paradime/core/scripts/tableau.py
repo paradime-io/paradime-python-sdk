@@ -1,7 +1,8 @@
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
+from typing import List, Optional
 
 import requests
 
@@ -18,6 +19,8 @@ def trigger_tableau_refresh(
     site_name: str,
     workbook_names: List[str],  # Can now be names OR IDs
     api_version: str,
+    wait_for_completion: bool = False,
+    timeout_minutes: int = 30,
 ) -> None:
     auth_response = requests.post(
         f"{host}/api/{api_version}/auth/signin",
@@ -49,6 +52,8 @@ def trigger_tableau_refresh(
                         site_id=site_id,
                         api_version=api_version,
                         workbook_name=workbook_name,
+                        wait_for_completion=wait_for_completion,
+                        timeout_minutes=timeout_minutes,
                     ),
                 )
             )
@@ -63,6 +68,8 @@ def trigger_workbook_refresh(
     site_id: str,
     api_version: str,
     workbook_name: str,  # Can be name OR ID
+    wait_for_completion: bool = False,
+    timeout_minutes: int = 30,
 ) -> str:
     workbook_id = None
     
@@ -173,4 +180,163 @@ def trigger_workbook_refresh(
     handle_http_error(
         refresh_trigger, f"Error triggering refresh for workbook '{workbook_name}' (ID: {workbook_id}):"
     )
-    return refresh_trigger.text
+    
+    if not wait_for_completion:
+        return refresh_trigger.text
+    
+    # Extract job ID from response to monitor completion
+    job_id = _extract_job_id_from_response(refresh_trigger.text)
+    if not job_id:
+        logger.warning(f"Could not extract job ID from refresh response for workbook '{workbook_name}'. Cannot monitor completion.")
+        return refresh_trigger.text
+    
+    logger.info(f"Monitoring refresh job {job_id} for workbook '{workbook_name}'...")
+    
+    # Wait for job completion
+    job_status = _wait_for_job_completion(
+        host=host,
+        auth_token=auth_token,
+        site_id=site_id,
+        api_version=api_version,
+        job_id=job_id,
+        workbook_name=workbook_name,
+        timeout_minutes=timeout_minutes
+    )
+    
+    return f"Refresh completed. Job status: {job_status}"
+
+
+def _extract_job_id_from_response(response_text: str) -> Optional[str]:
+    """Extract job ID from refresh response JSON or XML."""
+    try:
+        # Try JSON first (newer API versions)
+        import json
+        data = json.loads(response_text)
+        if "job" in data and "id" in data["job"]:
+            return data["job"]["id"]
+    except (json.JSONDecodeError, KeyError):
+        pass
+    
+    try:
+        # Fallback to XML parsing (older API versions)
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(response_text)
+        
+        # Look for job element in response
+        job_elem = root.find(".//{http://onlinehelp.tableau.com/ts-api}job")
+        if job_elem is not None:
+            return job_elem.get("id")
+    except Exception as e:
+        logger.warning(f"Could not parse job ID from response: {e}")
+    
+    return None
+
+
+def _wait_for_job_completion(
+    *,
+    host: str,
+    auth_token: str,
+    site_id: str,
+    api_version: str,
+    job_id: str,
+    workbook_name: str,
+    timeout_minutes: int
+) -> str:
+    """Poll job status until completion or timeout."""
+    start_time = time.time()
+    timeout_seconds = timeout_minutes * 60
+    sleep_interval = 5   # Poll every 5 seconds
+    counter = 0
+    
+    while True:
+        elapsed = time.time() - start_time
+        if elapsed > timeout_seconds:
+            raise Exception(f"Timeout waiting for workbook '{workbook_name}' refresh job {job_id} to complete after {timeout_minutes} minutes")
+        
+        try:
+            job_response = requests.get(
+                f"{host}/api/{api_version}/sites/{site_id}/jobs/{job_id}",
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Tableau-Auth": auth_token,
+                },
+            )
+            
+            if job_response.status_code != 200:
+                logger.warning(f"Error getting job status for {job_id}: HTTP {job_response.status_code}")
+                time.sleep(sleep_interval)
+                continue
+            
+            # Parse job status from JSON or XML response
+            progress = "0"
+            finish_code = None
+            started_at = None
+            completed_at = None
+            
+            try:
+                # Try JSON first (newer API versions)
+                import json
+                data = json.loads(job_response.text)
+                if "job" in data:
+                    job = data["job"]
+                    progress = str(job.get("progress", "0"))
+                    finish_code = job.get("finishCode")
+                    started_at = job.get("startedAt")
+                    completed_at = job.get("completedAt")
+                else:
+                    logger.warning(f"No job element found in JSON response for job {job_id}")
+                    time.sleep(sleep_interval)
+                    continue
+            except (json.JSONDecodeError, KeyError):
+                # Fallback to XML parsing (older API versions)
+                try:
+                    import xml.etree.ElementTree as ET
+                    root = ET.fromstring(job_response.text)
+                    job_elem = root.find(".//{http://onlinehelp.tableau.com/ts-api}job")
+                    
+                    if job_elem is None:
+                        logger.warning(f"Could not find job element in XML response for job {job_id}")
+                        time.sleep(sleep_interval)
+                        continue
+                    
+                    progress = job_elem.get("progress", "0")
+                    finish_code = job_elem.get("finishCode")
+                    started_at = job_elem.get("startedAt")
+                    completed_at = job_elem.get("completedAt")
+                except Exception as e:
+                    logger.warning(f"Could not parse job status response for {job_id}: {e}")
+                    time.sleep(sleep_interval)
+                    continue
+            
+            # Log progress on first check and then every 5 checks (2.5 minutes)
+            if counter == 0 or counter % 5 == 0:
+                if started_at:
+                    logger.info(f"Job {job_id} progress: {progress}% (started at {started_at})")
+                else:
+                    logger.info(f"Job {job_id} progress: {progress}% (waiting to start...)")
+            
+            # Check if job is complete
+            if finish_code is not None:
+                if finish_code == "0":
+                    elapsed_min = int(elapsed // 60)
+                    elapsed_sec = int(elapsed % 60)
+                    logger.info(f"✅ Workbook '{workbook_name}' refresh completed successfully in {elapsed_min}m {elapsed_sec}s")
+                    return f"SUCCESS (finished at {completed_at})"
+                elif finish_code == "1":
+                    logger.error(f"❌ Workbook '{workbook_name}' refresh failed")
+                    return f"FAILED (finish code: {finish_code})"
+                elif finish_code == "2":
+                    logger.warning(f"⚠️ Workbook '{workbook_name}' refresh was canceled")
+                    return f"CANCELED (finish code: {finish_code})"
+                else:
+                    logger.warning(f"⚠️ Workbook '{workbook_name}' refresh finished with unknown code: {finish_code}")
+                    return f"UNKNOWN (finish code: {finish_code})"
+            
+            counter += 1
+            time.sleep(sleep_interval)
+            
+        except Exception as e:
+            logger.warning(f"Error polling job status for {job_id}: {e}")
+            time.sleep(sleep_interval)
+            continue
