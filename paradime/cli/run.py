@@ -10,7 +10,10 @@ from paradime.core.scripts.power_bi import (
     get_power_bi_datasets,
     trigger_power_bi_refreshes,
 )
-from paradime.core.scripts.tableau import trigger_tableau_refresh
+from paradime.core.scripts.tableau import (
+    trigger_tableau_datasource_refresh,
+    trigger_tableau_refresh,
+)
 
 help_string: Final = (
     "\nTo set environment variables please go to https://app.paradime.io/settings/env-variables"
@@ -86,6 +89,73 @@ def tableau_refresh(
         personal_access_token_secret=personal_access_token_secret,
         site_name=site_name or "",
         workbook_names=workbook_name,
+        api_version="3.4",
+        wait_for_completion=wait_for_completion,
+        timeout_minutes=timeout_minutes,
+    )
+
+
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "site-name",
+    "TABLEAU_SITE_NAME",
+    help="The name of the tableau site. Set this only if you are using a site other than the default site.",
+    required=False,
+    default="",
+)
+@env_click_option(
+    "datasource-name",
+    env_var=None,
+    multiple=True,
+    help="The name or ID of the data source(s) you want to refresh",
+)
+@env_click_option(
+    "host",
+    "TABLEAU_HOST",
+    help="The base url of your tableau server (e.g. https://prod-uk-a.online.tableau.com/)",
+)
+@env_click_option(
+    "personal-access-token-secret",
+    "TABLEAU_PERSONAL_ACCESS_TOKEN_SECRET",
+    help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+)
+@env_click_option(
+    "personal-access-token-name",
+    "TABLEAU_PERSONAL_ACCESS_TOKEN_NAME",
+    help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+)
+@click.option(
+    "--wait-for-completion/--no-wait-for-completion",
+    default=True,
+    help="Wait for the refresh job to complete before returning. Shows progress and final status.",
+)
+@env_click_option(
+    "timeout-minutes",
+    "TABLEAU_REFRESH_TIMEOUT_MINUTES",
+    type=int,
+    default=30,
+    help="Maximum time to wait for refresh completion (in minutes). Only used with --wait-for-completion.",
+)
+def tableau_datasource_refresh(
+    site_name: str,
+    datasource_name: List[str],
+    host: str,
+    personal_access_token_secret: str,
+    personal_access_token_name: str,
+    wait_for_completion: bool,
+    timeout_minutes: int,
+) -> None:
+    """
+    Trigger a Tableau refresh for a specific data source.
+    """
+    click.echo(f"Tableau data source refresh started on site {site_name}...")
+
+    trigger_tableau_datasource_refresh(
+        host=host,
+        personal_access_token_name=personal_access_token_name,
+        personal_access_token_secret=personal_access_token_secret,
+        site_name=site_name or "",
+        datasource_names=datasource_name,
         api_version="3.4",
         wait_for_completion=wait_for_completion,
         timeout_minutes=timeout_minutes,
@@ -234,6 +304,7 @@ def montecarlo_artifacts_import(
 
 
 run.add_command(tableau_refresh)
+run.add_command(tableau_datasource_refresh)
 run.add_command(power_bi_refresh)
 run.add_command(power_bi_list_datasets)
 run.add_command(montecarlo_artifacts_import)
