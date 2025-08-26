@@ -594,3 +594,120 @@ def trigger_datasource_refresh(
     )
 
     return f"Refresh completed. Job status: {job_status}"
+
+
+def list_tableau_workbooks(
+    *,
+    host: str,
+    personal_access_token_name: str,
+    personal_access_token_secret: str,
+    site_name: str,
+    api_version: str,
+) -> None:
+    """List all Tableau workbooks with their names and IDs."""
+    auth_response = requests.post(
+        f"{host}/api/{api_version}/auth/signin",
+        json={
+            "credentials": {
+                "personalAccessTokenName": personal_access_token_name,
+                "personalAccessTokenSecret": personal_access_token_secret,
+                "site": {"contentUrl": site_name},
+            }
+        },
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    handle_http_error(auth_response)
+
+    auth_token: str = auth_response.json()["credentials"]["token"]
+    site_id: str = auth_response.json()["credentials"]["site"]["id"]
+
+    # Get all workbooks
+    workbooks_response = requests.get(
+        f"{host}/api/{api_version}/sites/{site_id}/workbooks",
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Tableau-Auth": auth_token,
+        },
+    )
+    handle_http_error(workbooks_response, "Error getting workbooks:")
+
+    workbooks_data = workbooks_response.json()
+
+    if "workbooks" not in workbooks_data or "workbook" not in workbooks_data["workbooks"]:
+        logger.info("No workbooks found.")
+        return
+
+    workbooks = workbooks_data["workbooks"]["workbook"]
+    if isinstance(workbooks, dict):
+        workbooks = [workbooks]
+
+    logger.info(f"Found {len(workbooks)} workbook(s):")
+    for workbook in workbooks:
+        name = workbook.get("name", "Unknown")
+        wb_id = workbook.get("id", "Unknown")
+        project_name = (
+            workbook.get("project", {}).get("name", "Unknown")
+            if isinstance(workbook.get("project"), dict)
+            else "Unknown"
+        )
+        logger.info(f"  {name} | {wb_id} | Project: {project_name}")
+
+
+def list_tableau_datasources(
+    *,
+    host: str,
+    personal_access_token_name: str,
+    personal_access_token_secret: str,
+    site_name: str,
+    api_version: str,
+) -> None:
+    """List all Tableau data sources with their names and IDs."""
+    auth_response = requests.post(
+        f"{host}/api/{api_version}/auth/signin",
+        json={
+            "credentials": {
+                "personalAccessTokenName": personal_access_token_name,
+                "personalAccessTokenSecret": personal_access_token_secret,
+                "site": {"contentUrl": site_name},
+            }
+        },
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    handle_http_error(auth_response)
+
+    auth_token: str = auth_response.json()["credentials"]["token"]
+    site_id: str = auth_response.json()["credentials"]["site"]["id"]
+
+    # Get all data sources
+    datasources_response = requests.get(
+        f"{host}/api/{api_version}/sites/{site_id}/datasources",
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Tableau-Auth": auth_token,
+        },
+    )
+    handle_http_error(datasources_response, "Error getting data sources:")
+
+    datasources_data = datasources_response.json()
+
+    if "datasources" not in datasources_data or "datasource" not in datasources_data["datasources"]:
+        logger.info("No data sources found.")
+        return
+
+    datasources = datasources_data["datasources"]["datasource"]
+    if isinstance(datasources, dict):
+        datasources = [datasources]
+
+    logger.info(f"Found {len(datasources)} data source(s):")
+    for datasource in datasources:
+        name = datasource.get("name", "Unknown")
+        ds_id = datasource.get("id", "Unknown")
+        ds_type = datasource.get("type", "Unknown")
+        project_name = (
+            datasource.get("project", {}).get("name", "Unknown")
+            if isinstance(datasource.get("project"), dict)
+            else "Unknown"
+        )
+        logger.info(f"  {name} | {ds_id} | Type: {ds_type} | Project: {project_name}")
