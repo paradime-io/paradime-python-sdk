@@ -287,9 +287,13 @@ def _wait_for_job_completion(
 
             if job_response.status_code != 200:
                 logger.error(f"❌ Failed to get job status: HTTP {job_response.status_code}")
-                logger.error(f"The refresh was triggered successfully, but job monitoring failed.")
-                logger.error("The refresh may still be running on Tableau Server. Check the server directly for job status.")
-                raise Exception(f"Job monitoring failed with HTTP {job_response.status_code}. The refresh job was triggered but monitoring failed.")
+                logger.error("The refresh was triggered successfully, but job monitoring failed.")
+                logger.error(
+                    "The refresh may still be running on Tableau Server. Check the server directly for job status."
+                )
+                raise Exception(
+                    f"Job monitoring failed with HTTP {job_response.status_code}. The refresh job was triggered but monitoring failed."
+                )
 
             # Parse job status from JSON or XML response
             progress = "0"
