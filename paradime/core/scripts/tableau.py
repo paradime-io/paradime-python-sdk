@@ -80,7 +80,7 @@ def trigger_workbook_refresh(
         uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         return bool(re.match(uuid_pattern, value, re.IGNORECASE))
 
-    def _get_workbook_from_response(workbooks_data: dict) -> str | None:
+    def _get_workbook_from_response(workbooks_data: dict) -> Optional[str]:
         """Extract workbook ID from API response."""
         if "workbooks" not in workbooks_data or "workbook" not in workbooks_data["workbooks"]:
             return None
