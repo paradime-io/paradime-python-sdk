@@ -94,10 +94,12 @@ def tableau_refresh(
     """
     if not workbook_name and not datasource_name:
         raise click.UsageError("Must specify either --workbook-name or --datasource-name")
-    
+
     if workbook_name and datasource_name:
-        raise click.UsageError("Cannot specify both --workbook-name and --datasource-name. Choose one.")
-    
+        raise click.UsageError(
+            "Cannot specify both --workbook-name and --datasource-name. Choose one."
+        )
+
     if workbook_name:
         click.echo(f"Tableau workbook refresh started on site {site_name}...")
         trigger_tableau_refresh(
@@ -110,7 +112,7 @@ def tableau_refresh(
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
         )
-    
+
     if datasource_name:
         click.echo(f"Tableau data source refresh started on site {site_name}...")
         trigger_tableau_datasource_refresh(
@@ -123,8 +125,6 @@ def tableau_refresh(
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
         )
-
-
 
 
 @click.command(context_settings=dict(max_content_width=160))
