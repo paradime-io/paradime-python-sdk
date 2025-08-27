@@ -59,7 +59,9 @@ def trigger_tableau_refresh(
                 )
             )
         for workbook_name, future in futures:
-            response_txt = future.result(timeout=60)
+            # Use longer timeout when waiting for completion
+            future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
+            response_txt = future.result(timeout=future_timeout)
             logger.info(f"Refreshed Tableau workbook: {workbook_name} - {response_txt}")
 
 
