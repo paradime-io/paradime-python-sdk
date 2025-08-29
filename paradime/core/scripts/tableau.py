@@ -219,7 +219,8 @@ def trigger_workbook_refresh(
         site_id=site_id,
         api_version=api_version,
         job_id=job_id,
-        workbook_name=workbook_name,
+        resource_type="Workbook",
+        resource_name=workbook_name,
         timeout_minutes=timeout_minutes,
     )
 
@@ -261,7 +262,8 @@ def _wait_for_job_completion(
     site_id: str,
     api_version: str,
     job_id: str,
-    workbook_name: str,
+    resource_type: str,
+    resource_name: str,
     timeout_minutes: int,
 ) -> str:
     """Poll job status until completion or timeout."""
@@ -274,7 +276,7 @@ def _wait_for_job_completion(
         elapsed = time.time() - start_time
         if elapsed > timeout_seconds:
             raise Exception(
-                f"Timeout waiting for workbook '{workbook_name}' refresh job {job_id} to complete after {timeout_minutes} minutes"
+                f"Timeout waiting for {resource_type.lower()} '{resource_name}' refresh job {job_id} to complete after {timeout_minutes} minutes"
             )
 
         try:
@@ -355,18 +357,18 @@ def _wait_for_job_completion(
                     elapsed_min = int(elapsed // 60)
                     elapsed_sec = int(elapsed % 60)
                     logger.info(
-                        f"✅ Workbook '{workbook_name}' refresh completed successfully in {elapsed_min}m {elapsed_sec}s"
+                        f"✅ {resource_type} '{resource_name}' refresh completed successfully in {elapsed_min}m {elapsed_sec}s"
                     )
                     return f"SUCCESS (finished at {completed_at})"
                 elif finish_code == "1":
-                    logger.error(f"❌ Workbook '{workbook_name}' refresh failed")
+                    logger.error(f"❌ {resource_type} '{resource_name}' refresh failed")
                     return f"FAILED (finish code: {finish_code})"
                 elif finish_code == "2":
-                    logger.warning(f"⚠️ Workbook '{workbook_name}' refresh was canceled")
+                    logger.warning(f"⚠️ {resource_type} '{resource_name}' refresh was canceled")
                     return f"CANCELED (finish code: {finish_code})"
                 else:
                     logger.warning(
-                        f"⚠️ Workbook '{workbook_name}' refresh finished with unknown code: {finish_code}"
+                        f"⚠️ {resource_type} '{resource_name}' refresh finished with unknown code: {finish_code}"
                     )
                     return f"UNKNOWN (finish code: {finish_code})"
 
@@ -594,7 +596,8 @@ def trigger_datasource_refresh(
         site_id=site_id,
         api_version=api_version,
         job_id=job_id,
-        workbook_name=datasource_name,  # Reuse the workbook_name parameter for consistency
+        resource_type="Data source",
+        resource_name=datasource_name,
         timeout_minutes=timeout_minutes,
     )
 
