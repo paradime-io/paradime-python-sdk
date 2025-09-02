@@ -10,7 +10,12 @@ from paradime.core.scripts.power_bi import (
     get_power_bi_datasets,
     trigger_power_bi_refreshes,
 )
-from paradime.core.scripts.tableau import trigger_tableau_refresh
+from paradime.core.scripts.tableau import (
+    list_tableau_datasources,
+    list_tableau_workbooks,
+    trigger_tableau_datasource_refresh,
+    trigger_tableau_refresh,
+)
 
 help_string: Final = (
     "\nTo set environment variables please go to https://app.paradime.io/settings/env-variables"
@@ -37,7 +42,15 @@ def run() -> None:
     "workbook-name",
     env_var=None,
     multiple=True,
-    help="The name of the workbook(s) you want to refresh",
+    help="The name or UUID of the workbook(s) you want to refresh",
+    required=False,
+)
+@env_click_option(
+    "datasource-name",
+    env_var=None,
+    multiple=True,
+    help="The name or UUID of the data source(s) you want to refresh",
+    required=False,
 )
 @env_click_option(
     "host",
@@ -68,7 +81,8 @@ def run() -> None:
 )
 def tableau_refresh(
     site_name: str,
-    workbook_name: List[str],
+    workbook_name: Optional[List[str]],
+    datasource_name: Optional[List[str]],
     host: str,
     personal_access_token_secret: str,
     personal_access_token_name: str,
@@ -76,19 +90,126 @@ def tableau_refresh(
     timeout_minutes: int,
 ) -> None:
     """
-    Trigger a Tableau refresh for a specific workbook.
+    Trigger a Tableau refresh for workbooks or data sources.
     """
-    click.echo(f"Tableau refresh started on site {site_name}...")
+    if not workbook_name and not datasource_name:
+        raise click.UsageError("Must specify either --workbook-name or --datasource-name")
 
-    trigger_tableau_refresh(
+    if workbook_name and datasource_name:
+        raise click.UsageError(
+            "Cannot specify both --workbook-name and --datasource-name. Choose one."
+        )
+
+    if workbook_name:
+        click.echo(f"Tableau workbook refresh started on site {site_name}...")
+        trigger_tableau_refresh(
+            host=host,
+            personal_access_token_name=personal_access_token_name,
+            personal_access_token_secret=personal_access_token_secret,
+            site_name=site_name or "",
+            workbook_names=workbook_name,
+            api_version="3.4",
+            wait_for_completion=wait_for_completion,
+            timeout_minutes=timeout_minutes,
+        )
+
+    if datasource_name:
+        click.echo(f"Tableau data source refresh started on site {site_name}...")
+        trigger_tableau_datasource_refresh(
+            host=host,
+            personal_access_token_name=personal_access_token_name,
+            personal_access_token_secret=personal_access_token_secret,
+            site_name=site_name or "",
+            datasource_names=datasource_name,
+            api_version="3.4",
+            wait_for_completion=wait_for_completion,
+            timeout_minutes=timeout_minutes,
+        )
+
+
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "site-name",
+    "TABLEAU_SITE_NAME",
+    help="The name of the tableau site. Set this only if you are using a site other than the default site.",
+    required=False,
+    default="",
+)
+@env_click_option(
+    "host",
+    "TABLEAU_HOST",
+    help="The base url of your tableau server (e.g. https://prod-uk-a.online.tableau.com/)",
+)
+@env_click_option(
+    "personal-access-token-secret",
+    "TABLEAU_PERSONAL_ACCESS_TOKEN_SECRET",
+    help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+)
+@env_click_option(
+    "personal-access-token-name",
+    "TABLEAU_PERSONAL_ACCESS_TOKEN_NAME",
+    help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+)
+def tableau_list_workbooks(
+    site_name: str,
+    host: str,
+    personal_access_token_secret: str,
+    personal_access_token_name: str,
+) -> None:
+    """
+    List all Tableau workbooks with their names and UUIDs.
+    """
+    click.echo(f"Listing Tableau workbooks on site {site_name}...")
+
+    list_tableau_workbooks(
         host=host,
         personal_access_token_name=personal_access_token_name,
         personal_access_token_secret=personal_access_token_secret,
         site_name=site_name or "",
-        workbook_names=workbook_name,
         api_version="3.4",
-        wait_for_completion=wait_for_completion,
-        timeout_minutes=timeout_minutes,
+    )
+
+
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "site-name",
+    "TABLEAU_SITE_NAME",
+    help="The name of the tableau site. Set this only if you are using a site other than the default site.",
+    required=False,
+    default="",
+)
+@env_click_option(
+    "host",
+    "TABLEAU_HOST",
+    help="The base url of your tableau server (e.g. https://prod-uk-a.online.tableau.com/)",
+)
+@env_click_option(
+    "personal-access-token-secret",
+    "TABLEAU_PERSONAL_ACCESS_TOKEN_SECRET",
+    help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+)
+@env_click_option(
+    "personal-access-token-name",
+    "TABLEAU_PERSONAL_ACCESS_TOKEN_NAME",
+    help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+)
+def tableau_list_datasources(
+    site_name: str,
+    host: str,
+    personal_access_token_secret: str,
+    personal_access_token_name: str,
+) -> None:
+    """
+    List all Tableau data sources with their names and UUIDs.
+    """
+    click.echo(f"Listing Tableau data sources on site {site_name}...")
+
+    list_tableau_datasources(
+        host=host,
+        personal_access_token_name=personal_access_token_name,
+        personal_access_token_secret=personal_access_token_secret,
+        site_name=site_name or "",
+        api_version="3.4",
     )
 
 
@@ -234,6 +355,8 @@ def montecarlo_artifacts_import(
 
 
 run.add_command(tableau_refresh)
+run.add_command(tableau_list_workbooks)
+run.add_command(tableau_list_datasources)
 run.add_command(power_bi_refresh)
 run.add_command(power_bi_list_datasets)
 run.add_command(montecarlo_artifacts_import)

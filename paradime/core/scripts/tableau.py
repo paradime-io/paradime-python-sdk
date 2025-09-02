@@ -18,7 +18,7 @@ def trigger_tableau_refresh(
     personal_access_token_name: str,
     personal_access_token_secret: str,
     site_name: str,
-    workbook_names: List[str],  # Can now be names OR IDs
+    workbook_names: List[str],  # Can now be names OR UUIDs
     api_version: str,
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
@@ -59,7 +59,9 @@ def trigger_tableau_refresh(
                 )
             )
         for workbook_name, future in futures:
-            response_txt = future.result(timeout=60)
+            # Use longer timeout when waiting for completion
+            future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
+            response_txt = future.result(timeout=future_timeout)
             logger.info(f"Refreshed Tableau workbook: {workbook_name} - {response_txt}")
 
 
@@ -69,11 +71,11 @@ def trigger_workbook_refresh(
     auth_token: str,
     site_id: str,
     api_version: str,
-    workbook_name: str,  # Can be name OR ID
+    workbook_name: str,  # Can be name OR UUID
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
 ) -> str:
-    workbook_id = None
+    workbook_uuid = None
 
     def _is_uuid_format(value: str) -> bool:
         """Check if input string matches UUID format."""
@@ -81,7 +83,7 @@ def trigger_workbook_refresh(
         return bool(re.match(uuid_pattern, value, re.IGNORECASE))
 
     def _get_workbook_from_response(workbooks_data: dict) -> Optional[str]:
-        """Extract workbook ID from API response."""
+        """Extract workbook UUID from API response."""
         if "workbooks" not in workbooks_data or "workbook" not in workbooks_data["workbooks"]:
             return None
 
@@ -108,19 +110,19 @@ def trigger_workbook_refresh(
             if direct_workbook_response.status_code == 200:
                 workbook_data = direct_workbook_response.json()
                 if "workbook" in workbook_data:
-                    workbook_id = workbook_data["workbook"]["id"]
+                    workbook_uuid = workbook_data["workbook"]["id"]
                     logger.info(
-                        f"Found workbook by direct ID access: '{workbook_name}' -> confirmed ID: {workbook_id}"
+                        f"Found workbook by direct UUID access: '{workbook_name}' -> confirmed UUID: {workbook_uuid}"
                     )
             else:
                 logger.warning(
-                    f"Could not access workbook directly by ID '{workbook_name}': HTTP {direct_workbook_response.status_code}"
+                    f"Could not access workbook directly by UUID '{workbook_name}': HTTP {direct_workbook_response.status_code}"
                 )
         except Exception as e:
-            logger.warning(f"Could not access workbook by direct ID '{workbook_name}': {e}")
+            logger.warning(f"Could not access workbook by direct UUID '{workbook_name}': {e}")
 
     # If not found by direct ID access (or input wasn't an ID), try searching by name
-    if workbook_id is None:
+    if workbook_uuid is None:
         try:
             logger.info(f"Searching for workbook by name: '{workbook_name}'")
             workbook_response = requests.get(
@@ -137,16 +139,16 @@ def trigger_workbook_refresh(
             )
 
             workbooks_data = workbook_response.json()
-            workbook_id = _get_workbook_from_response(workbooks_data)
-            if workbook_id:
-                logger.info(f"Found workbook by name: '{workbook_name}' -> ID: {workbook_id}")
+            workbook_uuid = _get_workbook_from_response(workbooks_data)
+            if workbook_uuid:
+                logger.info(f"Found workbook by name: '{workbook_name}' -> UUID: {workbook_uuid}")
         except Exception as e:
             logger.warning(f"Could not find workbook by name '{workbook_name}': {e}")
 
     # If still not found and input wasn't a UUID, try searching all workbooks for an ID match
-    if workbook_id is None and not _is_uuid_format(workbook_name):
+    if workbook_uuid is None and not _is_uuid_format(workbook_name):
         try:
-            logger.info(f"Searching all workbooks for potential ID match: '{workbook_name}'")
+            logger.info(f"Searching all workbooks for potential UUID match: '{workbook_name}'")
             all_workbooks_response = requests.get(
                 f"{host}/api/{api_version}/sites/{site_id}/workbooks",
                 headers={
@@ -168,23 +170,23 @@ def trigger_workbook_refresh(
 
                 for workbook in workbooks_list:
                     if workbook.get("id") == workbook_name:
-                        workbook_id = workbook["id"]
+                        workbook_uuid = workbook["id"]
                         logger.info(
-                            f"Found workbook by ID in all workbooks search: '{workbook_name}' -> confirmed ID: {workbook_id}"
+                            f"Found workbook by UUID in all workbooks search: '{workbook_name}' -> confirmed UUID: {workbook_uuid}"
                         )
                         break
         except Exception as e:
-            logger.warning(f"Could not search all workbooks for ID '{workbook_name}': {e}")
+            logger.warning(f"Could not search all workbooks for UUID '{workbook_name}': {e}")
 
     # If still not found, raise an exception
-    if workbook_id is None:
+    if workbook_uuid is None:
         raise Exception(
-            f"Could not find workbook with name or ID '{workbook_name}'. Please check that the workbook exists and you have permission to access it."
+            f"Could not find workbook with name or UUID '{workbook_name}'. Please check that the workbook exists and you have permission to access it."
         )
 
     # Refresh the workbook
     refresh_trigger = requests.post(
-        f"{host}/api/{api_version}/sites/{site_id}/workbooks/{workbook_id}/refresh",
+        f"{host}/api/{api_version}/sites/{site_id}/workbooks/{workbook_uuid}/refresh",
         json={},
         headers={
             "Accept": "application/json",
@@ -194,7 +196,7 @@ def trigger_workbook_refresh(
     )
     handle_http_error(
         refresh_trigger,
-        f"Error triggering refresh for workbook '{workbook_name}' (ID: {workbook_id}):",
+        f"Error triggering refresh for workbook '{workbook_name}' (UUID: {workbook_uuid}):",
     )
 
     if not wait_for_completion:
@@ -217,7 +219,8 @@ def trigger_workbook_refresh(
         site_id=site_id,
         api_version=api_version,
         job_id=job_id,
-        workbook_name=workbook_name,
+        resource_type="Workbook",
+        resource_name=workbook_name,
         timeout_minutes=timeout_minutes,
     )
 
@@ -259,7 +262,8 @@ def _wait_for_job_completion(
     site_id: str,
     api_version: str,
     job_id: str,
-    workbook_name: str,
+    resource_type: str,
+    resource_name: str,
     timeout_minutes: int,
 ) -> str:
     """Poll job status until completion or timeout."""
@@ -272,7 +276,7 @@ def _wait_for_job_completion(
         elapsed = time.time() - start_time
         if elapsed > timeout_seconds:
             raise Exception(
-                f"Timeout waiting for workbook '{workbook_name}' refresh job {job_id} to complete after {timeout_minutes} minutes"
+                f"Timeout waiting for {resource_type.lower()} '{resource_name}' refresh job {job_id} to complete after {timeout_minutes} minutes"
             )
 
         try:
@@ -286,11 +290,14 @@ def _wait_for_job_completion(
             )
 
             if job_response.status_code != 200:
-                logger.warning(
-                    f"Error getting job status for {job_id}: HTTP {job_response.status_code}"
+                logger.error(f"❌ Failed to get job status: HTTP {job_response.status_code}")
+                logger.error("The refresh was triggered successfully, but job monitoring failed.")
+                logger.error(
+                    "The refresh may still be running on Tableau Server. Check the server directly for job status."
                 )
-                time.sleep(sleep_interval)
-                continue
+                raise Exception(
+                    f"Job monitoring failed with HTTP {job_response.status_code}. The refresh job was triggered but monitoring failed."
+                )
 
             # Parse job status from JSON or XML response
             progress = "0"
@@ -350,25 +357,365 @@ def _wait_for_job_completion(
                     elapsed_min = int(elapsed // 60)
                     elapsed_sec = int(elapsed % 60)
                     logger.info(
-                        f"✅ Workbook '{workbook_name}' refresh completed successfully in {elapsed_min}m {elapsed_sec}s"
+                        f"✅ {resource_type} '{resource_name}' refresh completed successfully in {elapsed_min}m {elapsed_sec}s"
                     )
                     return f"SUCCESS (finished at {completed_at})"
                 elif finish_code == "1":
-                    logger.error(f"❌ Workbook '{workbook_name}' refresh failed")
+                    logger.error(f"❌ {resource_type} '{resource_name}' refresh failed")
                     return f"FAILED (finish code: {finish_code})"
                 elif finish_code == "2":
-                    logger.warning(f"⚠️ Workbook '{workbook_name}' refresh was canceled")
+                    logger.warning(f"⚠️ {resource_type} '{resource_name}' refresh was canceled")
                     return f"CANCELED (finish code: {finish_code})"
                 else:
                     logger.warning(
-                        f"⚠️ Workbook '{workbook_name}' refresh finished with unknown code: {finish_code}"
+                        f"⚠️ {resource_type} '{resource_name}' refresh finished with unknown code: {finish_code}"
                     )
                     return f"UNKNOWN (finish code: {finish_code})"
 
             counter += 1
             time.sleep(sleep_interval)
 
-        except Exception as e:
-            logger.warning(f"Error polling job status for {job_id}: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Network error polling job status for {job_id}: {e}")
             time.sleep(sleep_interval)
             continue
+
+
+def trigger_tableau_datasource_refresh(
+    *,
+    host: str,
+    personal_access_token_name: str,
+    personal_access_token_secret: str,
+    site_name: str,
+    datasource_names: List[str],  # Can now be names OR UUIDs
+    api_version: str,
+    wait_for_completion: bool = False,
+    timeout_minutes: int = 30,
+) -> None:
+    auth_response = requests.post(
+        f"{host}/api/{api_version}/auth/signin",
+        json={
+            "credentials": {
+                "personalAccessTokenName": personal_access_token_name,
+                "personalAccessTokenSecret": personal_access_token_secret,
+                "site": {"contentUrl": site_name},
+            }
+        },
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    handle_http_error(auth_response)
+    # Extract token to use for subsequent calls
+    auth_token: str = auth_response.json()["credentials"]["token"]
+    site_id: str = auth_response.json()["credentials"]["site"]["id"]
+    # call refresh for the datasources async
+    futures = []
+    with ThreadPoolExecutor() as executor:
+        for datasource_name in set(datasource_names):
+            logger.info(f"Refreshing Tableau data source: {datasource_name}")
+            futures.append(
+                (
+                    datasource_name,
+                    executor.submit(
+                        trigger_datasource_refresh,
+                        host=host,
+                        auth_token=auth_token,
+                        site_id=site_id,
+                        api_version=api_version,
+                        datasource_name=datasource_name,
+                        wait_for_completion=wait_for_completion,
+                        timeout_minutes=timeout_minutes,
+                    ),
+                )
+            )
+        for datasource_name, future in futures:
+            # Use longer timeout when waiting for completion
+            future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
+            response_txt = future.result(timeout=future_timeout)
+            logger.info(f"Refreshed Tableau data source: {datasource_name} - {response_txt}")
+
+
+def trigger_datasource_refresh(
+    *,
+    host: str,
+    auth_token: str,
+    site_id: str,
+    api_version: str,
+    datasource_name: str,  # Can be name OR UUID
+    wait_for_completion: bool = False,
+    timeout_minutes: int = 30,
+) -> str:
+    datasource_uuid = None
+
+    def _is_uuid_format(value: str) -> bool:
+        """Check if input string matches UUID format."""
+        uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        return bool(re.match(uuid_pattern, value, re.IGNORECASE))
+
+    def _get_datasource_from_response(datasources_data: dict) -> Optional[str]:
+        """Extract data source UUID from API response."""
+        if (
+            "datasources" not in datasources_data
+            or "datasource" not in datasources_data["datasources"]
+        ):
+            return None
+
+        datasource = datasources_data["datasources"]["datasource"]
+        if isinstance(datasource, list) and len(datasource) > 0:
+            return datasource[0]["id"]
+        elif isinstance(datasource, dict):
+            return datasource["id"]
+        return None
+
+    # If input looks like an ID, try direct access first
+    if _is_uuid_format(datasource_name):
+        try:
+            logger.info(f"Input appears to be a UUID, trying direct access: '{datasource_name}'")
+            direct_datasource_response = requests.get(
+                f"{host}/api/{api_version}/sites/{site_id}/datasources/{datasource_name}",
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Tableau-Auth": auth_token,
+                },
+            )
+
+            if direct_datasource_response.status_code == 200:
+                datasource_data = direct_datasource_response.json()
+                if "datasource" in datasource_data:
+                    datasource_uuid = datasource_data["datasource"]["id"]
+                    logger.info(
+                        f"Found data source by direct UUID access: '{datasource_name}' -> confirmed UUID: {datasource_uuid}"
+                    )
+            else:
+                logger.warning(
+                    f"Could not access data source directly by UUID '{datasource_name}': HTTP {direct_datasource_response.status_code}"
+                )
+        except Exception as e:
+            logger.warning(f"Could not access data source by direct UUID '{datasource_name}': {e}")
+
+    # If not found by direct ID access (or input wasn't an ID), try searching by name
+    if datasource_uuid is None:
+        try:
+            logger.info(f"Searching for data source by name: '{datasource_name}'")
+            datasource_response = requests.get(
+                f"{host}/api/{api_version}/sites/{site_id}/datasources",
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Tableau-Auth": auth_token,
+                },
+                params={"filter": f"name:eq:{datasource_name}"},
+            )
+            handle_http_error(
+                datasource_response, f"Error searching for data source by name '{datasource_name}':"
+            )
+
+            datasources_data = datasource_response.json()
+            datasource_uuid = _get_datasource_from_response(datasources_data)
+            if datasource_uuid:
+                logger.info(
+                    f"Found data source by name: '{datasource_name}' -> UUID: {datasource_uuid}"
+                )
+        except Exception as e:
+            logger.warning(f"Could not find data source by name '{datasource_name}': {e}")
+
+    # If still not found and input wasn't a UUID, try searching all datasources for an ID match
+    if datasource_uuid is None and not _is_uuid_format(datasource_name):
+        try:
+            logger.info(f"Searching all data sources for potential UUID match: '{datasource_name}'")
+            all_datasources_response = requests.get(
+                f"{host}/api/{api_version}/sites/{site_id}/datasources",
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Tableau-Auth": auth_token,
+                },
+            )
+            handle_http_error(
+                all_datasources_response,
+                f"Error getting all data sources while searching for '{datasource_name}':",
+            )
+
+            datasources_data = all_datasources_response.json()
+            if (
+                "datasources" in datasources_data
+                and "datasource" in datasources_data["datasources"]
+            ):
+                datasources_list = datasources_data["datasources"]["datasource"]
+                if isinstance(datasources_list, dict):
+                    datasources_list = [datasources_list]
+
+                for datasource in datasources_list:
+                    if datasource.get("id") == datasource_name:
+                        datasource_uuid = datasource["id"]
+                        logger.info(
+                            f"Found data source by UUID in all data sources search: '{datasource_name}' -> confirmed UUID: {datasource_uuid}"
+                        )
+                        break
+        except Exception as e:
+            logger.warning(f"Could not search all data sources for UUID '{datasource_name}': {e}")
+
+    # If still not found, raise an exception
+    if datasource_uuid is None:
+        raise Exception(
+            f"Could not find data source with name or UUID '{datasource_name}'. Please check that the data source exists and you have permission to access it."
+        )
+
+    # Refresh the data source
+    refresh_trigger = requests.post(
+        f"{host}/api/{api_version}/sites/{site_id}/datasources/{datasource_uuid}/refresh",
+        json={},
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Tableau-Auth": auth_token,
+        },
+    )
+    handle_http_error(
+        refresh_trigger,
+        f"Error triggering refresh for data source '{datasource_name}' (UUID: {datasource_uuid}):",
+    )
+
+    if not wait_for_completion:
+        return refresh_trigger.text
+
+    # Extract job ID from response to monitor completion
+    job_id = _extract_job_id_from_response(refresh_trigger.text)
+    if not job_id:
+        logger.warning(
+            f"Could not extract job ID from refresh response for data source '{datasource_name}'. Cannot monitor completion."
+        )
+        return refresh_trigger.text
+
+    logger.info(f"Monitoring refresh job {job_id} for data source '{datasource_name}'...")
+
+    # Wait for job completion
+    job_status = _wait_for_job_completion(
+        host=host,
+        auth_token=auth_token,
+        site_id=site_id,
+        api_version=api_version,
+        job_id=job_id,
+        resource_type="Data source",
+        resource_name=datasource_name,
+        timeout_minutes=timeout_minutes,
+    )
+
+    return f"Refresh completed. Job status: {job_status}"
+
+
+def list_tableau_workbooks(
+    *,
+    host: str,
+    personal_access_token_name: str,
+    personal_access_token_secret: str,
+    site_name: str,
+    api_version: str,
+) -> None:
+    """List all Tableau workbooks with their names and UUIDs."""
+    auth_response = requests.post(
+        f"{host}/api/{api_version}/auth/signin",
+        json={
+            "credentials": {
+                "personalAccessTokenName": personal_access_token_name,
+                "personalAccessTokenSecret": personal_access_token_secret,
+                "site": {"contentUrl": site_name},
+            }
+        },
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    handle_http_error(auth_response)
+
+    auth_token: str = auth_response.json()["credentials"]["token"]
+    site_id: str = auth_response.json()["credentials"]["site"]["id"]
+
+    # Get all workbooks
+    workbooks_response = requests.get(
+        f"{host}/api/{api_version}/sites/{site_id}/workbooks",
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Tableau-Auth": auth_token,
+        },
+    )
+    handle_http_error(workbooks_response, "Error getting workbooks:")
+
+    workbooks_data = workbooks_response.json()
+
+    if "workbooks" not in workbooks_data or "workbook" not in workbooks_data["workbooks"]:
+        logger.info("No workbooks found.")
+        return
+
+    workbooks = workbooks_data["workbooks"]["workbook"]
+    if isinstance(workbooks, dict):
+        workbooks = [workbooks]
+
+    logger.info(f"Found {len(workbooks)} workbook(s):")
+    for workbook in workbooks:
+        name = workbook.get("name", "Unknown")
+        wb_uuid = workbook.get("id", "Unknown")
+        project_name = (
+            workbook.get("project", {}).get("name", "Unknown")
+            if isinstance(workbook.get("project"), dict)
+            else "Unknown"
+        )
+        logger.info(f"  {name} | {wb_uuid} | Project: {project_name}")
+
+
+def list_tableau_datasources(
+    *,
+    host: str,
+    personal_access_token_name: str,
+    personal_access_token_secret: str,
+    site_name: str,
+    api_version: str,
+) -> None:
+    """List all Tableau data sources with their names and UUIDs."""
+    auth_response = requests.post(
+        f"{host}/api/{api_version}/auth/signin",
+        json={
+            "credentials": {
+                "personalAccessTokenName": personal_access_token_name,
+                "personalAccessTokenSecret": personal_access_token_secret,
+                "site": {"contentUrl": site_name},
+            }
+        },
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    handle_http_error(auth_response)
+
+    auth_token: str = auth_response.json()["credentials"]["token"]
+    site_id: str = auth_response.json()["credentials"]["site"]["id"]
+
+    # Get all data sources
+    datasources_response = requests.get(
+        f"{host}/api/{api_version}/sites/{site_id}/datasources",
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Tableau-Auth": auth_token,
+        },
+    )
+    handle_http_error(datasources_response, "Error getting data sources:")
+
+    datasources_data = datasources_response.json()
+
+    if "datasources" not in datasources_data or "datasource" not in datasources_data["datasources"]:
+        logger.info("No data sources found.")
+        return
+
+    datasources = datasources_data["datasources"]["datasource"]
+    if isinstance(datasources, dict):
+        datasources = [datasources]
+
+    logger.info(f"Found {len(datasources)} data source(s):")
+    for datasource in datasources:
+        name = datasource.get("name", "Unknown")
+        ds_uuid = datasource.get("id", "Unknown")
+        ds_type = datasource.get("type", "Unknown")
+        project_name = (
+            datasource.get("project", {}).get("name", "Unknown")
+            if isinstance(datasource.get("project"), dict)
+            else "Unknown"
+        )
+        logger.info(f"  {name} | {ds_uuid} | Type: {ds_type} | Project: {project_name}")
