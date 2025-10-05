@@ -442,6 +442,15 @@ def fivetran_sync(
                 click.echo(f"  ⚠️ {paused_count} paused (need manual action)")
             if failed_count > 0:
                 click.echo(f"  ❌ {failed_count} failed")
+        
+        # Add dashboard links summary
+        if len(connector_id) == 1:
+            dashboard_url = f"https://fivetran.com/dashboard/connections/{connector_id[0]}"
+            click.echo(f"\n🔗 View connector in Fivetran dashboard: {dashboard_url}")
+        else:
+            click.echo(f"\n🔗 View connectors in Fivetran dashboard:")
+            for conn_id in connector_id:
+                click.echo(f"   https://fivetran.com/dashboard/connections/{conn_id}")
                 
     except Exception as e:
         click.echo(f"❌ Fivetran sync failed: {str(e)}")

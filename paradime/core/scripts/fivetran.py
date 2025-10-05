@@ -138,6 +138,10 @@ def trigger_connector_sync(
         f"Error triggering sync for connector '{connector_id}':",
     )
     
+    # Show dashboard link immediately after successful trigger
+    dashboard_url = f"https://fivetran.com/dashboard/connections/{connector_id}"
+    logger.info(f"🔗 View connector in Fivetran dashboard: {dashboard_url}")
+    
     if not wait_for_completion:
         return sync_response.text
     
@@ -364,6 +368,9 @@ def list_fivetran_connectors(
         sync_emoji = "🔄" if sync_state == "syncing" else "✅" if sync_state in ["scheduled", "rescheduled"] else "⏸️" if sync_state == "paused" else "❓"
         setup_emoji = "✅" if setup_state == "connected" else "❌" if setup_state == "broken" else "⚠️"
         
+        # Create dashboard deep link
+        dashboard_url = f"https://fivetran.com/dashboard/connections/{connector_id}"
+        
         logger.info(f"\n📊 Connector ID: {connector_id}")
         logger.info(f"   Service: {service}")
         logger.info(f"   Schema: {schema}")
@@ -373,6 +380,7 @@ def list_fivetran_connectors(
             logger.info(f"   ✅ Last Success: {succeeded_at}")
         if failed_at != "Never":
             logger.info(f"   ❌ Last Failure: {failed_at}")
+        logger.info(f"   🔗 Dashboard: {dashboard_url}")
         logger.info(f"   {'-'*40}")
     
     logger.info(f"{'='*80}\n")
