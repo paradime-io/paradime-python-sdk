@@ -406,16 +406,46 @@ def fivetran_sync(
     """
     click.echo(f"Starting sync for {len(connector_id)} Fivetran connector(s)...")
 
-    trigger_fivetran_sync(
-        api_key=api_key,
-        api_secret=api_secret,
-        connector_ids=list(connector_id),
-        force=force,
-        wait_for_completion=wait_for_completion,
-        timeout_minutes=timeout_minutes,
-    )
-
-    click.echo("Fivetran sync completed!")
+    try:
+        results = trigger_fivetran_sync(
+            api_key=api_key,
+            api_secret=api_secret,
+            connector_ids=list(connector_id),
+            force=force,
+            wait_for_completion=wait_for_completion,
+            timeout_minutes=timeout_minutes,
+        )
+        
+        # Analyze results to provide appropriate final message
+        success_count = sum(1 for r in results if "SUCCESS" in r or "COMPLETED" in r)
+        failed_count = sum(1 for r in results if "FAILED" in r)
+        paused_count = sum(1 for r in results if "PAUSED" in r)
+        rescheduled_count = sum(1 for r in results if "RESCHEDULED" in r)
+        
+        total = len(connector_id)
+        
+        if success_count == total:
+            click.echo(f"✅ All {total} connector(s) synced successfully!")
+        elif paused_count == total:
+            click.echo(f"⚠️ All {total} connector(s) are paused - no syncs were performed.")
+            click.echo("💡 Please unpause these connectors in the Fivetran dashboard to enable syncing.")
+        elif failed_count == total:
+            click.echo(f"❌ All {total} connector(s) failed to sync.")
+        else:
+            # Mixed results
+            click.echo(f"📊 Sync completed with mixed results:")
+            if success_count > 0:
+                click.echo(f"  ✅ {success_count} successful")
+            if rescheduled_count > 0:
+                click.echo(f"  ⏳ {rescheduled_count} rescheduled (will resume automatically)")
+            if paused_count > 0:
+                click.echo(f"  ⚠️ {paused_count} paused (need manual action)")
+            if failed_count > 0:
+                click.echo(f"  ❌ {failed_count} failed")
+                
+    except Exception as e:
+        click.echo(f"❌ Fivetran sync failed: {str(e)}")
+        raise click.Abort()
 
 
 @click.command(context_settings=dict(max_content_width=160))

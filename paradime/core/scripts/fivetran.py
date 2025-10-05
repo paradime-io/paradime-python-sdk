@@ -19,7 +19,7 @@ def trigger_fivetran_sync(
     force: bool = False,
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
-) -> None:
+) -> List[str]:
     """
     Trigger sync for multiple Fivetran connectors.
     
@@ -30,8 +30,13 @@ def trigger_fivetran_sync(
         force: Whether to force restart ongoing syncs
         wait_for_completion: Whether to wait for syncs to complete
         timeout_minutes: Maximum time to wait for completion
+        
+    Returns:
+        List of sync result messages for each connector
     """
     futures = []
+    results = []
+    
     with ThreadPoolExecutor() as executor:
         for connector_id in set(connector_ids):
             logger.info(f"Triggering Fivetran connector sync: {connector_id}")
@@ -55,6 +60,9 @@ def trigger_fivetran_sync(
             future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
             response_txt = future.result(timeout=future_timeout)
             logger.info(f"Sync result for connector {connector_id}: {response_txt}")
+            results.append(response_txt)
+    
+    return results
 
 
 def trigger_connector_sync(
@@ -82,6 +90,37 @@ def trigger_connector_sync(
     """
     base_url = "https://api.fivetran.com/v1"
     auth = (api_key, api_secret)
+    
+    # Check connector status before attempting sync
+    logger.info(f"Checking connector status before triggering sync: {connector_id}")
+    try:
+        status_response = requests.get(
+            f"{base_url}/connectors/{connector_id}",
+            auth=auth,
+            headers={"Content-Type": "application/json"},
+        )
+        
+        if status_response.status_code == 200:
+            status_data = status_response.json().get("data", {})
+            current_sync_state = status_data.get("status", {}).get("sync_state", "unknown")
+            current_setup_state = status_data.get("status", {}).get("setup_state", "unknown")
+            
+            logger.info(f"Current state - sync: {current_sync_state}, setup: {current_setup_state}")
+            
+            # Handle paused connectors
+            if current_sync_state == "paused":
+                if not force:
+                    logger.warning(f"⚠️ Connector '{connector_id}' is paused. Sync cannot be triggered unless --force is used.")
+                    return "PAUSED (connector is paused - use --force to attempt override)"
+                else:
+                    logger.info(f"🔄 Attempting to force sync on paused connector '{connector_id}'...")
+            
+            # Handle broken setup state
+            if current_setup_state == "broken":
+                logger.warning(f"⚠️ Connector '{connector_id}' has broken setup. Sync may fail.")
+                
+    except Exception as e:
+        logger.warning(f"Could not check connector status: {e}. Proceeding with sync attempt...")
     
     # Trigger the sync
     sync_payload = {"force": force} if force else {}
