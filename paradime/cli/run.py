@@ -416,41 +416,8 @@ def fivetran_sync(
             timeout_minutes=timeout_minutes,
         )
         
-        # Analyze results to provide appropriate final message
-        success_count = sum(1 for r in results if "SUCCESS" in r or "COMPLETED" in r)
-        failed_count = sum(1 for r in results if "FAILED" in r)
-        paused_count = sum(1 for r in results if "PAUSED" in r)
-        rescheduled_count = sum(1 for r in results if "RESCHEDULED" in r)
-        
-        total = len(connector_id)
-        
-        if success_count == total:
-            click.echo(f"✅ All {total} connector(s) synced successfully!")
-        elif paused_count == total:
-            click.echo(f"⚠️ All {total} connector(s) are paused - no syncs were performed.")
-            click.echo("💡 Please unpause these connectors in the Fivetran dashboard to enable syncing.")
-        elif failed_count == total:
-            click.echo(f"❌ All {total} connector(s) failed to sync.")
-        else:
-            # Mixed results
-            click.echo(f"📊 Sync completed with mixed results:")
-            if success_count > 0:
-                click.echo(f"  ✅ {success_count} successful")
-            if rescheduled_count > 0:
-                click.echo(f"  ⏳ {rescheduled_count} rescheduled (will resume automatically)")
-            if paused_count > 0:
-                click.echo(f"  ⚠️ {paused_count} paused (need manual action)")
-            if failed_count > 0:
-                click.echo(f"  ❌ {failed_count} failed")
-        
-        # Add dashboard links summary
-        if len(connector_id) == 1:
-            dashboard_url = f"https://fivetran.com/dashboard/connections/{connector_id[0]}"
-            click.echo(f"\n🔗 View connector in Fivetran dashboard: {dashboard_url}")
-        else:
-            click.echo(f"\n🔗 View connectors in Fivetran dashboard:")
-            for conn_id in connector_id:
-                click.echo(f"   https://fivetran.com/dashboard/connections/{conn_id}")
+        # Results are already displayed in table format from trigger_fivetran_sync function
+        # No additional summary needed here
                 
     except Exception as e:
         click.echo(f"❌ Fivetran sync failed: {str(e)}")
