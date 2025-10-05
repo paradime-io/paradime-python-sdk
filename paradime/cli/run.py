@@ -4,10 +4,7 @@ from typing import Final, List, Optional
 import click
 
 from paradime.cli.utils import env_click_option
-from paradime.core.scripts.fivetran import (
-    list_fivetran_connectors,
-    trigger_fivetran_sync,
-)
+from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fivetran_sync
 from paradime.core.scripts.montecarlo import search_for_files_to_upload_to_montecarlo
 from paradime.core.scripts.power_bi import (
     get_access_token,
@@ -407,7 +404,7 @@ def fivetran_sync(
     click.echo(f"Starting sync for {len(connector_id)} Fivetran connector(s)...")
 
     try:
-        results = trigger_fivetran_sync(
+        trigger_fivetran_sync(
             api_key=api_key,
             api_secret=api_secret,
             connector_ids=list(connector_id),
@@ -415,10 +412,10 @@ def fivetran_sync(
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
         )
-        
+
         # Results are already displayed in table format from trigger_fivetran_sync function
         # No additional summary needed here
-                
+
     except Exception as e:
         click.echo(f"❌ Fivetran sync failed: {str(e)}")
         raise click.Abort()
