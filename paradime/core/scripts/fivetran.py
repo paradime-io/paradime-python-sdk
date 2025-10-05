@@ -240,14 +240,21 @@ def _wait_for_sync_completion(
             succeeded_at = data.get("succeeded_at")
             failed_at = data.get("failed_at")
             
-            # Log progress on first check and then every 6 checks (1 minute)
-            if counter == 0 or counter % 6 == 0:
-                logger.info(f"Connector {connector_id} sync state: {sync_state}, setup state: {setup_state}")
-            
             # Track if sync has actually started
             if sync_state == "syncing" and not sync_started:
                 sync_started = True
                 logger.info(f"🔄 Sync started for connector {connector_id}")
+            
+            # Log progress on first check and then every 6 checks (1 minute) - similar to Tableau
+            if counter == 0 or counter % 6 == 0:
+                elapsed_min = int(elapsed // 60)
+                elapsed_sec = int(elapsed % 60)
+                if sync_state == "syncing":
+                    logger.info(f"Connector {connector_id} syncing... ({elapsed_min}m {elapsed_sec}s elapsed)")
+                elif not sync_started:
+                    logger.info(f"Connector {connector_id} waiting to start... ({elapsed_min}m {elapsed_sec}s elapsed)")
+                else:
+                    logger.info(f"Connector {connector_id} sync state: {sync_state}, setup state: {setup_state}")
             
             # Check if sync is complete - but only if we've seen it start or timestamps changed
             if sync_state in ["scheduled", "rescheduled"]:
