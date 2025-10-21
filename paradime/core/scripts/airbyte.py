@@ -49,7 +49,7 @@ def trigger_airbyte_jobs(
         # Server: Use client_id and client_secret directly as bearer token
         # For Airbyte Server, client_id is typically the API key and client_secret is the secret
         auth_headers = {"Authorization": f"Bearer {client_id}:{client_secret}"}
-    
+
     futures = []
     results = []
 
@@ -168,22 +168,26 @@ def trigger_connection_job(
         if connection_response.status_code == 200:
             connection_data = connection_response.json()
             connection_status = connection_data.get("status", "unknown")
-            
+
             print(f"{timestamp} 📊 [{connection_id}] Status: {connection_status}")
 
             # Handle inactive connections
             if connection_status != "active":
-                print(f"{timestamp} ⚠️  [{connection_id}] Warning: Connection is {connection_status}")
+                print(
+                    f"{timestamp} ⚠️  [{connection_id}] Warning: Connection is {connection_status}"
+                )
 
     except Exception as e:
-        print(f"{timestamp} ⚠️  [{connection_id}] Could not check status: {str(e)[:50]}... Proceeding anyway.")
+        print(
+            f"{timestamp} ⚠️  [{connection_id}] Could not check status: {str(e)[:50]}... Proceeding anyway."
+        )
 
     # Prepare job payload
     job_payload = {
         "connectionId": connection_id,
         "jobType": job_type,
     }
-    
+
     if workspace_id:
         job_payload["workspaceId"] = workspace_id
 
@@ -201,7 +205,7 @@ def trigger_connection_job(
 
     job_data = job_response.json()
     job_id = job_data.get("jobId")
-    
+
     print(f"{timestamp} ✅ [{connection_id}] Job triggered successfully (ID: {job_id})")
 
     if not wait_for_completion:
@@ -221,7 +225,9 @@ def trigger_connection_job(
     return f"Job completed. Final status: {job_status}"
 
 
-def _get_access_token(client_id: str, client_secret: str, base_url: str = "https://api.airbyte.com/v1") -> str:
+def _get_access_token(
+    client_id: str, client_secret: str, base_url: str = "https://api.airbyte.com/v1"
+) -> str:
     """
     Get access token using client credentials (Airbyte Cloud only).
 
@@ -234,18 +240,18 @@ def _get_access_token(client_id: str, client_secret: str, base_url: str = "https
         Access token for API calls
     """
     token_url = f"{base_url}/applications/token"
-    
+
     payload = {
         "client_id": client_id,
         "client_secret": client_secret,
     }
-    
+
     headers = {"Content-Type": "application/json"}
-    
+
     response = requests.post(token_url, json=payload, headers=headers)
-    
+
     handle_http_error(response, "Error getting access token:")
-    
+
     token_data = response.json()
     return token_data.get("access_token")
 
@@ -272,7 +278,7 @@ def _wait_for_job_completion(
         Final job status
     """
     headers = {**auth_headers, "Content-Type": "application/json"}
-    
+
     start_time = time.time()
     timeout_seconds = timeout_minutes * 60
     sleep_interval = 5
@@ -297,17 +303,24 @@ def _wait_for_job_completion(
             if job_response.status_code != 200:
                 consecutive_failures += 1
                 if consecutive_failures >= max_consecutive_failures:
-                    raise Exception(f"Job status check failed {consecutive_failures} times in a row. Last HTTP status: {job_response.status_code}")
-                
+                    raise Exception(
+                        f"Job status check failed {consecutive_failures} times in a row. Last HTTP status: {job_response.status_code}"
+                    )
+
                 import datetime
+
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"{timestamp} ⚠️  [{connection_id}] HTTP {job_response.status_code} error. Retrying... ({consecutive_failures}/{max_consecutive_failures})")
-                time.sleep(sleep_interval * min(consecutive_failures, 3))  # Exponential backoff up to 3x
+                print(
+                    f"{timestamp} ⚠️  [{connection_id}] HTTP {job_response.status_code} error. Retrying... ({consecutive_failures}/{max_consecutive_failures})"
+                )
+                time.sleep(
+                    sleep_interval * min(consecutive_failures, 3)
+                )  # Exponential backoff up to 3x
                 continue
 
             job_data = job_response.json()
             job_status = job_data.get("status", "unknown")
-            
+
             # Reset failure counter on successful request
             consecutive_failures = 0
 
@@ -318,11 +331,15 @@ def _wait_for_job_completion(
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
-                
+
                 if job_status == "running":
-                    print(f"{timestamp} 🔄 [{connection_id}] Job running... ({elapsed_min}m {elapsed_sec}s elapsed)")
+                    print(
+                        f"{timestamp} 🔄 [{connection_id}] Job running... ({elapsed_min}m {elapsed_sec}s elapsed)"
+                    )
                 elif job_status == "pending":
-                    print(f"{timestamp} ⏳ [{connection_id}] Job pending... ({elapsed_min}m {elapsed_sec}s elapsed)")
+                    print(
+                        f"{timestamp} ⏳ [{connection_id}] Job pending... ({elapsed_min}m {elapsed_sec}s elapsed)"
+                    )
 
             # Check if job is complete
             if job_status in ["succeeded", "failed", "cancelled", "incomplete"]:
@@ -333,7 +350,9 @@ def _wait_for_job_completion(
                 elapsed_sec = int(elapsed % 60)
 
                 if job_status == "succeeded":
-                    print(f"{timestamp} ✅ [{connection_id}] Job completed successfully ({elapsed_min}m {elapsed_sec}s)")
+                    print(
+                        f"{timestamp} ✅ [{connection_id}] Job completed successfully ({elapsed_min}m {elapsed_sec}s)"
+                    )
                     return f"SUCCESS (completed at job ID: {job_id})"
                 elif job_status == "failed":
                     print(f"{timestamp} ❌ [{connection_id}] Job failed")
@@ -358,12 +377,19 @@ def _wait_for_job_completion(
         except requests.exceptions.RequestException as e:
             consecutive_failures += 1
             if consecutive_failures >= max_consecutive_failures:
-                raise Exception(f"Network errors occurred {consecutive_failures} times in a row. Last error: {str(e)[:100]}")
-            
+                raise Exception(
+                    f"Network errors occurred {consecutive_failures} times in a row. Last error: {str(e)[:100]}"
+                )
+
             import datetime
+
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(f"{timestamp} ⚠️  [{connection_id}] Network error: {str(e)[:50]}... Retrying... ({consecutive_failures}/{max_consecutive_failures})")
-            time.sleep(sleep_interval * min(consecutive_failures, 3))  # Exponential backoff up to 3x
+            print(
+                f"{timestamp} ⚠️  [{connection_id}] Network error: {str(e)[:50]}... Retrying... ({consecutive_failures}/{max_consecutive_failures})"
+            )
+            time.sleep(
+                sleep_interval * min(consecutive_failures, 3)
+            )  # Exponential backoff up to 3x
             continue
 
 
@@ -404,7 +430,7 @@ def list_airbyte_connections(
     # Build URL and parameters
     url = f"{base_url}/connections"
     params = {}
-    
+
     if workspace_id:
         params["workspaceId"] = workspace_id
         print(f"\n🔍 Listing connections for workspace: {workspace_id}")
@@ -431,16 +457,15 @@ def list_airbyte_connections(
         connection_id = connection.get("connectionId", "Unknown")
         name = connection.get("name", "Unknown")
         status = connection.get("status", "Unknown")
-        
+
         source_id = connection.get("sourceId", "Unknown")
         destination_id = connection.get("destinationId", "Unknown")
 
         # Format status with emoji
         status_emoji = (
-            "✅" if status == "active" 
-            else "⏸️" if status == "inactive" 
-            else "❌" if status == "deprecated" 
-            else "❓"
+            "✅"
+            if status == "active"
+            else "⏸️" if status == "inactive" else "❌" if status == "deprecated" else "❓"
         )
 
         print(f"\n[{i}/{len(connections)}] 🔌 {connection_id}")
