@@ -265,7 +265,7 @@ def _wait_for_job_completion(
     
     start_time = time.time()
     timeout_seconds = timeout_minutes * 60
-    sleep_interval = 10  # Poll every 10 seconds
+    sleep_interval = 5
     counter = 0
     consecutive_failures = 0
     max_consecutive_failures = 5
