@@ -462,12 +462,24 @@ def fivetran_list_connectors(
 @env_click_option(
     "client-id",
     "AIRBYTE_CLIENT_ID",
-    help="Your Airbyte client ID. You can find this in your Airbyte account settings.",
+    help="Your Airbyte client ID.",
 )
 @env_click_option(
     "client-secret",
     "AIRBYTE_CLIENT_SECRET",
-    help="Your Airbyte client secret. You can find this in your Airbyte account settings.",
+    help="Your Airbyte client secret.",
+)
+@env_click_option(
+    "base-url",
+    "AIRBYTE_BASE_URL",
+    help="Airbyte API base URL. Default: https://api.airbyte.com/v1 (Cloud)",
+    default="https://api.airbyte.com/v1",
+)
+@click.option(
+    "--use-server-auth",
+    is_flag=True,
+    help="Use basic authentication for self-hosted Airbyte Server (instead of OAuth for Cloud)",
+    default=False,
 )
 @click.option(
     "--connection-id",
@@ -501,6 +513,8 @@ def fivetran_list_connectors(
 def airbyte_sync(
     client_id: str,
     client_secret: str,
+    base_url: str,
+    use_server_auth: bool,
     connection_id: List[str],
     job_type: str,
     workspace_id: Optional[str],
@@ -521,6 +535,8 @@ def airbyte_sync(
             workspace_id=workspace_id,
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
+            base_url=base_url,
+            use_cloud_auth=not use_server_auth,
         )
 
     except Exception as e:
@@ -532,12 +548,24 @@ def airbyte_sync(
 @env_click_option(
     "client-id",
     "AIRBYTE_CLIENT_ID",
-    help="Your Airbyte client ID. You can find this in your Airbyte account settings.",
+    help="Your Airbyte client ID (Cloud) or API key (Server).",
 )
 @env_click_option(
     "client-secret",
     "AIRBYTE_CLIENT_SECRET",
-    help="Your Airbyte client secret. You can find this in your Airbyte account settings.",
+    help="Your Airbyte client secret (Cloud) or API secret (Server).",
+)
+@env_click_option(
+    "base-url",
+    "AIRBYTE_BASE_URL",
+    help="Airbyte API base URL. Default: https://api.airbyte.com/v1 (Cloud)",
+    default="https://api.airbyte.com/v1",
+)
+@click.option(
+    "--use-server-auth",
+    is_flag=True,
+    help="Use basic authentication for self-hosted Airbyte Server (instead of OAuth for Cloud)",
+    default=False,
 )
 @click.option(
     "--workspace-id",
@@ -547,6 +575,8 @@ def airbyte_sync(
 def airbyte_list_connections(
     client_id: str,
     client_secret: str,
+    base_url: str,
+    use_server_auth: bool,
     workspace_id: Optional[str],
 ) -> None:
     """
@@ -561,6 +591,8 @@ def airbyte_list_connections(
         client_id=client_id,
         client_secret=client_secret,
         workspace_id=workspace_id,
+        base_url=base_url,
+        use_cloud_auth=not use_server_auth,
     )
 
 

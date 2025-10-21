@@ -20,24 +20,35 @@ def trigger_airbyte_jobs(
     workspace_id: Optional[str] = None,
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
+    base_url: str = "https://api.airbyte.com/v1",
+    use_cloud_auth: bool = True,
 ) -> List[str]:
     """
     Trigger jobs for multiple Airbyte connections.
 
     Args:
-        client_id: Airbyte client ID
-        client_secret: Airbyte client secret
+        client_id: Airbyte client ID (or username for server)
+        client_secret: Airbyte client secret (or password for server)
         connection_ids: List of Airbyte connection IDs
         job_type: Type of job ('sync' or 'reset')
         workspace_id: Optional workspace ID
         wait_for_completion: Whether to wait for jobs to complete
         timeout_minutes: Maximum time to wait for completion
+        base_url: Airbyte API base URL (default: Airbyte Cloud)
+        use_cloud_auth: Whether to use cloud authentication (OAuth) or server auth (basic)
 
     Returns:
         List of job result messages for each connection
     """
-    # Get access token
-    access_token = _get_access_token(client_id, client_secret)
+    # Get authentication headers
+    if use_cloud_auth:
+        # Cloud: OAuth 2.0 - get access token using client credentials
+        access_token = _get_access_token(client_id, client_secret, base_url)
+        auth_headers = {"Authorization": f"Bearer {access_token}"}
+    else:
+        # Server: Use client_id and client_secret directly as bearer token
+        # For Airbyte Server, client_id is typically the API key and client_secret is the secret
+        auth_headers = {"Authorization": f"Bearer {client_id}:{client_secret}"}
     
     futures = []
     results = []
@@ -57,12 +68,13 @@ def trigger_airbyte_jobs(
                     connection_id,
                     executor.submit(
                         trigger_connection_job,
-                        access_token=access_token,
+                        auth_headers=auth_headers,
                         connection_id=connection_id,
                         job_type=job_type,
                         workspace_id=workspace_id,
                         wait_for_completion=wait_for_completion,
                         timeout_minutes=timeout_minutes,
+                        base_url=base_url,
                     ),
                 )
             )
@@ -112,32 +124,30 @@ def trigger_airbyte_jobs(
 
 def trigger_connection_job(
     *,
-    access_token: str,
+    auth_headers: dict,
     connection_id: str,
     job_type: str,
     workspace_id: Optional[str] = None,
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
+    base_url: str = "https://api.airbyte.com/v1",
 ) -> str:
     """
     Trigger job for a single Airbyte connection.
 
     Args:
-        access_token: Airbyte access token
+        auth_headers: Authentication headers (Bearer token or Basic auth)
         connection_id: Airbyte connection ID
         job_type: Type of job ('sync' or 'reset')
         workspace_id: Optional workspace ID
         wait_for_completion: Whether to wait for job to complete
         timeout_minutes: Maximum time to wait for completion
+        base_url: Airbyte API base URL
 
     Returns:
         Status message indicating job result
     """
-    base_url = "https://api.airbyte.com/v1"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
+    headers = {**auth_headers, "Content-Type": "application/json"}
 
     import datetime
 
@@ -201,27 +211,29 @@ def trigger_connection_job(
 
     # Wait for job completion
     job_status = _wait_for_job_completion(
-        access_token=access_token,
+        auth_headers=auth_headers,
         job_id=job_id,
         connection_id=connection_id,
         timeout_minutes=timeout_minutes,
+        base_url=base_url,
     )
 
     return f"Job completed. Final status: {job_status}"
 
 
-def _get_access_token(client_id: str, client_secret: str) -> str:
+def _get_access_token(client_id: str, client_secret: str, base_url: str = "https://api.airbyte.com/v1") -> str:
     """
-    Get access token using client credentials.
+    Get access token using client credentials (Airbyte Cloud only).
 
     Args:
         client_id: Airbyte client ID
         client_secret: Airbyte client secret
+        base_url: Airbyte API base URL
 
     Returns:
         Access token for API calls
     """
-    token_url = "https://api.airbyte.com/v1/applications/token"
+    token_url = f"{base_url}/applications/token"
     
     payload = {
         "client_id": client_id,
@@ -240,28 +252,26 @@ def _get_access_token(client_id: str, client_secret: str) -> str:
 
 def _wait_for_job_completion(
     *,
-    access_token: str,
+    auth_headers: dict,
     job_id: str,
     connection_id: str,
     timeout_minutes: int,
+    base_url: str,
 ) -> str:
     """
     Poll job status until completion or timeout.
 
     Args:
-        access_token: Airbyte access token
+        auth_headers: Authentication headers (Bearer token or Basic auth)
         job_id: Airbyte job ID
         connection_id: Connection ID for logging
         timeout_minutes: Maximum time to wait for completion
+        base_url: Airbyte API base URL
 
     Returns:
         Final job status
     """
-    base_url = "https://api.airbyte.com/v1"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
+    headers = {**auth_headers, "Content-Type": "application/json"}
     
     start_time = time.time()
     timeout_seconds = timeout_minutes * 60
@@ -362,23 +372,34 @@ def list_airbyte_connections(
     client_id: str,
     client_secret: str,
     workspace_id: Optional[str] = None,
+    base_url: str = "https://api.airbyte.com/v1",
+    use_cloud_auth: bool = True,
 ) -> None:
     """
     List all Airbyte connections with their IDs and status.
 
     Args:
-        client_id: Airbyte client ID
-        client_secret: Airbyte client secret
+        client_id: Airbyte client ID (or username for server)
+        client_secret: Airbyte client secret (or password for server)
         workspace_id: Optional workspace ID to filter connections
+        base_url: Airbyte API base URL (default: Airbyte Cloud)
+        use_cloud_auth: Whether to use cloud authentication (OAuth) or server auth (basic)
     """
-    # Get access token
-    access_token = _get_access_token(client_id, client_secret)
-    
-    base_url = "https://api.airbyte.com/v1"
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
+    # Get authentication headers
+    if use_cloud_auth:
+        # Cloud: OAuth 2.0 - get access token using client credentials
+        access_token = _get_access_token(client_id, client_secret, base_url)
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        }
+    else:
+        # Server: Use client_id and client_secret directly as bearer token
+        # For Airbyte Server, client_id is typically the API key and client_secret is the secret
+        headers = {
+            "Authorization": f"Bearer {client_id}:{client_secret}",
+            "Content-Type": "application/json",
+        }
 
     # Build URL and parameters
     url = f"{base_url}/connections"
