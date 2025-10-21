@@ -267,6 +267,8 @@ def _wait_for_job_completion(
     timeout_seconds = timeout_minutes * 60
     sleep_interval = 10  # Poll every 10 seconds
     counter = 0
+    consecutive_failures = 0
+    max_consecutive_failures = 5
 
     while True:
         elapsed = time.time() - start_time
@@ -283,10 +285,21 @@ def _wait_for_job_completion(
             )
 
             if job_response.status_code != 200:
-                raise Exception(f"Job status check failed with HTTP {job_response.status_code}")
+                consecutive_failures += 1
+                if consecutive_failures >= max_consecutive_failures:
+                    raise Exception(f"Job status check failed {consecutive_failures} times in a row. Last HTTP status: {job_response.status_code}")
+                
+                import datetime
+                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                print(f"{timestamp} ⚠️  [{connection_id}] HTTP {job_response.status_code} error. Retrying... ({consecutive_failures}/{max_consecutive_failures})")
+                time.sleep(sleep_interval * min(consecutive_failures, 3))  # Exponential backoff up to 3x
+                continue
 
             job_data = job_response.json()
             job_status = job_data.get("status", "unknown")
+            
+            # Reset failure counter on successful request
+            consecutive_failures = 0
 
             # Log progress every 6 checks (1 minute)
             if counter == 0 or counter % 6 == 0:
@@ -333,11 +346,14 @@ def _wait_for_job_completion(
             time.sleep(sleep_interval)
 
         except requests.exceptions.RequestException as e:
+            consecutive_failures += 1
+            if consecutive_failures >= max_consecutive_failures:
+                raise Exception(f"Network errors occurred {consecutive_failures} times in a row. Last error: {str(e)[:100]}")
+            
             import datetime
-
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(f"{timestamp} ⚠️  [{connection_id}] Network error: {str(e)[:50]}... Retrying.")
-            time.sleep(sleep_interval)
+            print(f"{timestamp} ⚠️  [{connection_id}] Network error: {str(e)[:50]}... Retrying... ({consecutive_failures}/{max_consecutive_failures})")
+            time.sleep(sleep_interval * min(consecutive_failures, 3))  # Exponential backoff up to 3x
             continue
 
 
