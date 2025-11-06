@@ -75,3 +75,25 @@ class BoltCommand(BaseModel):
 class BoltCommandArtifact(BaseModel):
     id: int
     path: str
+
+
+class BoltRunGitInfo(BaseModel):
+    branch: Optional[str]
+    commit_hash: Optional[str]
+    pull_request_id: Optional[str]
+
+
+class BoltRun(BaseModel):
+    id: int
+    state: str
+    actor: str
+    actor_email: Optional[str]
+    parent_schedule_run_id: Optional[int]
+    start_dttm: str
+    end_dttm: Optional[str]
+    git_info: BoltRunGitInfo
+
+
+class BoltScheduleRuns(BaseModel):
+    ok: bool
+    runs: List[BoltRun]
