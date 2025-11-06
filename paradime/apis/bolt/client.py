@@ -459,7 +459,12 @@ class BoltClient:
         self.client._call_gql(query=query, variables={"runId": int(run_id)})
 
     def get_latest_artifact_url(
-        self, *, schedule_name: str, artifact_path: str, command_index: Optional[int] = None
+        self,
+        *,
+        schedule_name: str,
+        artifact_path: str,
+        command_index: Optional[int] = None,
+        max_runs: int = 50,
     ) -> str:
         """
         Retrieves the URL of the latest artifact for a given schedule.
@@ -468,36 +473,52 @@ class BoltClient:
             schedule_name (str): The name of the schedule.
             artifact_path (str): The path of the artifact.
             command_index (Optional[int]): The index of the command in the schedule. Defaults to searching through all commands from the last command to the first.
+            max_runs (int): The maximum number of latest runs to search through. Defaults to 50.
 
         Returns:
             str: The URL of the latest artifact.
         """
 
-        # Get the latest run ID for the schedule
-        schedule = self.get_schedule(schedule_name)
-        latest_run_id = schedule.latest_run_id
-        if not latest_run_id:
+        # Get the latest runs for the schedule
+        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=max_runs).runs
+
+        if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
-                f"No latest run ID found for schedule {schedule_name!r}."
+                f"No runs found for schedule {schedule_name!r}."
             )
 
-        # Get all the commands for the schedule
-        all_commands = self.list_run_commands(latest_run_id)
-        commands_to_look = all_commands[::-1]
-        if command_index is not None:
-            commands_to_look = [all_commands[command_index]]
-
-        # Find the artifact
+        # Search through runs until we find the artifact
         artifact_id = None
-        for command in commands_to_look:
-            artifacts = self.list_command_artifacts(command.id)
-            for artifact in artifacts:
-                if artifact.path == artifact_path:
-                    artifact_id = artifact.id
+
+        for run in latest_runs:
+            # Get all the commands for this run
+            all_commands = self.list_run_commands(run.id)
+            commands_to_look = all_commands[::-1]
+            if command_index is not None:
+                commands_to_look = [all_commands[command_index]]
+
+            # Find the artifact in this run
+            for command in commands_to_look:
+                # Skip commands that did not complete successfully
+                if command.return_code != 0:
+                    continue
+
+                # Find the artifact in this command
+                artifacts = self.list_command_artifacts(command.id)
+                for artifact in artifacts:
+                    if artifact.path == artifact_path:
+                        artifact_id = artifact.id
+                        break
+                if artifact_id is not None:
                     break
+
+            # If we found the artifact, stop searching
+            if artifact_id is not None:
+                break
+
         if artifact_id is None:
             raise BoltScheduleArtifactNotFoundException(
-                f"No artifact found for schedule {schedule_name!r} and run id {latest_run_id}."
+                f"No artifact found for schedule {schedule_name!r} in the latest {max_runs} runs."
             )
 
         # Get the URL of the artifact
@@ -506,7 +527,7 @@ class BoltClient:
         return artifact_url
 
     def get_latest_manifest_json(
-        self, schedule_name: str, command_index: Optional[int] = None
+        self, schedule_name: str, command_index: Optional[int] = None, max_runs: int = 50
     ) -> dict:
         """
         Retrieves the latest manifest JSON for a given schedule.
@@ -514,6 +535,7 @@ class BoltClient:
         Args:
             schedule_name (str): The name of the schedule.
             command_index (Optional[int]): The index of the command in the schedule. Defaults to None.
+            max_runs (int): The maximum number of latest runs to search through. Defaults to 50.
 
         Returns:
             dict: The content of the latest manifest JSON.
@@ -523,6 +545,7 @@ class BoltClient:
             schedule_name=schedule_name,
             artifact_path="target/manifest.json",
             command_index=command_index,
+            max_runs=max_runs,
         )
 
         return requests.get(manifest_url).json()
