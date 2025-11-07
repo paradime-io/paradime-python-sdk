@@ -10,9 +10,12 @@ from paradime.apis.bolt.types import (
     BoltCommand,
     BoltCommandArtifact,
     BoltDeferredSchedule,
+    BoltRun,
+    BoltRunGitInfo,
     BoltRunState,
     BoltSchedule,
     BoltScheduleInfo,
+    BoltScheduleRuns,
     BoltSchedules,
 )
 from paradime.client.api_client import APIClient
@@ -180,6 +183,85 @@ class BoltClient:
         return BoltSchedules(
             schedules=schedules,
             total_count=response_json["totalCount"],
+        )
+
+    def list_runs(
+        self,
+        *,
+        schedule_name: str,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> BoltScheduleRuns:
+        """
+        Get a list of Bolt runs for a specific schedule. The list is paginated.
+
+        Args:
+            schedule_name (str): The name of the Bolt schedule. Must be exact schedule name.
+            offset (int): The offset value for pagination. Default is 0. Must be >= 0.
+            limit (int): The limit value for pagination. Default is 50. Must be between 1 and 1000.
+
+        Returns:
+            BoltScheduleRuns: An object containing the list of Bolt runs.
+
+        Raises:
+            ValueError: If offset < 0 or limit is not between 1 and 1000.
+        """
+
+        # Validate inputs
+        if offset < 0:
+            raise ValueError(f"offset must be >= 0, got {offset}")
+        if limit < 1 or limit > 1000:
+            raise ValueError(f"limit must be between 1 and 1000, got {limit}")
+
+        query = """
+            query listBoltRuns($scheduleName: String!, $offset: Int!, $limit: Int!) {
+                listBoltRuns(scheduleName: $scheduleName, offset: $offset, limit: $limit) {
+                    ok
+                    runs {
+                        id
+                        state
+                        actor
+                        actorEmail
+                        startDttm
+                        endDttm
+                        parentScheduleRunId
+                        gitInfo {
+                            branch
+                            commitHash
+                            pullRequestId
+                        }
+                    }
+                }
+            }
+        """
+
+        response_json = self.client._call_gql(
+            query=query,
+            variables={"scheduleName": schedule_name, "offset": offset, "limit": limit},
+        )["listBoltRuns"]
+
+        runs: List[BoltRun] = []
+        for run_json in response_json["runs"]:
+            runs.append(
+                BoltRun(
+                    id=run_json["id"],
+                    state=run_json["state"],
+                    actor=run_json["actor"],
+                    actor_email=run_json.get("actorEmail"),
+                    parent_schedule_run_id=run_json.get("parentScheduleRunId"),
+                    start_dttm=run_json["startDttm"],
+                    end_dttm=run_json.get("endDttm"),
+                    git_info=BoltRunGitInfo(
+                        branch=run_json["gitInfo"].get("branch"),
+                        commit_hash=run_json["gitInfo"].get("commitHash"),
+                        pull_request_id=run_json["gitInfo"].get("pullRequestId"),
+                    ),
+                )
+            )
+
+        return BoltScheduleRuns(
+            ok=response_json["ok"],
+            runs=runs,
         )
 
     def get_schedule(self, schedule_name: str) -> BoltScheduleInfo:
