@@ -26,7 +26,11 @@ class BoltClient:
         self.client = client
 
     def trigger_run(
-        self, schedule_name: str, commands: Optional[List[str]] = None, branch: Optional[str] = None
+        self,
+        schedule_name: str,
+        commands: Optional[List[str]] = None,
+        branch: Optional[str] = None,
+        pr_number: Optional[int] = None,
     ) -> int:
         """
         Triggers a run for a given schedule.
@@ -35,14 +39,15 @@ class BoltClient:
             schedule_name (str): The name of the schedule to trigger the run for.
             commands (Optional[List[str]], optional): The list of commands to execute in the run. This will override the commands defined in the schedule. Defaults to None.
             branch (Optional[str], optional): The branch or commit hash to run the commands on. Defaults to None.
+            pr_number (Optional[int], optional): The pull request number to associate with the run. Defaults to None.
 
         Returns:
             int: The ID of the triggered run.
         """
 
         query = """
-            mutation triggerBoltRun($scheduleName: String!, $commands: [String!], $branch: String) {
-                triggerBoltRun(scheduleName: $scheduleName, commands: $commands, branch: $branch){
+            mutation triggerBoltRun($scheduleName: String!, $commands: [String!], $branch: String, $prNumber: Int) {
+                triggerBoltRun(scheduleName: $scheduleName, commands: $commands, branch: $branch, prNumber: $prNumber){
                     runId
                 }
             }
@@ -50,7 +55,12 @@ class BoltClient:
 
         response_json = self.client._call_gql(
             query=query,
-            variables={"scheduleName": schedule_name, "commands": commands, "branch": branch},
+            variables={
+                "scheduleName": schedule_name,
+                "commands": commands,
+                "branch": branch,
+                "prNumber": pr_number,
+            },
         )["triggerBoltRun"]
 
         return response_json["runId"]

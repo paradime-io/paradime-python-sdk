@@ -73,12 +73,16 @@ schedule.add_command(suspend)
     default=[],
     help="Command(s) to override the default commands.",
 )
+@click.option(
+    "--pr-number", default=None, type=int, help="Pull request number to associate with the run."
+)
 @click.option("--wait", help="Wait for the run to finish", is_flag=True)
 @click.option("--json", help="JSON formatted response", is_flag=True)
 @click.argument("schedule_name")
 def run(
     branch: str,
     command: List[str],
+    pr_number: Optional[int],
     wait: bool,
     json: bool,
     schedule_name: str,
@@ -96,6 +100,7 @@ def run(
             schedule_name,
             branch=branch,
             commands=list(command) if command else None,
+            pr_number=pr_number,
         )
     except ParadimeAPIException as e:
         print_error_table(f"Failed to trigger run: {e}", is_json=json)
