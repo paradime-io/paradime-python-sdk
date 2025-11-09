@@ -14,7 +14,7 @@ run_id = paradime.bolt.trigger_run(BOLT_SCHEDULE_NAME)
 run_id_with_pr = paradime.bolt.trigger_run(
     BOLT_SCHEDULE_NAME,
     commands=["dbt run --select modified+", "dbt test --select modified+"],
-    pr_number=123
+    pr_number=123,
 )
 
 # Get the run status
