@@ -22,7 +22,7 @@ def trigger_tableau_refresh(
     api_version: str,
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
-) -> None:
+) -> List[str]:
     auth_response = requests.post(
         f"{host}/api/{api_version}/auth/signin",
         json={
@@ -40,6 +40,7 @@ def trigger_tableau_refresh(
     site_id: str = auth_response.json()["credentials"]["site"]["id"]
     # call refresh for the workbooks async
     futures = []
+    results = []
     with ThreadPoolExecutor() as executor:
         for workbook_name in set(workbook_names):
             logger.info(f"Refreshing Tableau workbook: {workbook_name}")
@@ -62,7 +63,9 @@ def trigger_tableau_refresh(
             # Use longer timeout when waiting for completion
             future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
             response_txt = future.result(timeout=future_timeout)
+            results.append(response_txt)
             logger.info(f"Refreshed Tableau workbook: {workbook_name} - {response_txt}")
+    return results
 
 
 def trigger_workbook_refresh(
@@ -391,7 +394,7 @@ def trigger_tableau_datasource_refresh(
     api_version: str,
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
-) -> None:
+) -> List[str]:
     auth_response = requests.post(
         f"{host}/api/{api_version}/auth/signin",
         json={
@@ -409,6 +412,7 @@ def trigger_tableau_datasource_refresh(
     site_id: str = auth_response.json()["credentials"]["site"]["id"]
     # call refresh for the datasources async
     futures = []
+    results = []
     with ThreadPoolExecutor() as executor:
         for datasource_name in set(datasource_names):
             logger.info(f"Refreshing Tableau data source: {datasource_name}")
@@ -431,7 +435,9 @@ def trigger_tableau_datasource_refresh(
             # Use longer timeout when waiting for completion
             future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
             response_txt = future.result(timeout=future_timeout)
+            results.append(response_txt)
             logger.info(f"Refreshed Tableau data source: {datasource_name} - {response_txt}")
+    return results
 
 
 def trigger_datasource_refresh(
