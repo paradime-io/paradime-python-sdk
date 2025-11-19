@@ -104,7 +104,7 @@ def tableau_refresh(
 
     if workbook_name:
         click.echo(f"Tableau workbook refresh started on site {site_name}...")
-        trigger_tableau_refresh(
+        results = trigger_tableau_refresh(
             host=host,
             personal_access_token_name=personal_access_token_name,
             personal_access_token_secret=personal_access_token_secret,
@@ -115,9 +115,16 @@ def tableau_refresh(
             timeout_minutes=timeout_minutes,
         )
 
+        # Check if any refreshes failed
+        failed_refreshes = [
+            result for result in results if "FAILED" in result or "CANCELED" in result
+        ]
+        if failed_refreshes:
+            sys.exit(1)
+
     if datasource_name:
         click.echo(f"Tableau data source refresh started on site {site_name}...")
-        trigger_tableau_datasource_refresh(
+        results = trigger_tableau_datasource_refresh(
             host=host,
             personal_access_token_name=personal_access_token_name,
             personal_access_token_secret=personal_access_token_secret,
@@ -127,6 +134,13 @@ def tableau_refresh(
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
         )
+
+        # Check if any refreshes failed
+        failed_refreshes = [
+            result for result in results if "FAILED" in result or "CANCELED" in result
+        ]
+        if failed_refreshes:
+            sys.exit(1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -405,7 +419,7 @@ def fivetran_sync(
     click.echo(f"Starting sync for {len(connector_id)} Fivetran connector(s)...")
 
     try:
-        trigger_fivetran_sync(
+        results = trigger_fivetran_sync(
             api_key=api_key,
             api_secret=api_secret,
             connector_ids=list(connector_id),
@@ -414,8 +428,14 @@ def fivetran_sync(
             timeout_minutes=timeout_minutes,
         )
 
-        # Results are already displayed in table format from trigger_fivetran_sync function
-        # No additional summary needed here
+        # Check if any syncs failed, were paused, or rescheduled
+        failed_syncs = [
+            result
+            for result in results
+            if "FAILED" in result or "PAUSED" in result or "RESCHEDULED" in result
+        ]
+        if failed_syncs:
+            sys.exit(1)
 
     except Exception as e:
         click.echo(f"❌ Fivetran sync failed: {str(e)}")
@@ -527,7 +547,7 @@ def airbyte_sync(
     click.echo(f"Starting {job_type} jobs for {len(connection_id)} Airbyte connection(s)...")
 
     try:
-        trigger_airbyte_jobs(
+        results = trigger_airbyte_jobs(
             client_id=client_id,
             client_secret=client_secret,
             connection_ids=list(connection_id),
@@ -538,6 +558,15 @@ def airbyte_sync(
             base_url=base_url,
             use_cloud_auth=not use_server_auth,
         )
+
+        # Check if any jobs failed, were cancelled, or incomplete
+        failed_jobs = [
+            result
+            for result in results
+            if "FAILED" in result or "CANCELLED" in result or "INCOMPLETE" in result
+        ]
+        if failed_jobs:
+            sys.exit(1)
 
     except Exception as e:
         click.echo(f"❌ Airbyte {job_type} failed: {str(e)}")
