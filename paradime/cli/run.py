@@ -627,11 +627,6 @@ def airbyte_list_connections(
 
 
 @click.command(context_settings=dict(max_content_width=160))
-@env_click_option(
-    "api-token",
-    "CENSUS_API_TOKEN",
-    help="Your Census API token. You can find this in your Census account settings.",
-)
 @click.option(
     "--sync-id",
     multiple=True,
@@ -657,7 +652,6 @@ def airbyte_list_connections(
     default=1440,
 )
 def census_sync(
-    api_token: str,
     sync_id: List[str],
     force_full_sync: bool,
     wait_for_completion: bool,
@@ -665,7 +659,17 @@ def census_sync(
 ) -> None:
     """
     Trigger sync for Census syncs.
+
+    Requires CENSUS_API_TOKEN environment variable to be set.
     """
+    import os
+
+    api_token = os.environ.get("CENSUS_API_TOKEN")
+    if not api_token:
+        click.echo("❌ Error: CENSUS_API_TOKEN environment variable is not set")
+        click.echo("Please set it using: export CENSUS_API_TOKEN=your_token_here")
+        sys.exit(1)
+
     click.echo(f"Starting sync for {len(sync_id)} Census sync(s)...")
 
     try:
@@ -692,17 +696,20 @@ def census_sync(
 
 
 @click.command(context_settings=dict(max_content_width=160))
-@env_click_option(
-    "api-token",
-    "CENSUS_API_TOKEN",
-    help="Your Census API token. You can find this in your Census account settings.",
-)
-def census_list(
-    api_token: str,
-) -> None:
+def census_list() -> None:
     """
     List all available Census syncs with their status.
+
+    Requires CENSUS_API_TOKEN environment variable to be set.
     """
+    import os
+
+    api_token = os.environ.get("CENSUS_API_TOKEN")
+    if not api_token:
+        click.echo("❌ Error: CENSUS_API_TOKEN environment variable is not set")
+        click.echo("Please set it using: export CENSUS_API_TOKEN=your_token_here")
+        sys.exit(1)
+
     click.echo("Listing all Census syncs...")
 
     list_census_syncs(
