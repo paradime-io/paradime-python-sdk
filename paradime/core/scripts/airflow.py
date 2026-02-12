@@ -1,7 +1,8 @@
 import logging
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
 
 import requests
@@ -12,29 +13,100 @@ logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _get_gcp_bearer_token() -> str:
+    """
+    Get GCP bearer token for Cloud Composer authentication.
+
+    Uses Application Default Credentials (ADC) or service account key.
+    Requires google-auth library to be installed.
+
+    Returns:
+        Bearer token for authentication
+    """
+    try:
+        from google.auth import default
+        from google.auth.transport.requests import Request
+
+        credentials, project = default()
+        credentials.refresh(Request())
+        return credentials.token
+    except ImportError:
+        raise ImportError(
+            "google-auth library is required for GCP Cloud Composer authentication. "
+            "Install it with: pip install google-auth"
+        )
+    except Exception as e:
+        raise Exception(f"Failed to get GCP bearer token: {str(e)}")
+
+
+def _get_auth_headers(
+    *,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    use_gcp_auth: bool = False,
+    bearer_token: Optional[str] = None,
+) -> Tuple[Optional[tuple], dict]:
+    """
+    Get authentication headers based on the authentication method.
+
+    Args:
+        username: Username for basic auth
+        password: Password for basic auth
+        use_gcp_auth: Whether to use GCP Cloud Composer authentication
+        bearer_token: Optional bearer token for token-based auth
+
+    Returns:
+        Tuple of (auth_tuple, headers) where auth_tuple is for basic auth
+        and headers contain bearer token if applicable
+    """
+    headers = {"Content-Type": "application/json"}
+
+    if use_gcp_auth:
+        # Use GCP authentication (Cloud Composer)
+        token = bearer_token or _get_gcp_bearer_token()
+        headers["Authorization"] = f"Bearer {token}"
+        return None, headers
+    elif bearer_token:
+        # Use provided bearer token
+        headers["Authorization"] = f"Bearer {bearer_token}"
+        return None, headers
+    else:
+        # Use basic authentication
+        if not username or not password:
+            raise ValueError(
+                "username and password are required for basic authentication. "
+                "For GCP Cloud Composer, use use_gcp_auth=True instead."
+            )
+        return (username, password), headers
+
+
 def trigger_airflow_dags(
     *,
     base_url: str,
-    username: str,
-    password: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     dag_ids: List[str],
     dag_run_conf: Optional[Dict[str, Any]] = None,
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
     show_logs: bool = True,
+    use_gcp_auth: bool = False,
+    bearer_token: Optional[str] = None,
 ) -> List[str]:
     """
     Trigger multiple Airflow DAG runs.
 
     Args:
-        base_url: Airflow base URL (e.g., https://your-airflow.com or MWAA webserver URL)
-        username: Airflow username (or API key)
-        password: Airflow password (or API secret)
+        base_url: Airflow base URL (e.g., https://your-airflow.com, MWAA webserver URL, or Cloud Composer URL)
+        username: Airflow username (or API key). Not required for GCP Cloud Composer.
+        password: Airflow password (or API secret). Not required for GCP Cloud Composer.
         dag_ids: List of DAG IDs to trigger
         dag_run_conf: Optional configuration to pass to DAG runs
         wait_for_completion: Whether to wait for DAG runs to complete
         timeout_minutes: Maximum time to wait for completion
         show_logs: Whether to display task logs during execution
+        use_gcp_auth: Whether to use GCP Cloud Composer authentication (uses Application Default Credentials)
+        bearer_token: Optional bearer token for token-based authentication
 
     Returns:
         List of DAG run result messages
@@ -65,6 +137,8 @@ def trigger_airflow_dags(
                         wait_for_completion=wait_for_completion,
                         timeout_minutes=timeout_minutes,
                         show_logs=show_logs,
+                        use_gcp_auth=use_gcp_auth,
+                        bearer_token=bearer_token,
                     ),
                 )
             )
@@ -111,26 +185,30 @@ def trigger_airflow_dags(
 def trigger_dag_run(
     *,
     base_url: str,
-    username: str,
-    password: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     dag_id: str,
     dag_run_conf: Optional[Dict[str, Any]] = None,
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
     show_logs: bool = True,
+    use_gcp_auth: bool = False,
+    bearer_token: Optional[str] = None,
 ) -> str:
     """
     Trigger a single Airflow DAG run.
 
     Args:
         base_url: Airflow base URL
-        username: Airflow username (or API key)
-        password: Airflow password (or API secret)
+        username: Airflow username (or API key). Not required for GCP Cloud Composer.
+        password: Airflow password (or API secret). Not required for GCP Cloud Composer.
         dag_id: DAG ID to trigger
         dag_run_conf: Optional configuration to pass to DAG run
         wait_for_completion: Whether to wait for DAG run to complete
         timeout_minutes: Maximum time to wait for completion
         show_logs: Whether to display task logs during execution
+        use_gcp_auth: Whether to use GCP Cloud Composer authentication
+        bearer_token: Optional bearer token for token-based authentication
 
     Returns:
         Status message indicating DAG run result
@@ -140,8 +218,14 @@ def trigger_dag_run(
 
     # Build API URL
     api_base = f"{base_url}/api/v1"
-    auth = (username, password)
-    headers = {"Content-Type": "application/json"}
+
+    # Get authentication credentials
+    auth, headers = _get_auth_headers(
+        username=username,
+        password=password,
+        use_gcp_auth=use_gcp_auth,
+        bearer_token=bearer_token,
+    )
 
     timestamp = datetime.now().strftime("%H:%M:%S")
 
@@ -232,7 +316,7 @@ def trigger_dag_run(
 def _wait_for_dag_completion(
     *,
     api_base: str,
-    auth: tuple,
+    auth: Optional[tuple],
     headers: dict,
     dag_id: str,
     dag_run_id: str,
@@ -244,8 +328,8 @@ def _wait_for_dag_completion(
 
     Args:
         api_base: Airflow API base URL
-        auth: Authentication tuple (username, password)
-        headers: Request headers
+        auth: Optional authentication tuple (username, password) for basic auth
+        headers: Request headers (may contain bearer token)
         dag_id: DAG ID
         dag_run_id: DAG run ID
         timeout_minutes: Maximum time to wait for completion
@@ -398,7 +482,7 @@ def _wait_for_dag_completion(
 def _fetch_and_display_task_logs(
     *,
     api_base: str,
-    auth: tuple,
+    auth: Optional[tuple],
     headers: dict,
     dag_id: str,
     dag_run_id: str,
@@ -410,8 +494,8 @@ def _fetch_and_display_task_logs(
 
     Args:
         api_base: Airflow API base URL
-        auth: Authentication tuple (username, password)
-        headers: Request headers
+        auth: Optional authentication tuple (username, password) for basic auth
+        headers: Request headers (may contain bearer token)
         dag_id: DAG ID
         dag_run_id: DAG run ID
         task_id: Task ID
@@ -465,25 +549,35 @@ def _fetch_and_display_task_logs(
 def list_airflow_dags(
     *,
     base_url: str,
-    username: str,
-    password: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
     only_active: bool = True,
+    use_gcp_auth: bool = False,
+    bearer_token: Optional[str] = None,
 ) -> None:
     """
     List all Airflow DAGs with their IDs and status.
 
     Args:
         base_url: Airflow base URL
-        username: Airflow username (or API key)
-        password: Airflow password (or API secret)
+        username: Airflow username (or API key). Not required for GCP Cloud Composer.
+        password: Airflow password (or API secret). Not required for GCP Cloud Composer.
         only_active: Whether to only show active (non-paused) DAGs
+        use_gcp_auth: Whether to use GCP Cloud Composer authentication
+        bearer_token: Optional bearer token for token-based authentication
     """
     # Ensure base URL doesn't have trailing slash
     base_url = base_url.rstrip("/")
 
     api_base = f"{base_url}/api/v1"
-    auth = (username, password)
-    headers = {"Content-Type": "application/json"}
+
+    # Get authentication credentials
+    auth, headers = _get_auth_headers(
+        username=username,
+        password=password,
+        use_gcp_auth=use_gcp_auth,
+        bearer_token=bearer_token,
+    )
 
     # Build URL and parameters
     params = {}

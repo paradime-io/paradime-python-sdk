@@ -5,6 +5,7 @@ This directory contains examples for triggering Airflow DAG runs using the Parad
 ## Supported Platforms
 
 - **AWS MWAA** (Managed Workflows for Apache Airflow)
+- **GCP Cloud Composer** (Google Cloud's managed Airflow)
 - **Astronomer** (Cloud or Self-hosted)
 - **Self-hosted Airflow** instances
 
@@ -32,6 +33,41 @@ export AIRFLOW_BASE_URL="https://your-mwaa-id.mwaa.region.amazonaws.com"
 export AIRFLOW_USERNAME="admin"
 export AIRFLOW_PASSWORD="your_password"
 ```
+
+#### GCP Cloud Composer
+
+For GCP Cloud Composer, you have two authentication options:
+
+**Option 1: Application Default Credentials (Recommended)**
+1. Install google-auth: `pip install google-auth`
+2. Authenticate using gcloud: `gcloud auth application-default login`
+3. Use the `--use-gcp-auth` flag with CLI commands
+
+```bash
+export AIRFLOW_BASE_URL="https://your-composer-airflow-url.appspot.com"
+
+# Use the --use-gcp-auth flag
+paradime run airflow-trigger --dag-id my_dag --use-gcp-auth
+```
+
+**Option 2: Service Account Key**
+1. Create a service account with Cloud Composer permissions
+2. Download the JSON key file
+3. Set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable
+4. Use the `--use-gcp-auth` flag
+
+```bash
+export AIRFLOW_BASE_URL="https://your-composer-airflow-url.appspot.com"
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
+
+# Use the --use-gcp-auth flag
+paradime run airflow-trigger --dag-id my_dag --use-gcp-auth
+```
+
+**Required GCP Permissions:**
+- `composer.environments.get`
+- `composer.operations.get`
+- `iam.serviceAccounts.actAs` (if using service account)
 
 #### Astronomer
 
@@ -88,6 +124,12 @@ paradime run airflow-trigger --dag-id my_dag --no-show-logs
 
 # Custom timeout (default: 1440 minutes)
 paradime run airflow-trigger --dag-id my_dag --timeout-minutes 60
+
+# GCP Cloud Composer (using Application Default Credentials)
+paradime run airflow-trigger --dag-id my_dag --use-gcp-auth
+
+# GCP Cloud Composer (multiple DAGs)
+paradime run airflow-trigger --dag-id dag1 --dag-id dag2 --use-gcp-auth
 ```
 
 ### Python SDK
@@ -107,6 +149,7 @@ list_airflow_dags(
 
 #### Trigger DAG Runs
 
+**Standard Airflow (MWAA, Astronomer, Self-hosted):**
 ```python
 from paradime.core.scripts.airflow import trigger_airflow_dags
 
@@ -116,6 +159,25 @@ results = trigger_airflow_dags(
     password="your_password",
     dag_ids=["dag1", "dag2"],
     dag_run_conf={"key": "value"},  # Optional configuration
+    wait_for_completion=True,
+    timeout_minutes=60,
+    show_logs=True,
+)
+
+# Check results
+for result in results:
+    print(result)
+```
+
+**GCP Cloud Composer:**
+```python
+from paradime.core.scripts.airflow import trigger_airflow_dags
+
+# Using Application Default Credentials
+results = trigger_airflow_dags(
+    base_url="https://your-composer-airflow-url.appspot.com",
+    dag_ids=["dag1", "dag2"],
+    use_gcp_auth=True,  # Enable GCP authentication
     wait_for_completion=True,
     timeout_minutes=60,
     show_logs=True,
@@ -188,6 +250,23 @@ If you get 401/403 errors:
 1. Verify your username and password are correct
 2. Check that your user has the necessary permissions
 3. For MWAA, ensure you've created the user in the Airflow UI
+4. For Cloud Composer, verify:
+   - You have the necessary IAM permissions
+   - Your ADC or service account is properly configured
+   - Run `gcloud auth application-default login` to refresh credentials
+   - Check that the service account has `composer.user` or equivalent role
+
+### GCP Cloud Composer Issues
+
+If you encounter issues with Cloud Composer:
+1. **Missing google-auth library**: Install with `pip install google-auth`
+2. **Permission denied**: Ensure your service account or user has these roles:
+   - `roles/composer.user` (read and execute)
+   - `roles/composer.admin` (full access)
+3. **Authentication failed**:
+   - Run `gcloud auth application-default login` to refresh credentials
+   - Verify `GOOGLE_APPLICATION_CREDENTIALS` points to a valid service account key
+4. **URL not accessible**: Get the correct Airflow webserver URL from Cloud Composer console
 
 ### API Version Compatibility
 

@@ -630,17 +630,19 @@ def airbyte_list_connections(
 @env_click_option(
     "base-url",
     "AIRFLOW_BASE_URL",
-    help="Airflow base URL (e.g., https://your-airflow-instance.com or MWAA webserver URL)",
+    help="Airflow base URL (e.g., https://your-airflow-instance.com, MWAA webserver URL, or Cloud Composer URL)",
 )
 @env_click_option(
     "username",
     "AIRFLOW_USERNAME",
-    help="Airflow username or API key for authentication",
+    help="Airflow username or API key for authentication (not required for GCP Cloud Composer)",
+    required=False,
 )
 @env_click_option(
     "password",
     "AIRFLOW_PASSWORD",
-    help="Airflow password or API secret for authentication",
+    help="Airflow password or API secret for authentication (not required for GCP Cloud Composer)",
+    required=False,
 )
 @click.option(
     "--dag-id",
@@ -665,19 +667,33 @@ def airbyte_list_connections(
     help="Display task execution logs during DAG run",
     default=True,
 )
+@click.option(
+    "--use-gcp-auth",
+    is_flag=True,
+    help="Use GCP Cloud Composer authentication (Application Default Credentials)",
+    default=False,
+)
+@env_click_option(
+    "bearer-token",
+    "AIRFLOW_BEARER_TOKEN",
+    help="Bearer token for token-based authentication",
+    required=False,
+)
 def airflow_trigger(
     base_url: str,
-    username: str,
-    password: str,
+    username: Optional[str],
+    password: Optional[str],
     dag_id: List[str],
     wait_for_completion: bool,
     timeout_minutes: int,
     show_logs: bool,
+    use_gcp_auth: bool,
+    bearer_token: Optional[str],
 ) -> None:
     """
     Trigger Airflow DAG runs.
 
-    Supports MWAA, Astronomer, and self-hosted Airflow instances.
+    Supports MWAA, Astronomer, GCP Cloud Composer, and self-hosted Airflow instances.
     """
     click.echo(f"Starting DAG runs for {len(dag_id)} Airflow DAG(s)...")
 
@@ -690,6 +706,8 @@ def airflow_trigger(
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
             show_logs=show_logs,
+            use_gcp_auth=use_gcp_auth,
+            bearer_token=bearer_token,
         )
 
         # Check if any DAG runs failed
@@ -706,17 +724,19 @@ def airflow_trigger(
 @env_click_option(
     "base-url",
     "AIRFLOW_BASE_URL",
-    help="Airflow base URL (e.g., https://your-airflow-instance.com or MWAA webserver URL)",
+    help="Airflow base URL (e.g., https://your-airflow-instance.com, MWAA webserver URL, or Cloud Composer URL)",
 )
 @env_click_option(
     "username",
     "AIRFLOW_USERNAME",
-    help="Airflow username or API key for authentication",
+    help="Airflow username or API key for authentication (not required for GCP Cloud Composer)",
+    required=False,
 )
 @env_click_option(
     "password",
     "AIRFLOW_PASSWORD",
-    help="Airflow password or API secret for authentication",
+    help="Airflow password or API secret for authentication (not required for GCP Cloud Composer)",
+    required=False,
 )
 @click.option(
     "--only-active",
@@ -724,16 +744,30 @@ def airflow_trigger(
     help="Only show active (non-paused) DAGs",
     default=True,
 )
+@click.option(
+    "--use-gcp-auth",
+    is_flag=True,
+    help="Use GCP Cloud Composer authentication (Application Default Credentials)",
+    default=False,
+)
+@env_click_option(
+    "bearer-token",
+    "AIRFLOW_BEARER_TOKEN",
+    help="Bearer token for token-based authentication",
+    required=False,
+)
 def airflow_list_dags(
     base_url: str,
-    username: str,
-    password: str,
+    username: Optional[str],
+    password: Optional[str],
     only_active: bool,
+    use_gcp_auth: bool,
+    bearer_token: Optional[str],
 ) -> None:
     """
     List all available Airflow DAGs with their status.
 
-    Supports MWAA, Astronomer, and self-hosted Airflow instances.
+    Supports MWAA, Astronomer, GCP Cloud Composer, and self-hosted Airflow instances.
     """
     if only_active:
         click.echo("Listing active Airflow DAGs...")
@@ -745,6 +779,8 @@ def airflow_list_dags(
         username=username,
         password=password,
         only_active=only_active,
+        use_gcp_auth=use_gcp_auth,
+        bearer_token=bearer_token,
     )
 
 
