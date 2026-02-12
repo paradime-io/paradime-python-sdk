@@ -5,6 +5,7 @@ import click
 
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.airbyte import list_airbyte_connections, trigger_airbyte_jobs
+from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dags
 from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fivetran_sync
 from paradime.core.scripts.montecarlo import search_for_files_to_upload_to_montecarlo
 from paradime.core.scripts.power_bi import (
@@ -625,6 +626,128 @@ def airbyte_list_connections(
     )
 
 
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "base-url",
+    "AIRFLOW_BASE_URL",
+    help="Airflow base URL (e.g., https://your-airflow-instance.com or MWAA webserver URL)",
+)
+@env_click_option(
+    "username",
+    "AIRFLOW_USERNAME",
+    help="Airflow username or API key for authentication",
+)
+@env_click_option(
+    "password",
+    "AIRFLOW_PASSWORD",
+    help="Airflow password or API secret for authentication",
+)
+@click.option(
+    "--dag-id",
+    multiple=True,
+    help="The ID(s) of the DAG(s) you want to trigger",
+    required=True,
+)
+@click.option(
+    "--wait-for-completion",
+    is_flag=True,
+    help="Wait for DAG runs to complete before returning",
+    default=True,
+)
+@click.option(
+    "--timeout-minutes",
+    type=int,
+    help="Maximum time to wait for DAG run completion (in minutes). Only used with --wait-for-completion.",
+    default=1440,
+)
+@click.option(
+    "--show-logs/--no-show-logs",
+    help="Display task execution logs during DAG run",
+    default=True,
+)
+def airflow_trigger(
+    base_url: str,
+    username: str,
+    password: str,
+    dag_id: List[str],
+    wait_for_completion: bool,
+    timeout_minutes: int,
+    show_logs: bool,
+) -> None:
+    """
+    Trigger Airflow DAG runs.
+
+    Supports MWAA, Astronomer, and self-hosted Airflow instances.
+    """
+    click.echo(f"Starting DAG runs for {len(dag_id)} Airflow DAG(s)...")
+
+    try:
+        results = trigger_airflow_dags(
+            base_url=base_url,
+            username=username,
+            password=password,
+            dag_ids=list(dag_id),
+            wait_for_completion=wait_for_completion,
+            timeout_minutes=timeout_minutes,
+            show_logs=show_logs,
+        )
+
+        # Check if any DAG runs failed
+        failed_runs = [result for result in results if "FAILED" in result]
+        if failed_runs:
+            sys.exit(1)
+
+    except Exception as e:
+        click.echo(f"❌ Airflow DAG trigger failed: {str(e)}")
+        raise click.Abort()
+
+
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "base-url",
+    "AIRFLOW_BASE_URL",
+    help="Airflow base URL (e.g., https://your-airflow-instance.com or MWAA webserver URL)",
+)
+@env_click_option(
+    "username",
+    "AIRFLOW_USERNAME",
+    help="Airflow username or API key for authentication",
+)
+@env_click_option(
+    "password",
+    "AIRFLOW_PASSWORD",
+    help="Airflow password or API secret for authentication",
+)
+@click.option(
+    "--only-active",
+    is_flag=True,
+    help="Only show active (non-paused) DAGs",
+    default=True,
+)
+def airflow_list_dags(
+    base_url: str,
+    username: str,
+    password: str,
+    only_active: bool,
+) -> None:
+    """
+    List all available Airflow DAGs with their status.
+
+    Supports MWAA, Astronomer, and self-hosted Airflow instances.
+    """
+    if only_active:
+        click.echo("Listing active Airflow DAGs...")
+    else:
+        click.echo("Listing all Airflow DAGs...")
+
+    list_airflow_dags(
+        base_url=base_url,
+        username=username,
+        password=password,
+        only_active=only_active,
+    )
+
+
 run.add_command(tableau_refresh)
 run.add_command(tableau_list_workbooks)
 run.add_command(tableau_list_datasources)
@@ -634,4 +757,6 @@ run.add_command(fivetran_sync)
 run.add_command(fivetran_list_connectors)
 run.add_command(airbyte_sync)
 run.add_command(airbyte_list_connections)
+run.add_command(airflow_trigger)
+run.add_command(airflow_list_dags)
 run.add_command(montecarlo_artifacts_import)
