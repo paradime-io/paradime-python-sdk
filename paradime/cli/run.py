@@ -5,6 +5,15 @@ import click
 
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.airbyte import list_airbyte_connections, trigger_airbyte_jobs
+from paradime.core.scripts.aws_lambda import list_lambda_functions, trigger_lambda_functions
+from paradime.core.scripts.aws_sagemaker import (
+    list_sagemaker_pipelines,
+    trigger_sagemaker_pipelines,
+)
+from paradime.core.scripts.aws_stepfunctions import (
+    list_stepfunctions_state_machines,
+    trigger_stepfunctions_executions,
+)
 from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fivetran_sync
 from paradime.core.scripts.montecarlo import search_for_files_to_upload_to_montecarlo
 from paradime.core.scripts.power_bi import (
@@ -635,3 +644,392 @@ run.add_command(fivetran_list_connectors)
 run.add_command(airbyte_sync)
 run.add_command(airbyte_list_connections)
 run.add_command(montecarlo_artifacts_import)
+
+
+# AWS Lambda commands
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "aws-access-key-id",
+    "AWS_ACCESS_KEY_ID",
+    help="AWS access key ID for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-secret-access-key",
+    "AWS_SECRET_ACCESS_KEY",
+    help="AWS secret access key for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-session-token",
+    "AWS_SESSION_TOKEN",
+    help="AWS session token for temporary credentials (optional)",
+    required=False,
+)
+@env_click_option(
+    "aws-region",
+    "AWS_DEFAULT_REGION",
+    help="AWS region name (e.g., us-east-1)",
+    required=False,
+)
+@click.option(
+    "--function-name",
+    multiple=True,
+    help="The name(s) or ARN(s) of the Lambda function(s) to invoke",
+    required=True,
+)
+@click.option(
+    "--invocation-type",
+    type=click.Choice(["RequestResponse", "Event", "DryRun"]),
+    help="Invocation type: RequestResponse (sync), Event (async), or DryRun",
+    default="RequestResponse",
+)
+@click.option(
+    "--wait-for-completion",
+    is_flag=True,
+    help="Wait for async invocations to complete (only for Event type)",
+    default=True,
+)
+@click.option(
+    "--timeout-minutes",
+    type=int,
+    help="Maximum time to wait for completion (in minutes). Only used with --wait-for-completion.",
+    default=15,
+)
+def aws_lambda_invoke(
+    aws_access_key_id: Optional[str],
+    aws_secret_access_key: Optional[str],
+    aws_session_token: Optional[str],
+    aws_region: Optional[str],
+    function_name: List[str],
+    invocation_type: str,
+    wait_for_completion: bool,
+    timeout_minutes: int,
+) -> None:
+    """
+    Invoke AWS Lambda functions.
+    """
+    click.echo(f"Invoking {len(function_name)} Lambda function(s)...")
+
+    try:
+        results = trigger_lambda_functions(
+            function_names=list(function_name),
+            invocation_type=invocation_type,
+            region_name=aws_region,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token,
+            wait_for_completion=wait_for_completion,
+            timeout_minutes=timeout_minutes,
+        )
+
+        # Check if any invocations failed
+        failed_invocations = [
+            result for result in results if "FAILED" in result or "ERROR" in result
+        ]
+        if failed_invocations:
+            sys.exit(1)
+
+    except Exception as e:
+        click.echo(f"❌ Lambda invocation failed: {str(e)}")
+        raise click.Abort()
+
+
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "aws-access-key-id",
+    "AWS_ACCESS_KEY_ID",
+    help="AWS access key ID for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-secret-access-key",
+    "AWS_SECRET_ACCESS_KEY",
+    help="AWS secret access key for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-session-token",
+    "AWS_SESSION_TOKEN",
+    help="AWS session token for temporary credentials (optional)",
+    required=False,
+)
+@env_click_option(
+    "aws-region",
+    "AWS_DEFAULT_REGION",
+    help="AWS region name (e.g., us-east-1)",
+    required=False,
+)
+def aws_lambda_list_functions(
+    aws_access_key_id: Optional[str],
+    aws_secret_access_key: Optional[str],
+    aws_session_token: Optional[str],
+    aws_region: Optional[str],
+) -> None:
+    """
+    List all available Lambda functions.
+    """
+    click.echo("Listing Lambda functions...")
+
+    list_lambda_functions(
+        region_name=aws_region,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_session_token=aws_session_token,
+    )
+
+
+# AWS SageMaker commands
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "aws-access-key-id",
+    "AWS_ACCESS_KEY_ID",
+    help="AWS access key ID for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-secret-access-key",
+    "AWS_SECRET_ACCESS_KEY",
+    help="AWS secret access key for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-session-token",
+    "AWS_SESSION_TOKEN",
+    help="AWS session token for temporary credentials (optional)",
+    required=False,
+)
+@env_click_option(
+    "aws-region",
+    "AWS_DEFAULT_REGION",
+    help="AWS region name (e.g., us-east-1)",
+    required=False,
+)
+@click.option(
+    "--pipeline-name",
+    multiple=True,
+    help="The name(s) of the SageMaker Pipeline(s) to execute",
+    required=True,
+)
+@click.option(
+    "--wait-for-completion",
+    is_flag=True,
+    help="Wait for pipeline executions to complete",
+    default=True,
+)
+@click.option(
+    "--timeout-minutes",
+    type=int,
+    help="Maximum time to wait for completion (in minutes). Only used with --wait-for-completion.",
+    default=1440,
+)
+def aws_sagemaker_start_pipeline(
+    aws_access_key_id: Optional[str],
+    aws_secret_access_key: Optional[str],
+    aws_session_token: Optional[str],
+    aws_region: Optional[str],
+    pipeline_name: List[str],
+    wait_for_completion: bool,
+    timeout_minutes: int,
+) -> None:
+    """
+    Start SageMaker Pipeline executions.
+    """
+    click.echo(f"Starting {len(pipeline_name)} SageMaker Pipeline(s)...")
+
+    try:
+        results = trigger_sagemaker_pipelines(
+            pipeline_names=list(pipeline_name),
+            region_name=aws_region,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token,
+            wait_for_completion=wait_for_completion,
+            timeout_minutes=timeout_minutes,
+        )
+
+        # Check if any pipeline executions failed
+        failed_executions = [result for result in results if "FAILED" in result]
+        if failed_executions:
+            sys.exit(1)
+
+    except Exception as e:
+        click.echo(f"❌ SageMaker Pipeline execution failed: {str(e)}")
+        raise click.Abort()
+
+
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "aws-access-key-id",
+    "AWS_ACCESS_KEY_ID",
+    help="AWS access key ID for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-secret-access-key",
+    "AWS_SECRET_ACCESS_KEY",
+    help="AWS secret access key for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-session-token",
+    "AWS_SESSION_TOKEN",
+    help="AWS session token for temporary credentials (optional)",
+    required=False,
+)
+@env_click_option(
+    "aws-region",
+    "AWS_DEFAULT_REGION",
+    help="AWS region name (e.g., us-east-1)",
+    required=False,
+)
+def aws_sagemaker_list_pipelines(
+    aws_access_key_id: Optional[str],
+    aws_secret_access_key: Optional[str],
+    aws_session_token: Optional[str],
+    aws_region: Optional[str],
+) -> None:
+    """
+    List all available SageMaker Pipelines.
+    """
+    click.echo("Listing SageMaker Pipelines...")
+
+    list_sagemaker_pipelines(
+        region_name=aws_region,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_session_token=aws_session_token,
+    )
+
+
+# AWS Step Functions commands
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "aws-access-key-id",
+    "AWS_ACCESS_KEY_ID",
+    help="AWS access key ID for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-secret-access-key",
+    "AWS_SECRET_ACCESS_KEY",
+    help="AWS secret access key for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-session-token",
+    "AWS_SESSION_TOKEN",
+    help="AWS session token for temporary credentials (optional)",
+    required=False,
+)
+@env_click_option(
+    "aws-region",
+    "AWS_DEFAULT_REGION",
+    help="AWS region name (e.g., us-east-1)",
+    required=False,
+)
+@click.option(
+    "--state-machine-arn",
+    multiple=True,
+    help="The ARN(s) of the Step Functions state machine(s) to execute",
+    required=True,
+)
+@click.option(
+    "--wait-for-completion",
+    is_flag=True,
+    help="Wait for executions to complete",
+    default=True,
+)
+@click.option(
+    "--timeout-minutes",
+    type=int,
+    help="Maximum time to wait for completion (in minutes). Only used with --wait-for-completion.",
+    default=1440,
+)
+def aws_stepfunctions_start_execution(
+    aws_access_key_id: Optional[str],
+    aws_secret_access_key: Optional[str],
+    aws_session_token: Optional[str],
+    aws_region: Optional[str],
+    state_machine_arn: List[str],
+    wait_for_completion: bool,
+    timeout_minutes: int,
+) -> None:
+    """
+    Start AWS Step Functions state machine executions.
+    """
+    click.echo(f"Starting {len(state_machine_arn)} Step Functions execution(s)...")
+
+    try:
+        results = trigger_stepfunctions_executions(
+            state_machine_arns=list(state_machine_arn),
+            region_name=aws_region,
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token,
+            wait_for_completion=wait_for_completion,
+            timeout_minutes=timeout_minutes,
+        )
+
+        # Check if any executions failed
+        failed_executions = [
+            result for result in results if "FAILED" in result or "TIMED_OUT" in result or "ABORTED" in result
+        ]
+        if failed_executions:
+            sys.exit(1)
+
+    except Exception as e:
+        click.echo(f"❌ Step Functions execution failed: {str(e)}")
+        raise click.Abort()
+
+
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "aws-access-key-id",
+    "AWS_ACCESS_KEY_ID",
+    help="AWS access key ID for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-secret-access-key",
+    "AWS_SECRET_ACCESS_KEY",
+    help="AWS secret access key for authentication",
+    required=False,
+)
+@env_click_option(
+    "aws-session-token",
+    "AWS_SESSION_TOKEN",
+    help="AWS session token for temporary credentials (optional)",
+    required=False,
+)
+@env_click_option(
+    "aws-region",
+    "AWS_DEFAULT_REGION",
+    help="AWS region name (e.g., us-east-1)",
+    required=False,
+)
+def aws_stepfunctions_list_state_machines(
+    aws_access_key_id: Optional[str],
+    aws_secret_access_key: Optional[str],
+    aws_session_token: Optional[str],
+    aws_region: Optional[str],
+) -> None:
+    """
+    List all available Step Functions state machines.
+    """
+    click.echo("Listing Step Functions state machines...")
+
+    list_stepfunctions_state_machines(
+        region_name=aws_region,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_session_token=aws_session_token,
+    )
+
+
+run.add_command(aws_lambda_invoke)
+run.add_command(aws_lambda_list_functions)
+run.add_command(aws_sagemaker_start_pipeline)
+run.add_command(aws_sagemaker_list_pipelines)
+run.add_command(aws_stepfunctions_start_execution)
+run.add_command(aws_stepfunctions_list_state_machines)
