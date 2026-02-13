@@ -1,37 +1,20 @@
 """
-Example: Hex Project Trigger Integration
+Example: Hex Project Trigger
 
-This example demonstrates how to create a custom integration for Hex projects
-that can be triggered based on dbt model completions or other events.
+This example demonstrates how to trigger Hex projects programmatically
+after dbt model completions or other events.
 
 Prerequisites:
 - Hex API token should be available in the environment (HEX_API_TOKEN)
 - Hex workspace URL should be set in environment (HEX_BASE_URL, defaults to https://app.hex.tech)
+- requests library should be installed: pip install requests
 """
 
 import os
 import time
-from datetime import datetime
 from typing import Dict, List, Optional
 
 import requests
-
-from paradime import Paradime
-from paradime.apis.custom_integration.types import (
-    Lineage,
-    LineageDependencyDbtObject,
-    NodeColor,
-    NodeTriggerLike,
-    NodeTriggerLikeAttributes,
-    NodeType,
-)
-
-# Create a Paradime client with your API credentials
-paradime = Paradime(
-    api_endpoint="API_ENDPOINT",
-    api_key="API_KEY",
-    api_secret="API_SECRET",
-)
 
 # Hex API configuration from environment
 HEX_API_TOKEN = os.getenv("HEX_API_TOKEN")
@@ -241,95 +224,31 @@ def get_run_status(project_id: str, run_id: str) -> Dict:
         return {"status": "error", "message": str(e)}
 
 
-# Setup Hex custom integration
-hex_integration = paradime.custom_integration.upsert(
-    name="HexProjects",
-    logo_url="https://hex.tech/logo.svg",
-    node_types=[
-        NodeType(
-            node_type="HexProject",
-            icon_name="chart-line",  # Chart icon for Hex projects
-            color=NodeColor.PURPLE,
-        ),
-    ],
-)
-
-# Fetch Hex projects
-hex_projects = list_hex_projects()
-
-# Create trigger nodes for each Hex project
-trigger_nodes = []
-for project in hex_projects:
-    project_id = project.get("projectId")
-    project_name = project.get("name", "Unnamed Project")
-    description = project.get("description", "")
-    owner_email = project.get("ownerEmail", "")
-    created_at = project.get("createdAt")
-    last_edited_at = project.get("lastEditedAt")
-
-    # Parse timestamps
-    try:
-        created_epoch = int(datetime.fromisoformat(created_at.replace("Z", "+00:00")).timestamp())
-    except:
-        created_epoch = 0
-
-    try:
-        last_edited_epoch = int(
-            datetime.fromisoformat(last_edited_at.replace("Z", "+00:00")).timestamp()
-        )
-    except:
-        last_edited_epoch = 0
-
-    # Create a trigger node
-    # This example shows a Hex project that should be triggered after a dbt model completes
-    trigger_node = NodeTriggerLike(
-        name=project_name,
-        node_type="HexProject",
-        attributes=NodeTriggerLikeAttributes(
-            description=description or f"Hex project: {project_name}",
-            url=f"{HEX_BASE_URL}/hex/projects/{project_id}",
-            project_id=project_id,
-            owner=owner_email,
-            state="Active",
-            created_at=created_epoch,
-            last_modified_at=last_edited_epoch,
-            tags=["hex", "analytics", "dashboard"],
-        ),
-        lineage=Lineage(
-            # Example: This Hex project is triggered after the 'customer_analytics' dbt model completes
-            upstream_dependencies=[
-                LineageDependencyDbtObject(
-                    database_name="analytics",
-                    schema_name="public",
-                    table_name="customer_analytics",
-                ),
-            ],
-        ),
-    )
-
-    trigger_nodes.append(trigger_node)
-
-# Add all Hex trigger nodes to the integration
-if trigger_nodes:
-    paradime.custom_integration.add_nodes(
-        integration_uid=hex_integration.uid,
-        nodes=trigger_nodes,
-    )
-    print(f"Successfully added {len(trigger_nodes)} Hex project trigger nodes to Paradime")
-else:
-    print("No Hex projects found in workspace")
-
-
 # Example usage: Trigger a Hex project after dbt run
 if __name__ == "__main__":
+    # List all Hex projects
+    print("Fetching Hex projects...")
+    hex_projects = list_hex_projects()
+
+    if hex_projects:
+        print(f"\nFound {len(hex_projects)} Hex project(s):")
+        for project in hex_projects:
+            print(f"  • {project.get('name', 'Unnamed')}")
+            print(f"    ID: {project.get('projectId')}")
+            print(f"    Owner: {project.get('ownerEmail', 'N/A')}")
+            print()
+    else:
+        print("No Hex projects found in workspace")
+
+    # Example: Trigger a specific project
     # Replace with your Hex project ID
     example_project_id = "your-hex-project-id"
 
-    # Trigger the Hex project with optional input parameters
+    print(f"\nTriggering Hex project: {example_project_id}")
     result = trigger_hex_project(
         project_id=example_project_id,
         input_params={
-            "date": datetime.now().strftime("%Y-%m-%d"),
+            "date": "2024-01-01",
             "source": "paradime",
         },
         update_published_results=True,

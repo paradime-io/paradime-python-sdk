@@ -1,14 +1,14 @@
-# Hex Triggers Integration Example
+# Hex Triggers
 
-This directory contains an example for integrating Hex projects with Paradime as trigger nodes in your data lineage.
+This directory contains examples for triggering Hex projects via CLI and Python API after dbt model completions or other events.
 
 ## Overview
 
 This example demonstrates how to:
-1. Create a custom integration for Hex projects in Paradime
-2. Map Hex projects to trigger nodes with lineage connections to dbt models
-3. Programmatically trigger Hex project runs after dbt model completions
-4. Wait for Hex project runs to complete with status polling
+1. Trigger Hex project runs via the Paradime CLI
+2. List Hex projects in your workspace
+3. Wait for Hex project runs to complete with status polling
+4. Use the Hex API directly in Python scripts
 
 ## Prerequisites
 
@@ -32,39 +32,108 @@ To get your Hex API token:
 2. Go to Settings → API tokens
 3. Create a new API token with appropriate permissions
 
-### 3. Paradime API Credentials
+## CLI Usage
 
-Generate your API key, secret, and endpoint from Paradime workspace settings and update the example:
+### Trigger a Hex Project
+
+```bash
+# Basic trigger
+paradime hex trigger abc-123-def-456
+
+# Trigger with input parameters
+paradime hex trigger abc-123-def-456 --input-param date=2024-01-01 --input-param region=US
+
+# Trigger and wait for completion
+paradime hex trigger abc-123-def-456 --wait
+
+# Trigger with custom timeout
+paradime hex trigger abc-123-def-456 --wait --timeout-minutes 120
+
+# Get JSON output
+paradime hex trigger abc-123-def-456 --json
+```
+
+### List Hex Projects
+
+```bash
+# List all projects
+paradime hex list-projects
+
+# List including archived projects
+paradime hex list-projects --include-archived
+
+# Get JSON output
+paradime hex list-projects --json
+```
+
+## CLI Command Reference
+
+### `paradime hex trigger`
+
+Trigger a Hex project run.
+
+**Arguments:**
+- `PROJECT_ID` (required): UUID of the Hex project to trigger
+
+**Options:**
+- `--input-param KEY=VALUE`: Input parameters (can be used multiple times)
+- `--update-published/--no-update-published`: Update cached app state (default: true)
+- `--wait`: Wait for the run to complete
+- `--timeout-minutes INTEGER`: Maximum wait time in minutes (default: 60)
+- `--json`: Output JSON format
+
+**Examples:**
+```bash
+paradime hex trigger abc-123 --input-param date=2024-01-01 --wait
+```
+
+### `paradime hex list-projects`
+
+List all Hex projects in the workspace.
+
+**Options:**
+- `--limit INTEGER`: Number of projects to fetch (default: 100)
+- `--include-archived`: Include archived projects
+- `--include-trashed`: Include trashed projects
+- `--json`: Output JSON format
+
+**Examples:**
+```bash
+paradime hex list-projects --include-archived --json
+```
+
+## Python API Usage
+
+For programmatic access, use the example script:
 
 ```python
-paradime = Paradime(
-    api_endpoint="YOUR_API_ENDPOINT",
-    api_key="YOUR_API_KEY",
-    api_secret="YOUR_API_SECRET",
+from examples.hex_triggers.hex_trigger import (
+    list_hex_projects,
+    trigger_hex_project,
+    get_run_status
+)
+
+# List all projects
+projects = list_hex_projects()
+
+# Trigger a project
+result = trigger_hex_project(
+    project_id="abc-123-def-456",
+    input_params={"date": "2024-01-01"},
+    wait_for_completion=True,
+    timeout_minutes=60,
+)
+
+# Check run status
+status = get_run_status(
+    project_id="abc-123-def-456",
+    run_id="run-uuid-here"
 )
 ```
 
-## Example: Hex Project Triggers (`hex_trigger.py`)
+### Key Functions
 
-Creates a custom integration for Hex projects that can be triggered based on dbt model completions.
-
-**Features:**
-- Fetches all Hex projects from your workspace
-- Creates trigger nodes with metadata (project ID, owner, created/modified timestamps)
-- Shows lineage connection from dbt models to Hex projects
-- Provides functions to trigger project runs and monitor status
-- Supports optional input parameters for parameterized Hex projects
-- Implements completion polling with configurable timeout
-
-**Usage:**
-
-```bash
-python examples/hex_triggers/hex_trigger.py
-```
-
-**Key Functions:**
-
-### `list_hex_projects()`
+#### `list_hex_projects()`
 Retrieves all Hex projects from your workspace.
 
 ```python
@@ -75,7 +144,7 @@ projects = list_hex_projects(
 )
 ```
 
-### `trigger_hex_project()`
+#### `trigger_hex_project()`
 Triggers a Hex project run with optional parameters.
 
 ```python
@@ -96,7 +165,7 @@ result = trigger_hex_project(
 - `wait_for_completion` (bool): Wait for the run to complete (default: False)
 - `timeout_minutes` (int): Maximum wait time in minutes (default: 60)
 
-### `get_run_status()`
+#### `get_run_status()`
 Checks the status of a Hex project run.
 
 ```python
@@ -106,77 +175,9 @@ status = get_run_status(
 )
 ```
 
-## Integration Pattern
-
-The example follows the standard Paradime custom integration pattern:
-
-1. **Setup Integration**: Create or update a custom integration in Paradime
-   ```python
-   integration = paradime.custom_integration.upsert(
-       name="HexProjects",
-       logo_url="https://hex.tech/logo.svg",
-       node_types=[NodeType(...)],
-   )
-   ```
-
-2. **Fetch Hex Projects**: Use Hex API to fetch projects
-   ```python
-   hex_projects = list_hex_projects()
-   ```
-
-3. **Create Trigger Nodes**: Map Hex projects to trigger nodes
-   ```python
-   trigger_node = NodeTriggerLike(
-       name=project_name,
-       node_type="HexProject",
-       attributes=NodeTriggerLikeAttributes(...),
-       lineage=Lineage(
-           upstream_dependencies=[
-               LineageDependencyDbtObject(
-                   table_name="my_dbt_model",
-               ),
-           ],
-       ),
-   )
-   ```
-
-4. **Add Nodes**: Add all trigger nodes to the integration
-   ```python
-   paradime.custom_integration.add_nodes(
-       integration_uid=integration.uid,
-       nodes=trigger_nodes,
-   )
-   ```
-
-5. **Trigger Projects**: Programmatically trigger Hex projects
-   ```python
-   result = trigger_hex_project(project_id, input_params)
-   ```
-
-## Lineage Connections
-
-The example demonstrates how to connect Hex projects to dbt models:
-
-```python
-lineage=Lineage(
-    upstream_dependencies=[
-        LineageDependencyDbtObject(
-            database_name="analytics",      # Optional
-            schema_name="public",           # Optional
-            table_name="customer_analytics", # Required
-        ),
-    ],
-)
-```
-
-This creates a lineage graph showing:
-```
-dbt_model → Hex_Project
-```
-
 ## Run Status Polling
 
-When `wait_for_completion=True`, the trigger function polls the Hex API every 10 seconds to check run status:
+When `--wait` flag is used (CLI) or `wait_for_completion=True` (Python), the command polls the Hex API every 10 seconds:
 
 **Polling Behavior:**
 - Polls every 10 seconds
@@ -193,89 +194,18 @@ When `wait_for_completion=True`, the trigger function polls the Hex API every 10
 - `KILLED` - Run was manually stopped
 - `UNABLE_TO_ALLOCATE_KERNEL` - Unable to allocate compute resources
 
-## Customization
+## Integration with Bolt Schedules
 
-### Modify Lineage Connections
+You can trigger Hex projects after dbt runs by adding a command to your Bolt schedule:
 
-Update the `upstream_dependencies` to match your dbt models:
-
-```python
-lineage=Lineage(
-    upstream_dependencies=[
-        LineageDependencyDbtObject(
-            database_name="your_database",
-            schema_name="your_schema",
-            table_name="your_model",
-        ),
-    ],
-)
-```
-
-### Filter Projects
-
-Add filtering logic to only include specific projects:
-
-```python
-# Example: Only include projects owned by specific users
-hex_projects = [
-    project for project in list_hex_projects()
-    if project.get("ownerEmail") in ["user1@company.com", "user2@company.com"]
-]
-```
-
-### Add Custom Attributes
-
-Extend the `NodeTriggerLikeAttributes` with additional metadata:
-
-```python
-attributes=NodeTriggerLikeAttributes(
-    description="Custom description",
-    tags=["production", "critical", "dashboard"],
-    project_id=project_id,
-    owner=owner_email,
-    # Add any custom fields supported by your Paradime instance
-)
-```
-
-### Pass Input Parameters
-
-For parameterized Hex projects, pass input values:
-
-```python
-result = trigger_hex_project(
-    project_id=project_id,
-    input_params={
-        "start_date": "2024-01-01",
-        "end_date": "2024-01-31",
-        "region": "US",
-        "min_threshold": 100,
-    },
-)
-```
-
-## Error Handling
-
-The example includes basic error handling. For production use, enhance error handling:
-
-```python
-import logging
-
-logger = logging.getLogger(__name__)
-
-try:
-    result = trigger_hex_project(
-        project_id=project_id,
-        wait_for_completion=True,
-        timeout_minutes=60,
-    )
-    if result["status"] == "error":
-        logger.error(f"Failed to trigger Hex project: {result['message']}")
-        # Send alert, retry, etc.
-    elif result.get("run_status") == "ERRORED":
-        logger.error(f"Hex project run failed: {result['run_id']}")
-        # Handle failed run
-except Exception as e:
-    logger.exception(f"Unexpected error: {e}")
+```yaml
+# paradime_schedules.yml
+schedules:
+  - name: daily_analytics
+    schedule: "0 8 * * *"
+    commands:
+      - dbt run --select customer_analytics
+      - paradime hex trigger abc-123-def-456 --wait
 ```
 
 ## API Rate Limits
@@ -291,22 +221,30 @@ import time
 
 for project_id in project_ids:
     result = trigger_hex_project(project_id)
-    time.sleep(3)  # Wait 3 seconds between triggers to stay under rate limit
+    time.sleep(3)  # Wait 3 seconds between triggers
 ```
 
-## Best Practices
+## Error Handling
 
-1. **Use Environment Variables**: Store credentials securely in environment variables
-2. **Implement Retry Logic**: Add retry logic for transient API failures
-3. **Monitor Executions**: Track execution status and implement alerting
-4. **Respect Rate Limits**: Implement rate limiting when triggering multiple projects
-5. **Document Lineage**: Clearly document lineage connections in code comments
-6. **Handle Timeouts**: Set appropriate timeout values based on project complexity
-7. **Validate Permissions**: Ensure API token has necessary permissions
+### CLI
+The CLI exits with non-zero status codes on errors:
+- Missing credentials
+- API errors
+- Run failures
+- Timeouts
+
+### Python
+Functions return dictionaries with error information:
+
+```python
+result = trigger_hex_project(project_id)
+if result.get("status") == "error":
+    print(f"Error: {result['message']}")
+```
 
 ## Required Hex API Permissions
 
-The example requires the following Hex API permissions:
+The CLI and Python API require the following permissions:
 
 - `projects:read` - List and read project information
 - `projects:run` - Trigger project runs
@@ -319,8 +257,9 @@ Ensure your API token has these permissions enabled.
 ### Issue: Hex API credentials not found
 **Solution**: Ensure `HEX_API_TOKEN` environment variable is set with a valid token
 
-### Issue: Paradime API authentication failure
-**Solution**: Verify your API key, secret, and endpoint are correct
+```bash
+export HEX_API_TOKEN="your_token_here"
+```
 
 ### Issue: No projects found
 **Solution**: Check that your Hex workspace has projects and that the API token has access
@@ -329,16 +268,44 @@ Ensure your API token has these permissions enabled.
 **Solution**: Implement delays between API calls and respect the 20 requests/minute limit
 
 ### Issue: Run timeout
-**Solution**: Increase `timeout_minutes` parameter or check if the Hex project has issues
+**Solution**: Increase `--timeout-minutes` parameter or check if the Hex project has issues
 
 ### Issue: Permission denied errors
 **Solution**: Verify your API token has the necessary permissions listed above
 
+## Examples
+
+### Trigger after dbt model completion
+```bash
+dbt run --select customer_analytics && \
+  paradime hex trigger abc-123-def --input-param date=$(date +%Y-%m-%d) --wait
+```
+
+### List and trigger all projects
+```bash
+# Get all project IDs
+paradime hex list-projects --json | jq -r '.[].projectId' | while read project_id; do
+  echo "Triggering $project_id"
+  paradime hex trigger "$project_id"
+  sleep 3  # Rate limiting
+done
+```
+
+### Check if run completed successfully
+```bash
+if paradime hex trigger abc-123-def --wait; then
+  echo "Hex project completed successfully"
+else
+  echo "Hex project failed"
+  exit 1
+fi
+```
+
 ## Additional Resources
 
-- [Paradime Documentation](https://docs.paradime.io)
 - [Hex API Documentation](https://learn.hex.tech/docs/api/api-overview)
 - [Hex API Reference](https://learn.hex.tech/docs/api/api-reference)
+- [Paradime Documentation](https://docs.paradime.io)
 
 ## Support
 
