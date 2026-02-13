@@ -63,6 +63,10 @@ class MetadataClient:
             run_results_data = self.parser.extract_run_results_data(parsed)
             source_data = self.parser.extract_source_freshness_data(parsed)
             model_metadata = self.parser.extract_model_metadata(parsed)
+            seed_data = self.parser.extract_seed_data(parsed)
+            snapshot_data = self.parser.extract_snapshot_data(parsed)
+            test_data = self.parser.extract_test_data(parsed)
+            exposure_data = self.parser.extract_exposure_data(parsed)
             
             # Enrich run results with manifest data
             if run_results_data and model_metadata:
@@ -74,6 +78,10 @@ class MetadataClient:
             self.db.load_run_results(run_results_data, schedule_name)
             self.db.load_source_freshness(source_data, schedule_name)
             self.db.load_model_metadata(model_metadata, schedule_name)
+            self.db.load_seed_data(seed_data, schedule_name)
+            self.db.load_snapshot_data(snapshot_data, schedule_name)
+            self.db.load_test_data(test_data, schedule_name)
+            self.db.load_exposure_data(exposure_data, schedule_name)
             
             # Track that this schedule is loaded
             self._loaded_schedules.add(schedule_name)
@@ -144,6 +152,58 @@ class MetadataClient:
         """
         self._ensure_metadata_loaded(schedule_name)
         return self.db.get_source_freshness(schedule_name)
+    
+    def get_seed_data(self, schedule_name: str) -> List[Any]:
+        """
+        Get seed information for a schedule with complete dbt Discovery API parity.
+        
+        Args:
+            schedule_name: Name of the schedule to query
+            
+        Returns:
+            List of SeedData objects with comprehensive seed metadata
+        """
+        self._ensure_metadata_loaded(schedule_name)
+        return self.db.get_seed_data(schedule_name)
+    
+    def get_snapshot_data(self, schedule_name: str) -> List[Any]:
+        """
+        Get snapshot information for a schedule with complete dbt Discovery API parity.
+        
+        Args:
+            schedule_name: Name of the schedule to query
+            
+        Returns:
+            List of SnapshotData objects with comprehensive snapshot metadata
+        """
+        self._ensure_metadata_loaded(schedule_name)
+        return self.db.get_snapshot_data(schedule_name)
+    
+    def get_test_data(self, schedule_name: str) -> List[Any]:
+        """
+        Get test information for a schedule with complete dbt Discovery API parity.
+        
+        Args:
+            schedule_name: Name of the schedule to query
+            
+        Returns:
+            List of TestData objects with comprehensive test metadata
+        """
+        self._ensure_metadata_loaded(schedule_name)
+        return self.db.get_test_data(schedule_name)
+    
+    def get_exposure_data(self, schedule_name: str) -> List[Any]:
+        """
+        Get exposure information for a schedule with complete dbt Discovery API parity.
+        
+        Args:
+            schedule_name: Name of the schedule to query
+            
+        Returns:
+            List of ExposureData objects with comprehensive exposure metadata
+        """
+        self._ensure_metadata_loaded(schedule_name)
+        return self.db.get_exposure_data(schedule_name)
     
     def get_upstream_model_health(self, model_name: str, schedule_name: str, max_depth: int = 10) -> List[ModelDependency]:
         """
