@@ -5,12 +5,12 @@ from typing import Any, List, Optional, Union
 
 import yaml  # type: ignore[import-untyped]
 from croniter import croniter  # type: ignore[import-untyped]
-from pydantic import BaseModel, Extra, root_validator
+
+from paradime.core.bolt.timezones import SUPPORTED_TIMEZONES
+from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
-VALID_ON_EVENTS = ("failed", "passed")
-
-ALLOWED_COMMANDS = ["dbt", "re_data", "edr", "lightdash"]
+VALID_ON_EVENTS = ("failed", "passed", "sla")
 
 
 class ParadimeScheduleBase(BaseModel):
@@ -49,14 +49,67 @@ class Hightouch(ParadimeScheduleBase):
     slugs: List[str]
 
 
+class ScheduleTrigger(ParadimeScheduleBase):
+    enabled: bool
+    schedule_name: str
+    workspace_name: str
+    trigger_on: List[str]
+
+    @validator("trigger_on")
+    def validate_trigger_on(cls, trigger_on: List[str]) -> List[str]:
+        for trigger_on_value in trigger_on:
+            if trigger_on_value not in VALID_ON_EVENTS:
+                raise ValueError(f"'{trigger_on_value}' not a valid event ({VALID_ON_EVENTS})")
+        return trigger_on
+
+
+class NotificationItem(BaseModel):
+    # channel and address can be used interchangeably but one is required
+    channel: Optional[str]
+    address: Optional[str]
+
+    events: List[str]
+
+    @validator("events")
+    def validate_events(cls, events: List[str]) -> List[str]:
+        for event in events:
+            if event.lower() not in VALID_ON_EVENTS:
+                raise ValueError(f"'{event}' not a valid event ({VALID_ON_EVENTS})")
+        return [event.lower() for event in events]
+
+    @root_validator()
+    @classmethod
+    def validate_all_fields_at_the_same_time(cls, values: Any) -> Any:
+        # channel and address can be used interchangeably
+        # with channel being the source of truth.
+        channel = values.get("channel") or values.get("address")
+        if not channel:
+            raise ValueError("Missing 'channel' or 'address'")
+        values["channel"] = channel
+        return values
+
+    def get_channel(self) -> str:
+        assert self.channel
+        return self.channel
+
+
+class Notifications(BaseModel):
+    emails: Optional[List[NotificationItem]]
+    slack_channels: Optional[List[NotificationItem]]
+    microsoft_teams: Optional[List[NotificationItem]]
+
+
 class ParadimeSchedule(ParadimeScheduleBase):
     name: str
     schedule: str
+    timezone: Optional[str] = None
     environment: str
     commands: List[str]
 
     git_branch: Optional[str] = None
     owner_email: Optional[str] = None
+
+    description: Optional[str] = None
 
     slack_notify: Union[str, List[str]] = [""]
     slack_on: List[str] = [""]
@@ -64,10 +117,19 @@ class ParadimeSchedule(ParadimeScheduleBase):
     email_notify: Union[str, List[str]] = [""]
     email_on: List[str] = [""]
 
+    notifications: Optional[Notifications] = None
+    sla_minutes: Optional[int] = None
+
     turbo_ci: Optional[DeferredSchedule] = None
     deferred_schedule: Optional[DeferredSchedule] = None
 
     hightouch: Optional[Hightouch] = None
+
+    schedule_trigger: Optional[ScheduleTrigger] = None
+
+    trigger_on_merge: Optional[bool] = False
+
+    suspended: Optional[bool] = False
 
 
 class ParadimeSchedules(ParadimeScheduleBase):
@@ -103,8 +165,12 @@ def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
             else:
                 found_turbo_ci = True
 
-            if schedule.turbo_ci.deferred_manifest_schedule not in schedule_names:
-                return f"Deferred_manifest_schedule: '{schedule.turbo_ci.deferred_manifest_schedule}' does not refer to another schedule name"
+            if schedule.turbo_ci.deferred_schedule_name not in schedule_names:
+                return f"Turbo CI schedule error: '{schedule.turbo_ci.deferred_schedule_name}' does not refer to another schedule name"
+
+        if schedule.deferred_schedule and schedule.deferred_schedule.enabled:
+            if schedule.deferred_schedule.deferred_schedule_name not in schedule_names:
+                return f"Deferred schedule error: '{schedule.deferred_schedule.deferred_schedule_name}' does not refer to another schedule name"
 
     # Verify schedules individually
     for schedule in schedules.schedules:
@@ -121,11 +187,6 @@ def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[str]:
     if not schedule.commands:
         return f"{schedule_name}: Missing commands."
 
-    # check all commands start with 'dbt'
-    for command in schedule.commands:
-        if not is_allowed_command(parse_command(command)):
-            return f"{schedule_name}: Command {command!r} is not an allowed command. Allowed commands are: {ALLOWED_COMMANDS}."
-
     # verify cron schedule
     if (
         schedule.schedule.lower() != "off"
@@ -133,6 +194,10 @@ def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[str]:
         and not _cron_schedule_is_non_standard(schedule.schedule)
     ):
         return f"{schedule_name}: Schedule '{schedule.schedule}' is not a valid cron schedule."
+
+    # verify timezone
+    if schedule.timezone is not None and schedule.timezone not in SUPPORTED_TIMEZONES:
+        return f"{schedule_name}: Timezone '{schedule.timezone}' is not a valid timezone."
 
     # verify 'on' events
     for slack_on in schedule.slack_on:
@@ -157,13 +222,6 @@ def parse_command(command: str) -> Command:
 
     cmd_as_list = shlex.split(command)
     return Command(as_list=cmd_as_list)
-
-
-def is_allowed_command(command: Command) -> bool:
-    """Check if the command is an allowed command."""
-
-    cmd = command.as_list
-    return bool(cmd) and cmd[0] in ALLOWED_COMMANDS
 
 
 def _get_schedules(path: Path) -> Optional[ParadimeSchedules]:
