@@ -24,7 +24,7 @@ from .types import (
 
 class MetadataClient:
     """
-    Client for querying dbt metadata with Discovery API feature parity.
+    Client for querying dbt metadata.
     Provides model health monitoring, test results, source freshness, and dependency analysis.
     """
     
