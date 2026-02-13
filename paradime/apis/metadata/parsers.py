@@ -179,7 +179,7 @@ class ArtifactParser:
         return extracted_data
     
     def extract_source_freshness_data(self, parsed_artifacts: ParsedArtifacts) -> List[Dict[str, Any]]:
-        """Extract source freshness data with full dbt Discovery API parity"""
+        """Extract source freshness"""
         if not parsed_artifacts.sources:
             return []
         
@@ -357,7 +357,7 @@ class ArtifactParser:
         return extracted_data
     
     def extract_seed_data(self, parsed_artifacts: ParsedArtifacts) -> List[Dict[str, Any]]:
-        """Extract seed metadata with full dbt Discovery API parity"""
+        """Extract seed metadata"""
         if not parsed_artifacts.manifest and not parsed_artifacts.run_results:
             return []
             
@@ -528,7 +528,7 @@ class ArtifactParser:
         return extracted_data
     
     def extract_snapshot_data(self, parsed_artifacts: ParsedArtifacts) -> List[Dict[str, Any]]:
-        """Extract snapshot metadata with full dbt Discovery API parity"""
+        """Extract snapshot"""
         if not parsed_artifacts.manifest and not parsed_artifacts.run_results:
             return []
             
@@ -744,7 +744,6 @@ class ArtifactParser:
                 description = getattr(node, 'description', '')
                 schema_name = getattr(node, 'schema', None)
                 database_name = getattr(node, 'database', None)
-                # Additional fields for dbt Discovery API parity
                 alias = getattr(node, 'alias', None)
                 materialized = config.get('materialized') if isinstance(config, dict) else getattr(config, 'materialized', None)
                 access = getattr(node, 'access', None)
@@ -766,7 +765,6 @@ class ArtifactParser:
                 description = node.get('description', '')
                 schema_name = node.get('schema')
                 database_name = node.get('database')
-                # Additional fields for dbt Discovery API parity  
                 alias = node.get('alias')
                 materialized = config.get('materialized') if isinstance(config, dict) else None
                 access = node.get('access')
@@ -791,7 +789,6 @@ class ArtifactParser:
                 'description': description,
                 'schema_name': schema_name,
                 'database_name': database_name,
-                # New fields for dbt Discovery API parity
                 'alias': alias,
                 'materialized_type': materialized,
                 'access': access,
@@ -868,7 +865,6 @@ class ArtifactParser:
                     'tags': metadata.get('tags', []),
                     'meta': metadata.get('meta', {}),
                     'model_type': metadata.get('config', {}).get('materialized', 'unknown') if isinstance(metadata.get('config', {}), dict) else 'unknown',
-                    # Add all dbt Discovery API parity fields
                     'alias': metadata.get('alias'),
                     'materialized_type': metadata.get('materialized_type'),
                     'description': metadata.get('description', ''),

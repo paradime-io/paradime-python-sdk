@@ -53,7 +53,6 @@ class ModelHealth(BaseModel):
     database_name: Optional[str] = None
     error_message: Optional[str] = None
     
-    # Additional fields for dbt Discovery API parity
     alias: Optional[str] = None
     materialized_type: Optional[str] = None
     description: Optional[str] = None
@@ -107,7 +106,7 @@ class TestResult(BaseModel):
 
 
 class SeedData(BaseModel):
-    """Seed metadata with complete dbt Discovery API parity"""
+    """Seed metadata"""
     
     # Core identification
     unique_id: str
@@ -163,7 +162,7 @@ class SeedData(BaseModel):
 
 
 class SnapshotData(BaseModel):
-    """Snapshot metadata with complete dbt Discovery API parity"""
+    """Snapshot metadata"""
     
     # Core identification
     unique_id: str
@@ -272,7 +271,7 @@ class SourceFreshness(BaseModel):
 
 
 class TestData(BaseModel):
-    """Test metadata with complete dbt Discovery API parity"""
+    """Test metadata"""
     
     # Core identification
     unique_id: str
@@ -324,7 +323,7 @@ class TestData(BaseModel):
 
 
 class ExposureData(BaseModel):
-    """Exposure metadata with complete dbt Discovery API parity"""
+    """Exposure metadata"""
     
     # Core identification
     unique_id: str

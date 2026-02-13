@@ -155,7 +155,7 @@ class MetadataClient:
     
     def get_seed_data(self, schedule_name: str) -> List[Any]:
         """
-        Get seed information for a schedule with complete dbt Discovery API parity.
+        Get seed information for a schedule.
         
         Args:
             schedule_name: Name of the schedule to query
@@ -168,7 +168,7 @@ class MetadataClient:
     
     def get_snapshot_data(self, schedule_name: str) -> List[Any]:
         """
-        Get snapshot information for a schedule with complete dbt Discovery API parity.
+        Get snapshot information for a schedule.
         
         Args:
             schedule_name: Name of the schedule to query
@@ -181,7 +181,7 @@ class MetadataClient:
     
     def get_test_data(self, schedule_name: str) -> List[Any]:
         """
-        Get test information for a schedule with complete dbt Discovery API parity.
+        Get test information for a schedule.
         
         Args:
             schedule_name: Name of the schedule to query
@@ -194,7 +194,7 @@ class MetadataClient:
     
     def get_exposure_data(self, schedule_name: str) -> List[Any]:
         """
-        Get exposure information for a schedule with complete dbt Discovery API parity.
+        Get exposure information for a schedule.
         
         Args:
             schedule_name: Name of the schedule to query

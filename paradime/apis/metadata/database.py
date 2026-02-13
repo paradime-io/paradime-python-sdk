@@ -51,7 +51,6 @@ class MetadataDatabase:
                 -- Additional metadata
                 thread_id VARCHAR,
                 adapter_response JSON,
-                -- dbt Discovery API parity fields
                 alias VARCHAR,
                 materialized_type VARCHAR,
                 description TEXT,
@@ -70,7 +69,7 @@ class MetadataDatabase:
             )
         """)
         
-        # Source freshness results with dbt Discovery API parity
+        # Source freshness
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS dbt_source_freshness_results (
                 -- Core identification
@@ -126,7 +125,7 @@ class MetadataDatabase:
             )
         """)
         
-        # Snapshot data with dbt Discovery API parity
+        # Snapshot data
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS dbt_snapshot_data (
                 -- Core identification
@@ -186,7 +185,7 @@ class MetadataDatabase:
             )
         """)
         
-        # Seed data with dbt Discovery API parity
+        # Seed data
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS dbt_seed_data (
                 -- Core identification
@@ -244,7 +243,7 @@ class MetadataDatabase:
             )
         """)
         
-        # Test data with dbt Discovery API parity
+        # Test data
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS dbt_test_data (
                 -- Core identification
@@ -298,7 +297,7 @@ class MetadataDatabase:
             )
         """)
         
-        # Exposure data with dbt Discovery API parity
+        # Exposure data
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS dbt_exposure_data (
                 -- Core identification
@@ -443,7 +442,6 @@ class MetadataDatabase:
                 'execute_completed_at': row.get('execute_completed_at'),
                 'thread_id': row.get('thread_id'),
                 'adapter_response': row.get('adapter_response', {}),
-                # dbt Discovery API parity fields
                 'alias': row.get('alias'),
                 'materialized_type': row.get('materialized_type'),
                 'description': row.get('description', ''),
@@ -1081,7 +1079,6 @@ class MetadataDatabase:
                 schema_name=model_row['schema_name'],
                 database_name=model_row['database_name'],
                 error_message=model_row['error_message'],
-                # dbt Discovery API parity fields
                 alias=model_row['alias'],
                 materialized_type=model_row['materialized_type'],
                 description=model_row['description'] or '',
