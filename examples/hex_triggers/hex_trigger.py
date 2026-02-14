@@ -12,7 +12,7 @@ Prerequisites:
 
 import os
 import time
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -54,8 +54,8 @@ def list_hex_projects(
         list: List of Hex project configurations
     """
     try:
-        params = {
-            "limit": limit,
+        params: Dict[str, str] = {
+            "limit": str(limit),
             "includeArchived": str(include_archived).lower(),
             "includeTrashed": str(include_trashed).lower(),
         }
@@ -95,7 +95,7 @@ def trigger_hex_project(
         dict: Response with run information and status
     """
     try:
-        payload = {
+        payload: Dict[str, Any] = {
             "updatePublishedResults": update_published_results,
             "useCachedSqlResults": use_cached_sql_results,
         }

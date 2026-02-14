@@ -1,7 +1,7 @@
 import os
 import sys
 import time
-from typing import Dict, Final, Optional
+from typing import Any, Dict, Final, Optional
 
 import click
 import requests
@@ -89,7 +89,7 @@ def trigger(
             input_params[key] = value
 
     # Prepare request payload
-    payload = {
+    payload: Dict[str, Any] = {
         "updatePublishedResults": update_published,
         "useCachedSqlResults": True,
     }
@@ -230,8 +230,8 @@ def list_projects(
     base_url = get_hex_base_url()
     api_url = f"{base_url}/api/v1/projects"
 
-    params = {
-        "limit": limit,
+    params: Dict[str, str] = {
+        "limit": str(limit),
         "includeArchived": str(include_archived).lower(),
         "includeTrashed": str(include_trashed).lower(),
     }

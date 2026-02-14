@@ -2,8 +2,8 @@ import click
 from dotenv import load_dotenv
 
 from paradime.cli.bolt import bolt
-from paradime.cli.hex import hex
 from paradime.cli.catalog import catalog
+from paradime.cli.hex import hex
 from paradime.cli.login import login
 from paradime.cli.run import run
 from paradime.cli.version import version
