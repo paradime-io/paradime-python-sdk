@@ -91,7 +91,7 @@ def trigger(
     # Prepare request payload
     payload: Dict[str, Any] = {
         "updatePublishedResults": update_published,
-        "useCachedSqlResults": True,
+        "useCachedSqlResults": False,
     }
     if input_params:
         payload["inputParams"] = input_params
