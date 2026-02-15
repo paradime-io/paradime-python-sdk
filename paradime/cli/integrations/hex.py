@@ -85,9 +85,7 @@ def hex_trigger(
         failed_runs = [
             result
             for result in results
-            if "ERRORED" in result
-            or "KILLED" in result
-            or "UNABLE_TO_ALLOCATE_KERNEL" in result
+            if "ERRORED" in result or "KILLED" in result or "UNABLE_TO_ALLOCATE_KERNEL" in result
         ]
         if failed_runs:
             sys.exit(1)

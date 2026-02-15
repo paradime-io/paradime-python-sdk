@@ -305,7 +305,10 @@ def _wait_for_run_completion(
             import datetime
 
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(f"{timestamp} ⚠️  [{project_id}] Network error: {str(e)[:50]}... Retrying.", flush=True)
+            print(
+                f"{timestamp} ⚠️  [{project_id}] Network error: {str(e)[:50]}... Retrying.",
+                flush=True,
+            )
             time.sleep(sleep_interval)
             continue
 
