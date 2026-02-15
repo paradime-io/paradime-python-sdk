@@ -4,6 +4,7 @@ import click
 
 from paradime.cli.integrations.adf import adf_list_pipelines, adf_pipelines
 from paradime.cli.integrations.airbyte import airbyte_list_connections, airbyte_sync
+from paradime.cli.integrations.airflow import airflow_list_dags, airflow_trigger
 from paradime.cli.integrations.census import census_list_syncs, census_sync
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync
 from paradime.cli.integrations.hex import hex_list_projects, hex_trigger

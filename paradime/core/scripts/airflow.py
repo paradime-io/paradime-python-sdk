@@ -1,9 +1,8 @@
 import logging
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -24,12 +23,12 @@ def _get_gcp_bearer_token() -> str:
         Bearer token for authentication
     """
     try:
-        from google.auth import default
-        from google.auth.transport.requests import Request
+        from google.auth import default  # type: ignore[import-not-found]
+        from google.auth.transport.requests import Request  # type: ignore[import-not-found]
 
         credentials, project = default()
         credentials.refresh(Request())
-        return credentials.token
+        return credentials.token  # type: ignore[no-any-return]
     except ImportError:
         raise ImportError(
             "google-auth library is required for GCP Cloud Composer authentication. "
@@ -243,9 +242,7 @@ def trigger_dag_run(
             is_paused = dag_data.get("is_paused", False)
             is_active = dag_data.get("is_active", True)
 
-            print(
-                f"{timestamp} 📊 [{dag_id}] Active: {is_active} | Paused: {is_paused}"
-            )
+            print(f"{timestamp} 📊 [{dag_id}] Active: {is_active} | Paused: {is_paused}")
 
             # Handle paused DAGs
             if is_paused:
@@ -255,9 +252,7 @@ def trigger_dag_run(
 
             # Handle inactive DAGs
             if not is_active:
-                print(
-                    f"{timestamp} ⚠️  [{dag_id}] Warning: DAG is not active"
-                )
+                print(f"{timestamp} ⚠️  [{dag_id}] Warning: DAG is not active")
 
     except Exception as e:
         print(
@@ -284,11 +279,8 @@ def trigger_dag_run(
 
     dag_run_data = dag_run_response.json()
     dag_run_id = dag_run_data.get("dag_run_id")
-    logical_date = dag_run_data.get("logical_date", "")
 
-    print(
-        f"{timestamp} ✅ [{dag_id}] DAG run triggered successfully (ID: {dag_run_id})"
-    )
+    print(f"{timestamp} ✅ [{dag_id}] DAG run triggered successfully (ID: {dag_run_id})")
 
     # Show Airflow UI link
     ui_url = f"{base_url}/dags/{dag_id}/grid?dag_run_id={dag_run_id}"
@@ -385,7 +377,7 @@ def _wait_for_dag_completion(
             elapsed_sec = int(elapsed % 60)
 
             # Count task states
-            task_states = {}
+            task_states: Dict[str, int] = {}
             for task in task_instances:
                 task_state = task.get("state", "unknown")
                 task_states[task_state] = task_states.get(task_state, 0) + 1
@@ -412,10 +404,7 @@ def _wait_for_dag_completion(
                     task_key = f"{task_id}:{task_state}"
 
                     # Only fetch logs for completed tasks we haven't logged yet
-                    if (
-                        task_state in ["success", "failed"]
-                        and task_key not in task_states_logged
-                    ):
+                    if task_state in ["success", "failed"] and task_key not in task_states_logged:
                         _fetch_and_display_task_logs(
                             api_base=api_base,
                             auth=auth,
@@ -472,9 +461,7 @@ def _wait_for_dag_completion(
 
         except requests.exceptions.RequestException as e:
             timestamp = datetime.now().strftime("%H:%M:%S")
-            print(
-                f"{timestamp} ⚠️  [{dag_id}] Network error: {str(e)[:50]}... Retrying."
-            )
+            print(f"{timestamp} ⚠️  [{dag_id}] Network error: {str(e)[:50]}... Retrying.")
             time.sleep(sleep_interval)
             continue
 
@@ -536,14 +523,10 @@ def _fetch_and_display_task_logs(
             print(f"{'-'*60}\n")
         else:
             # Log retrieval failed, just note the task state
-            print(
-                f"{timestamp} ⚠️  [{dag_id}] Task '{task_id}' {task_state} (logs unavailable)"
-            )
+            print(f"{timestamp} ⚠️  [{dag_id}] Task '{task_id}' {task_state} (logs unavailable)")
 
     except Exception as e:
-        print(
-            f"{timestamp} ⚠️  [{dag_id}] Could not fetch logs for task '{task_id}': {str(e)[:50]}"
-        )
+        print(f"{timestamp} ⚠️  [{dag_id}] Could not fetch logs for task '{task_id}': {str(e)[:50]}")
 
 
 def list_airflow_dags(
