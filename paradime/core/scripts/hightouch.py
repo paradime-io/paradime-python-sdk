@@ -147,7 +147,7 @@ def trigger_single_sync(
 
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
 
-    print(f"{timestamp} 🚀 [{sync_id}] Triggering sync (full_resync={full_resync})...")
+    print(f"{timestamp} 🚀 [{sync_id}] Triggering sync (full_resync={full_resync})...", flush=True)
 
     trigger_payload = {"fullResync": full_resync}
 
@@ -165,12 +165,12 @@ def trigger_single_sync(
     trigger_data = trigger_response.json()
     sync_request_id = trigger_data.get("id")
 
-    print(f"{timestamp} ✅ [{sync_id}] Sync triggered successfully (request ID: {sync_request_id})")
+    print(f"{timestamp} ✅ [{sync_id}] Sync triggered successfully (request ID: {sync_request_id})", flush=True)
 
     if not wait_for_completion:
         return f"Sync triggered (request ID: {sync_request_id})"
 
-    print(f"{timestamp} ⏳ [{sync_id}] Monitoring sync progress...")
+    print(f"{timestamp} ⏳ [{sync_id}] Monitoring sync progress...", flush=True)
 
     sync_status = _wait_for_sync_completion(
         auth_headers=auth_headers,
@@ -232,7 +232,8 @@ def _wait_for_sync_completion(
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 print(
                     f"{timestamp} ⚠️  [{sync_id}] HTTP {runs_response.status_code} error. "
-                    f"Retrying... ({consecutive_failures}/{max_consecutive_failures})"
+                    f"Retrying... ({consecutive_failures}/{max_consecutive_failures})",
+                    flush=True,
                 )
                 time.sleep(sleep_interval * min(consecutive_failures, 3))
                 continue
@@ -268,7 +269,8 @@ def _wait_for_sync_completion(
                 if run_status in ["processing", "queued"]:
                     print(
                         f"{timestamp} 🔄 [{sync_id}] Status: {run_status}... "
-                        f"({elapsed_min}m {elapsed_sec}s elapsed)"
+                        f"({elapsed_min}m {elapsed_sec}s elapsed)",
+                        flush=True,
                     )
 
             if run_status in ["success", "failed", "cancelled", "warning", "interrupted", "aborted"]:
@@ -281,26 +283,28 @@ def _wait_for_sync_completion(
                 if run_status == "success":
                     print(
                         f"{timestamp} ✅ [{sync_id}] Sync completed successfully "
-                        f"({elapsed_min}m {elapsed_sec}s)"
+                        f"({elapsed_min}m {elapsed_sec}s)",
+                        flush=True,
                     )
                     return "SUCCESS"
                 elif run_status == "warning":
                     print(
                         f"{timestamp} ⚠️  [{sync_id}] Sync completed with warnings "
-                        f"({elapsed_min}m {elapsed_sec}s)"
+                        f"({elapsed_min}m {elapsed_sec}s)",
+                        flush=True,
                     )
                     return "WARNING"
                 elif run_status == "failed":
-                    print(f"{timestamp} ❌ [{sync_id}] Sync failed")
+                    print(f"{timestamp} ❌ [{sync_id}] Sync failed", flush=True)
                     return "FAILED"
                 elif run_status == "cancelled":
-                    print(f"{timestamp} 🚫 [{sync_id}] Sync cancelled")
+                    print(f"{timestamp} 🚫 [{sync_id}] Sync cancelled", flush=True)
                     return "CANCELLED"
                 elif run_status == "interrupted":
-                    print(f"{timestamp} ⚠️  [{sync_id}] Sync interrupted")
+                    print(f"{timestamp} ⚠️  [{sync_id}] Sync interrupted", flush=True)
                     return "INTERRUPTED"
                 elif run_status == "aborted":
-                    print(f"{timestamp} 🚫 [{sync_id}] Sync aborted")
+                    print(f"{timestamp} 🚫 [{sync_id}] Sync aborted", flush=True)
                     return "ABORTED"
 
             counter += 1
@@ -319,7 +323,8 @@ def _wait_for_sync_completion(
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             print(
                 f"{timestamp} ⚠️  [{sync_id}] Network error: {str(e)[:50]}... "
-                f"Retrying... ({consecutive_failures}/{max_consecutive_failures})"
+                f"Retrying... ({consecutive_failures}/{max_consecutive_failures})",
+                flush=True,
             )
             time.sleep(sleep_interval * min(consecutive_failures, 3))
             continue
@@ -431,7 +436,7 @@ def trigger_single_sync_sequence(
 
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
 
-    print(f"{timestamp} 🚀 [{sync_sequence_id}] Triggering sync sequence...")
+    print(f"{timestamp} 🚀 [{sync_sequence_id}] Triggering sync sequence...", flush=True)
 
     trigger_response = requests.post(
         f"{HIGHTOUCH_BASE_URL}/sync-sequences/{sync_sequence_id}/trigger",
@@ -448,13 +453,14 @@ def trigger_single_sync_sequence(
 
     print(
         f"{timestamp} ✅ [{sync_sequence_id}] Sync sequence triggered successfully "
-        f"(run ID: {sequence_run_id})"
+        f"(run ID: {sequence_run_id})",
+        flush=True,
     )
 
     if not wait_for_completion:
         return f"Sync sequence triggered (run ID: {sequence_run_id})"
 
-    print(f"{timestamp} ⏳ [{sync_sequence_id}] Monitoring sequence progress...")
+    print(f"{timestamp} ⏳ [{sync_sequence_id}] Monitoring sequence progress...", flush=True)
 
     sequence_status = _wait_for_sync_sequence_completion(
         auth_headers=auth_headers,
@@ -552,7 +558,8 @@ def _wait_for_sync_sequence_completion(
                 if run_status in ["processing", "queued", "running"]:
                     print(
                         f"{timestamp} 🔄 [{sync_sequence_id}] Status: {run_status}... "
-                        f"({elapsed_min}m {elapsed_sec}s elapsed)"
+                        f"({elapsed_min}m {elapsed_sec}s elapsed)",
+                        flush=True,
                     )
 
             if run_status in ["success", "failed", "cancelled", "warning", "interrupted", "aborted"]:
@@ -565,26 +572,28 @@ def _wait_for_sync_sequence_completion(
                 if run_status == "success":
                     print(
                         f"{timestamp} ✅ [{sync_sequence_id}] Sequence completed successfully "
-                        f"({elapsed_min}m {elapsed_sec}s)"
+                        f"({elapsed_min}m {elapsed_sec}s)",
+                        flush=True,
                     )
                     return "SUCCESS"
                 elif run_status == "warning":
                     print(
                         f"{timestamp} ⚠️  [{sync_sequence_id}] Sequence completed with warnings "
-                        f"({elapsed_min}m {elapsed_sec}s)"
+                        f"({elapsed_min}m {elapsed_sec}s)",
+                        flush=True,
                     )
                     return "WARNING"
                 elif run_status == "failed":
-                    print(f"{timestamp} ❌ [{sync_sequence_id}] Sequence failed")
+                    print(f"{timestamp} ❌ [{sync_sequence_id}] Sequence failed", flush=True)
                     return "FAILED"
                 elif run_status == "cancelled":
-                    print(f"{timestamp} 🚫 [{sync_sequence_id}] Sequence cancelled")
+                    print(f"{timestamp} 🚫 [{sync_sequence_id}] Sequence cancelled", flush=True)
                     return "CANCELLED"
                 elif run_status == "interrupted":
-                    print(f"{timestamp} ⚠️  [{sync_sequence_id}] Sequence interrupted")
+                    print(f"{timestamp} ⚠️  [{sync_sequence_id}] Sequence interrupted", flush=True)
                     return "INTERRUPTED"
                 elif run_status == "aborted":
-                    print(f"{timestamp} 🚫 [{sync_sequence_id}] Sequence aborted")
+                    print(f"{timestamp} 🚫 [{sync_sequence_id}] Sequence aborted", flush=True)
                     return "ABORTED"
 
             counter += 1
@@ -603,7 +612,8 @@ def _wait_for_sync_sequence_completion(
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             print(
                 f"{timestamp} ⚠️  [{sync_sequence_id}] Network error: {str(e)[:50]}... "
-                f"Retrying... ({consecutive_failures}/{max_consecutive_failures})"
+                f"Retrying... ({consecutive_failures}/{max_consecutive_failures})",
+                flush=True,
             )
             time.sleep(sleep_interval * min(consecutive_failures, 3))
             continue
