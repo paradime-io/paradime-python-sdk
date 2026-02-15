@@ -270,9 +270,10 @@ If you encounter issues with Cloud Composer:
 
 ### API Version Compatibility
 
-This implementation uses Airflow REST API v1, which is available in:
-- Airflow 2.0+
-- AWS MWAA (all versions)
+This implementation uses Airflow REST API v2, which is available in:
+- Airflow 2.0+ (v2 API introduced in Airflow 2.0)
+- Airflow 3.0+ (v1 API removed, v2 is required)
+- AWS MWAA (all versions with Airflow 2.0+)
 - Astronomer Cloud and Enterprise
 
 For older Airflow versions (1.x), you may need to use the experimental API or upgrade your instance.

@@ -38,7 +38,7 @@ from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dag
     default=False,
 )
 @click.option(
-    "--dag-id",
+    "--dag-ids",
     multiple=True,
     help="The ID(s) of the DAG(s) you want to trigger",
     required=True,
@@ -49,8 +49,12 @@ from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dag
     required=False,
 )
 @click.option(
-    "--wait-for-completion",
-    is_flag=True,
+    "--logical-date",
+    help="Optional logical date for DAG runs in ISO format (e.g., '2024-01-01T00:00:00Z'). Defaults to current timestamp.",
+    required=False,
+)
+@click.option(
+    "--wait-for-completion/--no-wait-for-completion",
     help="Wait for DAG runs to complete before returning",
     default=True,
 )
@@ -61,8 +65,7 @@ from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dag
     default=1440,
 )
 @click.option(
-    "--show-logs",
-    is_flag=True,
+    "--show-logs/--no-show-logs",
     help="Display task logs during execution. Only used with --wait-for-completion.",
     default=True,
 )
@@ -72,8 +75,9 @@ def airflow_trigger(
     password: Optional[str],
     bearer_token: Optional[str],
     use_gcp_auth: bool,
-    dag_id: List[str],
+    dag_ids: List[str],
     dag_run_conf: Optional[str],
+    logical_date: Optional[str],
     wait_for_completion: bool,
     timeout_minutes: int,
     show_logs: bool,
@@ -81,7 +85,7 @@ def airflow_trigger(
     """
     Trigger one or more Airflow DAG runs.
     """
-    click.echo(f"Starting {len(dag_id)} Airflow DAG run(s)...")
+    click.echo(f"Starting {len(dag_ids)} Airflow DAG run(s)...")
 
     # Parse dag_run_conf if provided
     import json
@@ -108,8 +112,9 @@ def airflow_trigger(
             base_url=base_url,
             username=username,
             password=password,
-            dag_ids=list(dag_id),
+            dag_ids=list(dag_ids),
             dag_run_conf=parsed_dag_run_conf,
+            logical_date=logical_date,
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
             show_logs=show_logs,

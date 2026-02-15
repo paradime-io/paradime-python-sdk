@@ -86,6 +86,7 @@ def trigger_airflow_dags(
     password: Optional[str] = None,
     dag_ids: List[str],
     dag_run_conf: Optional[Dict[str, Any]] = None,
+    logical_date: Optional[str] = None,
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
     show_logs: bool = True,
@@ -101,6 +102,7 @@ def trigger_airflow_dags(
         password: Airflow password (or API secret). Not required for GCP Cloud Composer.
         dag_ids: List of DAG IDs to trigger
         dag_run_conf: Optional configuration to pass to DAG runs
+        logical_date: Optional logical date for the DAG run in ISO format (e.g., "2024-01-01T00:00:00Z"). Defaults to current timestamp.
         wait_for_completion: Whether to wait for DAG runs to complete
         timeout_minutes: Maximum time to wait for completion
         show_logs: Whether to display task logs during execution
@@ -133,6 +135,7 @@ def trigger_airflow_dags(
                         password=password,
                         dag_id=dag_id,
                         dag_run_conf=dag_run_conf,
+                        logical_date=logical_date,
                         wait_for_completion=wait_for_completion,
                         timeout_minutes=timeout_minutes,
                         show_logs=show_logs,
@@ -188,6 +191,7 @@ def trigger_dag_run(
     password: Optional[str] = None,
     dag_id: str,
     dag_run_conf: Optional[Dict[str, Any]] = None,
+    logical_date: Optional[str] = None,
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
     show_logs: bool = True,
@@ -203,6 +207,7 @@ def trigger_dag_run(
         password: Airflow password (or API secret). Not required for GCP Cloud Composer.
         dag_id: DAG ID to trigger
         dag_run_conf: Optional configuration to pass to DAG run
+        logical_date: Optional logical date for the DAG run in ISO format. Defaults to current timestamp.
         wait_for_completion: Whether to wait for DAG run to complete
         timeout_minutes: Maximum time to wait for completion
         show_logs: Whether to display task logs during execution
@@ -215,8 +220,8 @@ def trigger_dag_run(
     # Ensure base URL doesn't have trailing slash
     base_url = base_url.rstrip("/")
 
-    # Build API URL
-    api_base = f"{base_url}/api/v1"
+    # Build API URL - try v2 first, fallback to v1 for older Airflow versions
+    api_base = f"{base_url}/api/v2"
 
     # Get authentication credentials
     auth, headers = _get_auth_headers(
@@ -260,7 +265,13 @@ def trigger_dag_run(
         )
 
     # Prepare DAG run payload
+    # For Airflow v2 API, we need to provide a logical_date (execution_date)
+    # Use provided logical_date or generate one using current timestamp
+    if logical_date is None:
+        logical_date = datetime.now().isoformat() + "Z"
+
     dag_run_payload = {
+        "logical_date": logical_date,
         "conf": dag_run_conf or {},
     }
 
@@ -500,9 +511,6 @@ def _fetch_and_display_task_logs(
         )
 
         if logs_response.status_code == 200:
-            # Get the log content
-            log_content = logs_response.text
-
             # Display logs with formatting
             state_emoji = "✅" if task_state == "success" else "❌"
             print(f"\n{timestamp} {state_emoji} [{dag_id}] Task '{task_id}' {task_state.upper()}")
@@ -510,15 +518,66 @@ def _fetch_and_display_task_logs(
             print("📝 TASK LOGS:")
             print(f"{'-'*60}")
 
-            # Display the logs (limit to last 50 lines for readability)
-            log_lines = log_content.split("\n")
-            if len(log_lines) > 50:
-                print(f"... (showing last 50 lines of {len(log_lines)} total lines)")
-                log_lines = log_lines[-50:]
+            # Parse log content - Airflow v2 API returns JSON structured logs
+            import json
 
-            for line in log_lines:
-                if line.strip():  # Only print non-empty lines
-                    print(f"  {line}")
+            try:
+                log_data = json.loads(logs_response.text)
+                log_entries = log_data.get("content", [])
+
+                formatted_lines = []
+                for entry in log_entries:
+                    if isinstance(entry, dict):
+                        # Extract timestamp and event/message
+                        entry_timestamp = entry.get("timestamp", "")
+                        event = entry.get("event", "")
+                        level = entry.get("level", "INFO").upper()
+
+                        # Format timestamp to match Airflow's format [YYYY-MM-DD HH:MM:SS]
+                        if entry_timestamp:
+                            try:
+                                from datetime import datetime as dt
+
+                                parsed_time = dt.fromisoformat(
+                                    entry_timestamp.replace("Z", "+00:00")
+                                )
+                                formatted_time = parsed_time.strftime("%Y-%m-%d %H:%M:%S")
+                            except Exception:
+                                formatted_time = entry_timestamp[:19].replace("T", " ")
+                        else:
+                            formatted_time = ""
+
+                        # Skip GitHub Actions group markers
+                        if event.startswith("::group::") or event.startswith("::endgroup::"):
+                            continue
+
+                        # Format the log line
+                        if formatted_time and event:
+                            formatted_lines.append(f"[{formatted_time}] {level} - {event}")
+
+                # Display the formatted logs
+                if formatted_lines:
+                    # Limit to last 100 lines for readability
+                    if len(formatted_lines) > 100:
+                        print(f"... (showing last 100 lines of {len(formatted_lines)} total lines)")
+                        formatted_lines = formatted_lines[-100:]
+
+                    for line in formatted_lines:
+                        print(f"  {line}")
+                else:
+                    # Fallback to raw text if no structured logs found
+                    print(f"  {logs_response.text[:2000]}")
+
+            except json.JSONDecodeError:
+                # Fallback to plain text parsing for older Airflow versions
+                log_lines = logs_response.text.split("\n")
+                if len(log_lines) > 100:
+                    print(f"... (showing last 100 lines of {len(log_lines)} total lines)")
+                    log_lines = log_lines[-100:]
+
+                for line in log_lines:
+                    if line.strip():
+                        print(f"  {line}")
 
             print(f"{'-'*60}\n")
         else:
@@ -552,7 +611,7 @@ def list_airflow_dags(
     # Ensure base URL doesn't have trailing slash
     base_url = base_url.rstrip("/")
 
-    api_base = f"{base_url}/api/v1"
+    api_base = f"{base_url}/api/v2"
 
     # Get authentication credentials
     auth, headers = _get_auth_headers(
