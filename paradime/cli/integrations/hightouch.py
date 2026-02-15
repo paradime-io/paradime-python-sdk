@@ -3,6 +3,7 @@ from typing import List
 
 import click
 
+from paradime.cli.utils import env_click_option
 from paradime.core.scripts.hightouch import (
     list_hightouch_sync_sequences,
     list_hightouch_syncs,
@@ -12,8 +13,13 @@ from paradime.core.scripts.hightouch import (
 
 
 @click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "api-token",
+    "HIGHTOUCH_API_TOKEN",
+    help="Your Hightouch API token. You can create this in your Hightouch workspace settings.",
+)
 @click.option(
-    "--sync-id",
+    "--sync-ids",
     multiple=True,
     help="The ID(s) of the sync(s) you want to trigger",
     required=True,
@@ -36,21 +42,21 @@ from paradime.core.scripts.hightouch import (
     default=1440,
 )
 def hightouch_sync(
-    sync_id: List[str],
+    api_token: str,
+    sync_ids: List[str],
     full_resync: bool,
     wait_for_completion: bool,
     timeout_minutes: int,
 ) -> None:
     """
     Trigger syncs for Hightouch.
-
-    Requires the HIGHTOUCH_API_TOKEN environment variable to be set.
     """
-    click.echo(f"Starting syncs for {len(sync_id)} Hightouch sync(s)...")
+    click.echo(f"Starting syncs for {len(sync_ids)} Hightouch sync(s)...")
 
     try:
         results = trigger_hightouch_syncs(
-            sync_ids=list(sync_id),
+            api_token=api_token,
+            sync_ids=list(sync_ids),
             full_resync=full_resync,
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
@@ -74,8 +80,13 @@ def hightouch_sync(
 
 
 @click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "api-token",
+    "HIGHTOUCH_API_TOKEN",
+    help="Your Hightouch API token. You can create this in your Hightouch workspace settings.",
+)
 @click.option(
-    "--sync-sequence-id",
+    "--sync-sequence-ids",
     multiple=True,
     help="The ID(s) of the sync sequence(s) you want to trigger",
     required=True,
@@ -92,20 +103,20 @@ def hightouch_sync(
     default=1440,
 )
 def hightouch_sync_sequence(
-    sync_sequence_id: List[str],
+    api_token: str,
+    sync_sequence_ids: List[str],
     wait_for_completion: bool,
     timeout_minutes: int,
 ) -> None:
     """
     Trigger sync sequences for Hightouch.
-
-    Requires the HIGHTOUCH_API_TOKEN environment variable to be set.
     """
-    click.echo(f"Starting {len(sync_sequence_id)} Hightouch sync sequence(s)...")
+    click.echo(f"Starting {len(sync_sequence_ids)} Hightouch sync sequence(s)...")
 
     try:
         results = trigger_hightouch_sync_sequences(
-            sync_sequence_ids=list(sync_sequence_id),
+            api_token=api_token,
+            sync_sequence_ids=list(sync_sequence_ids),
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
         )
@@ -128,24 +139,30 @@ def hightouch_sync_sequence(
 
 
 @click.command(context_settings=dict(max_content_width=160))
-def hightouch_list_syncs() -> None:
+@env_click_option(
+    "api-token",
+    "HIGHTOUCH_API_TOKEN",
+    help="Your Hightouch API token. You can create this in your Hightouch workspace settings.",
+)
+def hightouch_list_syncs(api_token: str) -> None:
     """
     List all available Hightouch syncs with their status.
-
-    Requires the HIGHTOUCH_API_TOKEN environment variable to be set.
     """
     click.echo("Listing all Hightouch syncs...")
 
-    list_hightouch_syncs()
+    list_hightouch_syncs(api_token=api_token)
 
 
 @click.command(context_settings=dict(max_content_width=160))
-def hightouch_list_sync_sequences() -> None:
+@env_click_option(
+    "api-token",
+    "HIGHTOUCH_API_TOKEN",
+    help="Your Hightouch API token. You can create this in your Hightouch workspace settings.",
+)
+def hightouch_list_sync_sequences(api_token: str) -> None:
     """
     List all available Hightouch sync sequences with their status.
-
-    Requires the HIGHTOUCH_API_TOKEN environment variable to be set.
     """
     click.echo("Listing all Hightouch sync sequences...")
 
-    list_hightouch_sync_sequences()
+    list_hightouch_sync_sequences(api_token=api_token)

@@ -1,8 +1,7 @@
 import logging
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
+from typing import List
 
 import requests
 
@@ -14,22 +13,16 @@ logger = logging.getLogger(__name__)
 HIGHTOUCH_BASE_URL = "https://api.hightouch.com/api/v1"
 
 
-def _get_auth_headers() -> dict:
+def _get_auth_headers(api_token: str) -> dict:
     """
-    Get authentication headers using the HIGHTOUCH_API_TOKEN environment variable.
+    Get authentication headers using the provided API token.
+
+    Args:
+        api_token: Hightouch API token.
 
     Returns:
         Dictionary with Authorization header.
-
-    Raises:
-        ValueError: If HIGHTOUCH_API_TOKEN is not set.
     """
-    api_token = os.environ.get("HIGHTOUCH_API_TOKEN")
-    if not api_token:
-        raise ValueError(
-            "HIGHTOUCH_API_TOKEN environment variable is not set. "
-            "Create an API key in your Hightouch workspace settings and set it as HIGHTOUCH_API_TOKEN."
-        )
     return {
         "Authorization": f"Bearer {api_token}",
         "Content-Type": "application/json",
@@ -38,6 +31,7 @@ def _get_auth_headers() -> dict:
 
 def trigger_hightouch_syncs(
     *,
+    api_token: str,
     sync_ids: List[str],
     full_resync: bool = False,
     wait_for_completion: bool = True,
@@ -47,6 +41,7 @@ def trigger_hightouch_syncs(
     Trigger syncs for multiple Hightouch syncs.
 
     Args:
+        api_token: Hightouch API token.
         sync_ids: List of Hightouch sync IDs to trigger.
         full_resync: Whether to resync all rows (ignoring previously synced rows).
         wait_for_completion: Whether to wait for syncs to complete.
@@ -55,7 +50,7 @@ def trigger_hightouch_syncs(
     Returns:
         List of sync result messages for each sync.
     """
-    auth_headers = _get_auth_headers()
+    auth_headers = _get_auth_headers(api_token)
     futures = []
     results = []
 
@@ -165,7 +160,10 @@ def trigger_single_sync(
     trigger_data = trigger_response.json()
     sync_request_id = trigger_data.get("id")
 
-    print(f"{timestamp} ✅ [{sync_id}] Sync triggered successfully (request ID: {sync_request_id})", flush=True)
+    print(
+        f"{timestamp} ✅ [{sync_id}] Sync triggered successfully (request ID: {sync_request_id})",
+        flush=True,
+    )
 
     if not wait_for_completion:
         return f"Sync triggered (request ID: {sync_request_id})"
@@ -216,7 +214,7 @@ def _wait_for_sync_completion(
             runs_response = requests.get(
                 f"{HIGHTOUCH_BASE_URL}/syncs/{sync_id}/runs",
                 headers=auth_headers,
-                params={"limit": 1, "orderBy": "createdAt"},
+                params={"limit": "1", "orderBy": "createdAt"},
             )
 
             if runs_response.status_code != 200:
@@ -273,7 +271,14 @@ def _wait_for_sync_completion(
                         flush=True,
                     )
 
-            if run_status in ["success", "failed", "cancelled", "warning", "interrupted", "aborted"]:
+            if run_status in [
+                "success",
+                "failed",
+                "cancelled",
+                "warning",
+                "interrupted",
+                "aborted",
+            ]:
                 import datetime
 
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
@@ -332,6 +337,7 @@ def _wait_for_sync_completion(
 
 def trigger_hightouch_sync_sequences(
     *,
+    api_token: str,
     sync_sequence_ids: List[str],
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
@@ -340,6 +346,7 @@ def trigger_hightouch_sync_sequences(
     Trigger runs for multiple Hightouch sync sequences.
 
     Args:
+        api_token: Hightouch API token.
         sync_sequence_ids: List of Hightouch sync sequence IDs to trigger.
         wait_for_completion: Whether to wait for sequences to complete.
         timeout_minutes: Maximum time to wait for completion.
@@ -347,7 +354,7 @@ def trigger_hightouch_sync_sequences(
     Returns:
         List of sequence result messages.
     """
-    auth_headers = _get_auth_headers()
+    auth_headers = _get_auth_headers(api_token)
     futures = []
     results = []
 
@@ -507,7 +514,7 @@ def _wait_for_sync_sequence_completion(
             runs_response = requests.get(
                 f"{HIGHTOUCH_BASE_URL}/sync-sequences/{sync_sequence_id}/runs",
                 headers=auth_headers,
-                params={"limit": 1, "orderBy": "createdAt"},
+                params={"limit": "1", "orderBy": "createdAt"},
             )
 
             if runs_response.status_code != 200:
@@ -562,7 +569,14 @@ def _wait_for_sync_sequence_completion(
                         flush=True,
                     )
 
-            if run_status in ["success", "failed", "cancelled", "warning", "interrupted", "aborted"]:
+            if run_status in [
+                "success",
+                "failed",
+                "cancelled",
+                "warning",
+                "interrupted",
+                "aborted",
+            ]:
                 import datetime
 
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
@@ -619,11 +633,14 @@ def _wait_for_sync_sequence_completion(
             continue
 
 
-def list_hightouch_syncs() -> None:
+def list_hightouch_syncs(*, api_token: str) -> None:
     """
     List all Hightouch syncs with their IDs and status.
+
+    Args:
+        api_token: Hightouch API token.
     """
-    auth_headers = _get_auth_headers()
+    auth_headers = _get_auth_headers(api_token)
 
     print("\n🔍 Listing all Hightouch syncs")
 
@@ -658,7 +675,11 @@ def list_hightouch_syncs() -> None:
         slug = sync.get("slug", "N/A")
         name = sync.get("name", "Unknown")
         status = sync.get("status", "Unknown")
-        schedule_type = sync.get("schedule", {}).get("type", "Unknown") if isinstance(sync.get("schedule"), dict) else "Unknown"
+        schedule_type = (
+            sync.get("schedule", {}).get("type", "Unknown")
+            if isinstance(sync.get("schedule"), dict)
+            else "Unknown"
+        )
         model_id = sync.get("modelId", "Unknown")
         destination_id = sync.get("destinationId", "Unknown")
         last_run_at = sync.get("lastRunAt", "Never")
@@ -684,11 +705,14 @@ def list_hightouch_syncs() -> None:
     print(f"\n{'='*80}\n")
 
 
-def list_hightouch_sync_sequences() -> None:
+def list_hightouch_sync_sequences(*, api_token: str) -> None:
     """
     List all Hightouch sync sequences with their IDs and status.
+
+    Args:
+        api_token: Hightouch API token.
     """
-    auth_headers = _get_auth_headers()
+    auth_headers = _get_auth_headers(api_token)
 
     print("\n🔍 Listing all Hightouch sync sequences")
 
@@ -722,7 +746,11 @@ def list_hightouch_sync_sequences() -> None:
         sequence_id = sequence.get("id", "Unknown")
         name = sequence.get("name", "Unknown")
         status = sequence.get("status", "Unknown")
-        schedule_type = sequence.get("schedule", {}).get("type", "Unknown") if isinstance(sequence.get("schedule"), dict) else "Unknown"
+        schedule_type = (
+            sequence.get("schedule", {}).get("type", "Unknown")
+            if isinstance(sequence.get("schedule"), dict)
+            else "Unknown"
+        )
         last_run_at = sequence.get("lastRunAt", "Never")
 
         # Get sync IDs in the sequence

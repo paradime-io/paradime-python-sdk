@@ -7,18 +7,18 @@ from paradime.cli.integrations.airbyte import airbyte_list_connections, airbyte_
 from paradime.cli.integrations.census import census_list_syncs, census_sync
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync
 from paradime.cli.integrations.hex import hex_list_projects, hex_trigger
+from paradime.cli.integrations.hightouch import (
+    hightouch_list_sync_sequences,
+    hightouch_list_syncs,
+    hightouch_sync,
+    hightouch_sync_sequence,
+)
 from paradime.cli.integrations.montecarlo import montecarlo_artifacts_import
 from paradime.cli.integrations.power_bi import power_bi_list_datasets, power_bi_refresh
 from paradime.cli.integrations.tableau import (
     tableau_list_datasources,
     tableau_list_workbooks,
     tableau_refresh,
-)
-from paradime.cli.integrations.hightouch import (
-    hightouch_list_sync_sequences,
-    hightouch_list_syncs,
-    hightouch_sync,
-    hightouch_sync_sequence,
 )
 
 help_string: Final = (
