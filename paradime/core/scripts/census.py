@@ -1,7 +1,7 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
+from typing import List
 
 import requests
 
@@ -182,16 +182,19 @@ def trigger_sync(
         print(f"{timestamp} ⚠️  [{sync_id}] No sync_run_id returned in response")
         return "Sync triggered but no run ID returned"
 
-    print(f"{timestamp} ✅ [{sync_id}] Sync triggered successfully (Run ID: {sync_run_id})")
+    print(
+        f"{timestamp} ✅ [{sync_id}] Sync triggered successfully (Run ID: {sync_run_id})",
+        flush=True,
+    )
 
     # Show dashboard link immediately after successful trigger
     dashboard_url = f"https://app.getcensus.com/syncs/{sync_id}/sync-history/{sync_run_id}"
-    print(f"{timestamp} 🔗 [{sync_id}] Dashboard: {dashboard_url}")
+    print(f"{timestamp} 🔗 [{sync_id}] Dashboard: {dashboard_url}", flush=True)
 
     if not wait_for_completion:
         return f"Sync triggered (Run ID: {sync_run_id})"
 
-    print(f"{timestamp} ⏳ [{sync_id}] Monitoring sync progress...")
+    print(f"{timestamp} ⏳ [{sync_id}] Monitoring sync progress...", flush=True)
 
     # Wait for sync completion
     sync_status = _wait_for_sync_completion(
@@ -260,7 +263,8 @@ def _wait_for_sync_completion(
 
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 print(
-                    f"{timestamp} ⚠️  [{sync_id}] HTTP {sync_run_response.status_code} error. Retrying... ({consecutive_failures}/{max_consecutive_failures})"
+                    f"{timestamp} ⚠️  [{sync_id}] HTTP {sync_run_response.status_code} error. Retrying... ({consecutive_failures}/{max_consecutive_failures})",
+                    flush=True,
                 )
                 time.sleep(
                     sleep_interval * min(consecutive_failures, 3)
@@ -292,11 +296,13 @@ def _wait_for_sync_completion(
                     records_updated = data.get("records_updated", 0)
                     records_failed = data.get("records_failed", 0)
                     print(
-                        f"{timestamp} 🔄 [{sync_id}] Working... (Processed: {records_processed}, Updated: {records_updated}, Failed: {records_failed}) ({elapsed_min}m {elapsed_sec}s elapsed)"
+                        f"{timestamp} 🔄 [{sync_id}] Working... (Processed: {records_processed}, Updated: {records_updated}, Failed: {records_failed}) ({elapsed_min}m {elapsed_sec}s elapsed)",
+                        flush=True,
                     )
                 elif status in ["queued", "pending"]:
                     print(
-                        f"{timestamp} ⏳ [{sync_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)"
+                        f"{timestamp} ⏳ [{sync_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)",
+                        flush=True,
                     )
 
             # Check if sync is complete
@@ -313,17 +319,19 @@ def _wait_for_sync_completion(
 
                 if status == "completed":
                     print(
-                        f"{timestamp} ✅ [{sync_id}] Completed successfully (Processed: {records_processed}, Updated: {records_updated}, Failed: {records_failed}) ({elapsed_min}m {elapsed_sec}s)"
+                        f"{timestamp} ✅ [{sync_id}] Completed successfully (Processed: {records_processed}, Updated: {records_updated}, Failed: {records_failed}) ({elapsed_min}m {elapsed_sec}s)",
+                        flush=True,
                     )
                     return f"SUCCESS (Run ID: {sync_run_id}, Processed: {records_processed}, Updated: {records_updated})"
                 elif status == "failed":
                     error_message = data.get("error_message", "No error message")
                     print(
-                        f"{timestamp} ❌ [{sync_id}] Sync failed: {error_message[:100]}"
+                        f"{timestamp} ❌ [{sync_id}] Sync failed: {error_message[:100]}",
+                        flush=True,
                     )
                     return f"FAILED (Run ID: {sync_run_id}, Error: {error_message[:100]})"
                 elif status == "cancelled":
-                    print(f"{timestamp} 🚫 [{sync_id}] Sync cancelled")
+                    print(f"{timestamp} 🚫 [{sync_id}] Sync cancelled", flush=True)
                     return f"CANCELLED (Run ID: {sync_run_id})"
 
             elif status in ["working", "queued", "pending"]:
@@ -347,7 +355,8 @@ def _wait_for_sync_completion(
 
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             print(
-                f"{timestamp} ⚠️  [{sync_id}] Network error: {str(e)[:50]}... Retrying... ({consecutive_failures}/{max_consecutive_failures})"
+                f"{timestamp} ⚠️  [{sync_id}] Network error: {str(e)[:50]}... Retrying... ({consecutive_failures}/{max_consecutive_failures})",
+                flush=True,
             )
             time.sleep(
                 sleep_interval * min(consecutive_failures, 3)
@@ -382,7 +391,7 @@ def list_census_syncs(
         syncs_response = requests.get(
             f"{base_url}/syncs",
             headers=headers,
-            params={"page": page, "per_page": per_page, "order": "desc"},
+            params={"page": str(page), "per_page": str(per_page), "order": "desc"},
         )
 
         handle_http_error(syncs_response, "Error getting syncs:")
@@ -418,7 +427,9 @@ def list_census_syncs(
         status = sync.get("status", "Unknown")
 
         source_name = sync.get("source_attributes", {}).get("connection", {}).get("name", "Unknown")
-        destination_name = sync.get("destination_attributes", {}).get("connection", {}).get("name", "Unknown")
+        destination_name = (
+            sync.get("destination_attributes", {}).get("connection", {}).get("name", "Unknown")
+        )
 
         schedule = sync.get("schedule", {})
         schedule_frequency = schedule.get("frequency", "manual")
@@ -430,18 +441,23 @@ def list_census_syncs(
 
         # Format status with emoji
         status_emoji = (
-            "✅" if status == "active"
-            else "⏸️" if status == "paused"
-            else "❌" if status == "archived"
-            else "❓"
+            "✅"
+            if status == "active"
+            else "⏸️" if status == "paused" else "❌" if status == "archived" else "❓"
         )
 
         last_run_emoji = (
-            "✅" if last_run_status == "completed"
-            else "❌" if last_run_status == "failed"
-            else "🔄" if last_run_status == "working"
-            else "⏳" if last_run_status == "queued"
-            else "➖"
+            "✅"
+            if last_run_status == "completed"
+            else (
+                "❌"
+                if last_run_status == "failed"
+                else (
+                    "🔄"
+                    if last_run_status == "working"
+                    else "⏳" if last_run_status == "queued" else "➖"
+                )
+            )
         )
 
         # Create dashboard deep link
