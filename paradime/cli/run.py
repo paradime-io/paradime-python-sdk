@@ -8,8 +8,8 @@ from paradime.cli.integrations.airflow import airflow_list_dags, airflow_trigger
 from paradime.cli.integrations.aws_glue import (
     aws_glue_list_jobs,
     aws_glue_list_workflows,
-    aws_glue_trigger_workflows,
     aws_glue_trigger_jobs,
+    aws_glue_trigger_workflows,
 )
 from paradime.cli.integrations.census import census_list_syncs, census_sync
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync

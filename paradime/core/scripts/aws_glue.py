@@ -5,8 +5,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
-import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
+import boto3  # type: ignore[import-untyped]
+from botocore.exceptions import ClientError, NoCredentialsError  # type: ignore[import-untyped]
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -171,7 +171,9 @@ def trigger_workflow(
         run_response = glue_client.start_workflow_run(Name=workflow_name)
         run_id = run_response.get("RunId")
 
-        print(f"{timestamp} ✅ [{workflow_name}] Workflow triggered successfully (Run ID: {run_id})")
+        print(
+            f"{timestamp} ✅ [{workflow_name}] Workflow triggered successfully (Run ID: {run_id})"
+        )
 
         # Show console link immediately after successful trigger
         region = region_name or os.environ.get("AWS_REGION", "us-east-1")
@@ -201,7 +203,7 @@ def trigger_workflow(
             print(
                 f"{timestamp} ⚠️  [{workflow_name}] Concurrent run limit exceeded. Workflow may be running already."
             )
-            return f"ERROR (concurrent run limit exceeded - workflow may already be running)"
+            return "ERROR (concurrent run limit exceeded - workflow may already be running)"
         else:
             print(f"{timestamp} ❌ [{workflow_name}] Error: {error_message}")
             return f"ERROR ({error_code}: {error_message})"
@@ -470,7 +472,6 @@ def trigger_job(
     # Check job exists before triggering
     print(f"{timestamp} 🔍 [{job_name}] Checking job status...")
     try:
-        job_response = glue_client.get_job(JobName=job_name)
         print(f"{timestamp} ✅ [{job_name}] Job found")
 
     except ClientError as e:
@@ -519,7 +520,7 @@ def trigger_job(
             print(
                 f"{timestamp} ⚠️  [{job_name}] Concurrent run limit exceeded. Job may be running already."
             )
-            return f"ERROR (concurrent run limit exceeded - job may already be running)"
+            return "ERROR (concurrent run limit exceeded - job may already be running)"
         else:
             print(f"{timestamp} ❌ [{job_name}] Error: {error_message}")
             return f"ERROR ({error_code}: {error_message})"
@@ -596,17 +597,17 @@ def _wait_for_job_completion(
                     print(
                         f"{timestamp} ✅ [{job_name}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
                     )
-                    return f"SUCCESS (completed)"
+                    return "SUCCESS (completed)"
                 elif run_state == "FAILED":
                     error_message = run_data.get("ErrorMessage", "Unknown error")
                     print(f"{timestamp} ❌ [{job_name}] Job failed: {error_message}")
                     return f"FAILED ({error_message})"
                 elif run_state == "STOPPED":
                     print(f"{timestamp} 🛑 [{job_name}] Job stopped")
-                    return f"STOPPED (job stopped)"
+                    return "STOPPED (job stopped)"
                 elif run_state == "TIMEOUT":
                     print(f"{timestamp} ⏱️  [{job_name}] Job timed out")
-                    return f"TIMEOUT (job timed out)"
+                    return "TIMEOUT (job timed out)"
                 elif run_state == "ERROR":
                     error_message = run_data.get("ErrorMessage", "Unknown error")
                     print(f"{timestamp} ❌ [{job_name}] Job error: {error_message}")
@@ -701,7 +702,11 @@ def list_glue_jobs(
                         else (
                             "✅"
                             if run_state == "SUCCEEDED"
-                            else "🛑" if run_state == "STOPPED" else "❌" if run_state == "FAILED" else "❓"
+                            else (
+                                "🛑"
+                                if run_state == "STOPPED"
+                                else "❌" if run_state == "FAILED" else "❓"
+                            )
                         )
                     )
                 else:
@@ -798,7 +803,11 @@ def list_glue_workflows(
                         else (
                             "✅"
                             if run_status == "COMPLETED"
-                            else "🛑" if run_status == "STOPPED" else "❌" if run_status == "ERROR" else "❓"
+                            else (
+                                "🛑"
+                                if run_status == "STOPPED"
+                                else "❌" if run_status == "ERROR" else "❓"
+                            )
                         )
                     )
 
