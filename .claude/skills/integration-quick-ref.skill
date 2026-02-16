@@ -1,0 +1,81 @@
+---
+name: integration-quick-ref
+description: Quick reference for integration patterns
+---
+
+# Integration Quick Reference
+
+## File Locations
+- CLI: `paradime/cli/integrations/{integration}.py`
+- Core: `paradime/core/scripts/{integration}.py`
+- Registration: `paradime/cli/run.py`
+
+## CLI Command Template
+```python
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option("api-key", "INTEGRATION_API_KEY", help="...")
+@click.option("--resource-id", multiple=True, required=True)
+@click.option("--wait-for-completion", is_flag=True, default=True)
+@click.option("--timeout-minutes", type=int, default=1440)
+def integration_action(...) -> None:
+    click.echo(f"Starting action for {len(resource_id)} resources...")
+    try:
+        results = trigger_integration_action(...)
+        failed = [r for r in results if "FAILED" in r]
+        if failed:
+            sys.exit(1)
+    except Exception as e:
+        click.echo(f"❌ Action failed: {str(e)}")
+        raise click.Abort()
+```
+
+## Core Script Template
+```python
+def trigger_integration_action(
+    *,
+    api_key: str,
+    resource_ids: List[str],
+    wait_for_completion: bool = True,
+    timeout_minutes: int = 1440,
+) -> List[str]:
+    """Trigger actions for multiple resources."""
+    print(f"\n{'='*60}")
+    print("🚀 TRIGGERING INTEGRATION")
+    print(f"{'='*60}")
+
+    with ThreadPoolExecutor() as executor:
+        futures = [
+            (rid, executor.submit(trigger_single, rid, ...))
+            for rid in set(resource_ids)
+        ]
+        results = [future.result() for _, future in futures]
+
+    # Display results table
+    print(f"\n{'='*80}")
+    print("📊 RESULTS")
+    for rid, result in results:
+        status = "✅" if "SUCCESS" in result else "❌"
+        print(f"{rid:<25} {status}")
+    return results
+```
+
+## Status Emojis
+- 🚀 Triggering
+- ✅ Success/Completed
+- ❌ Failed/Error
+- 🔄 Running/Syncing
+- ⏳ Waiting/Queued
+- ⚠️ Warning/Paused
+- 🚫 Cancelled
+- 🔗 Link/URL
+- 📊 Results/Stats
+- 🔌 Resource/Connector
+- 🔍 Checking/Searching
+
+## Key Patterns
+- Import `handle_http_error` from utils
+- Use `ThreadPoolExecutor` for parallel operations
+- Poll every 5 seconds, log every 30 seconds
+- Include dashboard URLs
+- Exit with code 1 on failure
+- Use `env_click_option` for credentials
