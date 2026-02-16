@@ -3,8 +3,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, List, Optional
 
-import boto3
-from botocore.exceptions import ClientError
+import boto3  # type: ignore[import-untyped]
+from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -284,7 +284,9 @@ def _wait_for_pipeline_completion(
 
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             error_message = e.response.get("Error", {}).get("Message", str(e))
-            print(f"{timestamp} ⚠️  [{pipeline_name}] Error checking status: {error_message}. Retrying...")
+            print(
+                f"{timestamp} ⚠️  [{pipeline_name}] Error checking status: {error_message}. Retrying..."
+            )
             time.sleep(sleep_interval)
             continue
 

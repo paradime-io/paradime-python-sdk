@@ -472,6 +472,7 @@ def trigger_job(
     # Check job exists before triggering
     print(f"{timestamp} 🔍 [{job_name}] Checking job status...")
     try:
+        glue_client.get_job(JobName=job_name)
         print(f"{timestamp} ✅ [{job_name}] Job found")
 
     except ClientError as e:

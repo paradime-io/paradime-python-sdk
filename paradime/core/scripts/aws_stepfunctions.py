@@ -3,8 +3,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
-import boto3
-from botocore.exceptions import ClientError
+import boto3  # type: ignore[import-untyped]
+from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
 logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -368,7 +368,9 @@ def list_stepfunctions_state_machines(
             creation_date = state_machine.get("creationDate", "Unknown")
 
             # Format type with emoji
-            type_emoji = "⚡" if machine_type == "EXPRESS" else "🔄" if machine_type == "STANDARD" else "❓"
+            type_emoji = (
+                "⚡" if machine_type == "EXPRESS" else "🔄" if machine_type == "STANDARD" else "❓"
+            )
 
             print(f"\n[{i}/{len(state_machines)}] 🔄 {state_machine_name}")
             print(f"{'-'*50}")
