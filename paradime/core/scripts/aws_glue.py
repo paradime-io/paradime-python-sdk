@@ -1,3 +1,4 @@
+import datetime
 import logging
 import os
 import time
@@ -126,8 +127,6 @@ def trigger_workflow(
     Returns:
         Status message indicating workflow result
     """
-    import datetime
-
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
 
     # Initialize Glue client
@@ -256,15 +255,11 @@ def _wait_for_workflow_completion(
             # Track if run has actually started
             if run_status == "RUNNING" and not run_started:
                 run_started = True
-                import datetime
-
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 print(f"{timestamp} 🔄 [{workflow_name}] Workflow run started")
 
             # Log progress every 6 checks (1 minute)
             if counter == 0 or counter % 6 == 0:
-                import datetime
-
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
@@ -287,8 +282,6 @@ def _wait_for_workflow_completion(
 
             # Check if workflow is complete
             if run_status in ["COMPLETED", "STOPPED", "ERROR"]:
-                import datetime
-
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
@@ -338,8 +331,6 @@ def _wait_for_workflow_completion(
                     f"AWS API errors occurred {consecutive_failures} times in a row. Last error: {error_message[:100]}"
                 )
 
-            import datetime
-
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             print(
                 f"{timestamp} ⚠️  [{workflow_name}] AWS API error: {str(e)[:50]}... Retrying... ({consecutive_failures}/{max_consecutive_failures})"
@@ -348,6 +339,401 @@ def _wait_for_workflow_completion(
                 sleep_interval * min(consecutive_failures, 3)
             )  # Exponential backoff up to 3x
             continue
+
+
+def trigger_glue_jobs(
+    *,
+    job_names: List[str],
+    wait_for_completion: bool = True,
+    timeout_minutes: int = 1440,
+    region_name: Optional[str] = None,
+) -> List[str]:
+    """
+    Trigger multiple AWS Glue jobs.
+
+    Args:
+        job_names: List of AWS Glue job names to trigger
+        wait_for_completion: Whether to wait for jobs to complete
+        timeout_minutes: Maximum time to wait for completion
+        region_name: AWS region name (defaults to AWS_REGION env var or default region)
+
+    Returns:
+        List of job result messages for each job
+
+    Note:
+        AWS credentials are read from environment variables or AWS credential chain:
+        - AWS_ACCESS_KEY_ID
+        - AWS_SECRET_ACCESS_KEY
+        - AWS_SESSION_TOKEN (optional)
+        - AWS_REGION (or passed as region_name parameter)
+    """
+    futures = []
+    results = []
+
+    # Add visual separator and header
+    print(f"\n{'='*60}")
+    print("🚀 TRIGGERING AWS GLUE JOBS")
+    print(f"{'='*60}")
+
+    with ThreadPoolExecutor() as executor:
+        for i, job_name in enumerate(set(job_names), 1):
+            print(f"\n[{i}/{len(set(job_names))}] ⚙️  {job_name}")
+            print(f"{'-'*40}")
+
+            futures.append(
+                (
+                    job_name,
+                    executor.submit(
+                        trigger_job,
+                        job_name=job_name,
+                        wait_for_completion=wait_for_completion,
+                        timeout_minutes=timeout_minutes,
+                        region_name=region_name,
+                    ),
+                )
+            )
+
+        # Add separator for live progress section
+        print(f"\n{'='*60}")
+        print("⚡ LIVE PROGRESS")
+        print(f"{'='*60}")
+
+        # Wait for completion and collect results
+        job_results = []
+        for job_name, future in futures:
+            # Use longer timeout when waiting for completion
+            future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
+            response_txt = future.result(timeout=future_timeout)
+            job_results.append((job_name, response_txt))
+            results.append(response_txt)
+
+        # Display results as simple table
+        print(f"\n{'='*80}")
+        print("📊 JOB RESULTS")
+        print(f"{'='*80}")
+        print(f"{'JOB NAME':<35} {'STATUS':<10} {'CONSOLE'}")
+        print(f"{'-'*35} {'-'*10} {'-'*45}")
+
+        for job_name, response_txt in job_results:
+            # Format result with emoji
+            if "SUCCESS" in response_txt or "SUCCEEDED" in response_txt:
+                status = "✅ SUCCESS"
+            elif "FAILED" in response_txt or "ERROR" in response_txt:
+                status = "❌ FAILED"
+            elif "STOPPED" in response_txt:
+                status = "🛑 STOPPED"
+            elif "RUNNING" in response_txt:
+                status = "🔄 RUNNING"
+            else:
+                status = "ℹ️  TRIGGERED"
+
+            # Get region for console URL
+            region = region_name or os.environ.get("AWS_REGION", "us-east-1")
+            console_url = f"https://console.aws.amazon.com/glue/home?region={region}#/v2/etl-configuration/jobs/{job_name}"
+            print(f"{job_name:<35} {status:<10} {console_url}")
+
+        print(f"{'='*80}\n")
+
+    return results
+
+
+def trigger_job(
+    *,
+    job_name: str,
+    wait_for_completion: bool = True,
+    timeout_minutes: int = 1440,
+    region_name: Optional[str] = None,
+) -> str:
+    """
+    Trigger a single AWS Glue job.
+
+    Args:
+        job_name: AWS Glue job name
+        wait_for_completion: Whether to wait for job to complete
+        timeout_minutes: Maximum time to wait for completion
+        region_name: AWS region name (defaults to AWS_REGION env var or default region)
+
+    Returns:
+        Status message indicating job result
+    """
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+
+    # Initialize Glue client
+    try:
+        region = region_name or os.environ.get("AWS_REGION")
+        glue_client = boto3.client("glue", region_name=region)
+    except NoCredentialsError:
+        error_msg = "AWS credentials not found. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables or configure AWS credentials."
+        print(f"{timestamp} ❌ [{job_name}] {error_msg}")
+        raise Exception(error_msg)
+
+    # Check job exists before triggering
+    print(f"{timestamp} 🔍 [{job_name}] Checking job status...")
+    try:
+        job_response = glue_client.get_job(JobName=job_name)
+        print(f"{timestamp} ✅ [{job_name}] Job found")
+
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "Unknown")
+        if error_code == "EntityNotFoundException":
+            print(f"{timestamp} ❌ [{job_name}] Job not found")
+            return f"ERROR (job '{job_name}' not found)"
+        else:
+            print(
+                f"{timestamp} ⚠️  [{job_name}] Could not check status: {str(e)[:50]}... Proceeding anyway."
+            )
+
+    # Trigger the job
+    print(f"{timestamp} 🚀 [{job_name}] Triggering job...")
+    try:
+        run_response = glue_client.start_job_run(JobName=job_name)
+        run_id = run_response.get("JobRunId")
+
+        print(f"{timestamp} ✅ [{job_name}] Job triggered successfully (Run ID: {run_id})")
+
+        # Show console link immediately after successful trigger
+        region = region_name or os.environ.get("AWS_REGION", "us-east-1")
+        console_url = f"https://console.aws.amazon.com/glue/home?region={region}#/v2/etl-configuration/jobs/{job_name}"
+        print(f"{timestamp} 🔗 [{job_name}] Console: {console_url}")
+
+        if not wait_for_completion:
+            return f"Job triggered (Run ID: {run_id})"
+
+        print(f"{timestamp} ⏳ [{job_name}] Monitoring job progress...")
+
+        # Wait for job completion
+        job_status = _wait_for_job_completion(
+            glue_client=glue_client,
+            job_name=job_name,
+            run_id=run_id,
+            timeout_minutes=timeout_minutes,
+        )
+
+        return f"Job completed. Final status: {job_status}"
+
+    except ClientError as e:
+        error_code = e.response.get("Error", {}).get("Code", "Unknown")
+        error_message = e.response.get("Error", {}).get("Message", str(e))
+
+        if error_code == "ConcurrentRunsExceededException":
+            print(
+                f"{timestamp} ⚠️  [{job_name}] Concurrent run limit exceeded. Job may be running already."
+            )
+            return f"ERROR (concurrent run limit exceeded - job may already be running)"
+        else:
+            print(f"{timestamp} ❌ [{job_name}] Error: {error_message}")
+            return f"ERROR ({error_code}: {error_message})"
+
+
+def _wait_for_job_completion(
+    *,
+    glue_client: "boto3.client",
+    job_name: str,
+    run_id: str,
+    timeout_minutes: int,
+) -> str:
+    """
+    Poll job status until completion or timeout.
+
+    Args:
+        glue_client: Boto3 Glue client
+        job_name: AWS Glue job name
+        run_id: Job run ID
+        timeout_minutes: Maximum time to wait for completion
+
+    Returns:
+        Final job status
+    """
+    start_time = time.time()
+    timeout_seconds = timeout_minutes * 60
+    sleep_interval = 5  # Poll every 5 seconds
+    counter = 0
+    consecutive_failures = 0
+    max_consecutive_failures = 5
+    run_started = False
+
+    while True:
+        elapsed = time.time() - start_time
+        if elapsed > timeout_seconds:
+            raise Exception(
+                f"Timeout waiting for job '{job_name}' to complete after {timeout_minutes} minutes"
+            )
+
+        try:
+            # Get job run status
+            job_run_response = glue_client.get_job_run(JobName=job_name, RunId=run_id)
+
+            run_data = job_run_response.get("JobRun", {})
+            run_state = run_data.get("JobRunState", "UNKNOWN")
+
+            # Reset failure counter on successful request
+            consecutive_failures = 0
+
+            # Track if run has actually started
+            if run_state == "RUNNING" and not run_started:
+                run_started = True
+                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                print(f"{timestamp} 🔄 [{job_name}] Job run started")
+
+            # Log progress every 6 checks (30 seconds)
+            if counter == 0 or counter % 6 == 0:
+                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                elapsed_min = int(elapsed // 60)
+                elapsed_sec = int(elapsed % 60)
+
+                if run_state == "RUNNING":
+                    print(
+                        f"{timestamp} 🔄 [{job_name}] Running... ({elapsed_min}m {elapsed_sec}s elapsed)"
+                    )
+
+            # Check if job is complete
+            if run_state in ["SUCCEEDED", "FAILED", "STOPPED", "TIMEOUT", "ERROR"]:
+                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                elapsed_min = int(elapsed // 60)
+                elapsed_sec = int(elapsed % 60)
+
+                if run_state == "SUCCEEDED":
+                    print(
+                        f"{timestamp} ✅ [{job_name}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
+                    )
+                    return f"SUCCESS (completed)"
+                elif run_state == "FAILED":
+                    error_message = run_data.get("ErrorMessage", "Unknown error")
+                    print(f"{timestamp} ❌ [{job_name}] Job failed: {error_message}")
+                    return f"FAILED ({error_message})"
+                elif run_state == "STOPPED":
+                    print(f"{timestamp} 🛑 [{job_name}] Job stopped")
+                    return f"STOPPED (job stopped)"
+                elif run_state == "TIMEOUT":
+                    print(f"{timestamp} ⏱️  [{job_name}] Job timed out")
+                    return f"TIMEOUT (job timed out)"
+                elif run_state == "ERROR":
+                    error_message = run_data.get("ErrorMessage", "Unknown error")
+                    print(f"{timestamp} ❌ [{job_name}] Job error: {error_message}")
+                    return f"ERROR ({error_message})"
+
+            elif run_state in ["RUNNING", "STARTING", "STOPPING"]:
+                # Still running, continue waiting
+                pass
+            else:
+                # Continue waiting for unknown states
+                pass
+
+            counter += 1
+            time.sleep(sleep_interval)
+
+        except ClientError as e:
+            consecutive_failures += 1
+            if consecutive_failures >= max_consecutive_failures:
+                error_message = str(e)
+                raise Exception(
+                    f"AWS API errors occurred {consecutive_failures} times in a row. Last error: {error_message[:100]}"
+                )
+
+            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+            print(
+                f"{timestamp} ⚠️  [{job_name}] AWS API error: {str(e)[:50]}... Retrying... ({consecutive_failures}/{max_consecutive_failures})"
+            )
+            time.sleep(
+                sleep_interval * min(consecutive_failures, 3)
+            )  # Exponential backoff up to 3x
+            continue
+
+
+def list_glue_jobs(
+    *,
+    region_name: Optional[str] = None,
+) -> None:
+    """
+    List all AWS Glue jobs with their status.
+
+    Args:
+        region_name: AWS region name (defaults to AWS_REGION env var or default region)
+    """
+    # Initialize Glue client
+    try:
+        region = region_name or os.environ.get("AWS_REGION")
+        glue_client = boto3.client("glue", region_name=region)
+    except NoCredentialsError:
+        error_msg = "AWS credentials not found. Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables or configure AWS credentials."
+        print(f"\n❌ {error_msg}")
+        raise Exception(error_msg)
+
+    print(f"\n🔍 Listing AWS Glue jobs in region: {region or 'default'}")
+
+    try:
+        # List all jobs
+        jobs_response = glue_client.get_jobs()
+        jobs = jobs_response.get("Jobs", [])
+
+        # Handle pagination
+        while "NextToken" in jobs_response:
+            jobs_response = glue_client.get_jobs(NextToken=jobs_response["NextToken"])
+            jobs.extend(jobs_response.get("Jobs", []))
+
+        if not jobs:
+            print("\n📋 No jobs found.")
+            return
+
+        print(f"\n{'='*80}")
+        print(f"📋 FOUND {len(jobs)} JOB(S)")
+        print(f"{'='*80}")
+
+        # Get details for each job
+        for i, job in enumerate(jobs, 1):
+            job_name = job.get("Name", "Unknown")
+
+            try:
+                # Get job runs to show last run status
+                runs_response = glue_client.get_job_runs(JobName=job_name, MaxResults=1)
+                job_runs = runs_response.get("JobRuns", [])
+
+                if job_runs:
+                    last_run = job_runs[0]
+                    run_state = last_run.get("JobRunState", "Unknown")
+                    started_on = last_run.get("StartedOn", "Never")
+                    completed_on = last_run.get("CompletedOn", "N/A")
+
+                    # Format status with emoji
+                    status_emoji = (
+                        "🔄"
+                        if run_state == "RUNNING"
+                        else (
+                            "✅"
+                            if run_state == "SUCCEEDED"
+                            else "🛑" if run_state == "STOPPED" else "❌" if run_state == "FAILED" else "❓"
+                        )
+                    )
+                else:
+                    run_state = "Never Run"
+                    status_emoji = "⚪"
+                    started_on = "Never"
+                    completed_on = "N/A"
+
+                # Create console deep link
+                region = region_name or os.environ.get("AWS_REGION", "us-east-1")
+                console_url = f"https://console.aws.amazon.com/glue/home?region={region}#/v2/etl-configuration/jobs/{job_name}"
+
+                print(f"\n[{i}/{len(jobs)}] ⚙️  {job_name}")
+                print(f"{'-'*50}")
+                print(f"   {status_emoji} Last Run Status: {run_state}")
+                if job_runs:
+                    print(f"   🕐 Started: {started_on}")
+                    if run_state not in ["RUNNING", "STARTING"]:
+                        print(f"   🕐 Completed: {completed_on}")
+                print(f"   🔗 Console: {console_url}")
+
+            except ClientError as e:
+                print(f"\n[{i}/{len(jobs)}] ⚙️  {job_name}")
+                print(f"{'-'*50}")
+                print(f"   ⚠️  Could not retrieve details: {str(e)[:50]}")
+
+        print(f"\n{'='*80}\n")
+
+    except ClientError as e:
+        error_message = e.response.get("Error", {}).get("Message", str(e))
+        print(f"\n❌ Error listing jobs: {error_message}")
+        raise
 
 
 def list_glue_workflows(

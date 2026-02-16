@@ -5,6 +5,12 @@ import click
 from paradime.cli.integrations.adf import adf_list_pipelines, adf_pipelines
 from paradime.cli.integrations.airbyte import airbyte_list_connections, airbyte_sync
 from paradime.cli.integrations.airflow import airflow_list_dags, airflow_trigger
+from paradime.cli.integrations.aws_glue import (
+    aws_glue_list_jobs,
+    aws_glue_list_workflows,
+    aws_glue_trigger_workflows,
+    aws_glue_trigger_jobs,
+)
 from paradime.cli.integrations.census import census_list_syncs, census_sync
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync
 from paradime.cli.integrations.hex import hex_list_projects, hex_trigger
@@ -46,6 +52,10 @@ run.add_command(airbyte_sync)
 run.add_command(airbyte_list_connections)
 run.add_command(airflow_trigger)
 run.add_command(airflow_list_dags)
+run.add_command(aws_glue_trigger_workflows)
+run.add_command(aws_glue_trigger_jobs)
+run.add_command(aws_glue_list_workflows)
+run.add_command(aws_glue_list_jobs)
 run.add_command(census_sync)
 run.add_command(census_list_syncs)
 run.add_command(adf_pipelines)
