@@ -1,7 +1,8 @@
-from typing import List, Optional, Any
-import pandas as pd
-from datetime import datetime
 import time
+from datetime import datetime
+from typing import Any, List, Optional
+
+import pandas as pd  # type: ignore
 
 from paradime.apis.bolt.client import BoltClient
 from paradime.apis.bolt.exception import BoltScheduleArtifactNotFoundException
@@ -9,16 +10,16 @@ from paradime.apis.bolt.exception import BoltScheduleArtifactNotFoundException
 from .database import MetadataDatabase
 from .parsers import ArtifactParser
 from .types import (
-    ModelHealth,
-    TestResult,
-    SourceFreshness,
-    ModelDependency,
-    HealthDashboard,
     DependencyImpact,
-    PerformanceMetrics,
+    HealthDashboard,
+    HealthStatus,
     MetadataResponse,
+    ModelDependency,
+    ModelHealth,
+    PerformanceMetrics,
     ResourceType,
-    HealthStatus
+    SourceFreshness,
+    TestResult,
 )
 
 
@@ -28,8 +29,9 @@ class MetadataClient:
     Provides model health monitoring, test results, source freshness, and dependency analysis.
     """
 
-    def __init__(self, bolt_client: BoltClient, db_connection: str = ":memory:",
-                 cache_ttl_seconds: int = 300):
+    def __init__(
+        self, bolt_client: BoltClient, db_connection: str = ":memory:", cache_ttl_seconds: int = 300
+    ):
         """
         Initialize MetadataClient.
 
@@ -41,10 +43,12 @@ class MetadataClient:
         self.bolt_client = bolt_client
         self.db = MetadataDatabase(db_connection)
         self.parser = ArtifactParser()
-        self._loaded_schedules = set()  # Track which schedules have been loaded
+        self._loaded_schedules: set[str] = set()  # Track which schedules have been loaded
         self._cache_ttl = cache_ttl_seconds
-        self._cache = {}  # Simple in-memory cache
-        self._dependency_cache = {}  # Cache for computed dependency graphs
+        self._cache: dict[str, dict[str, Any]] = {}  # Simple in-memory cache
+        self._dependency_cache: dict[str, dict[str, Any]] = (
+            {}
+        )  # Cache for computed dependency graphs
 
     def _ensure_metadata_loaded(self, schedule_name: str, force_refresh: bool = False) -> None:
         """
@@ -94,20 +98,20 @@ class MetadataClient:
         except BoltScheduleArtifactNotFoundException as e:
             raise ValueError(f"Could not load metadata for schedule '{schedule_name}': {e}")
 
-    def _get_cache_key(self, method_name: str, *args) -> str:
+    def _get_cache_key(self, method_name: str, *args: Any) -> str:
         """Generate cache key for method calls"""
         return f"{method_name}:{':'.join(str(arg) for arg in args)}"
 
-    def _is_cache_valid(self, cache_entry: dict) -> bool:
+    def _is_cache_valid(self, cache_entry: dict[str, Any]) -> bool:
         """Check if cache entry is still valid"""
-        return time.time() - cache_entry['timestamp'] < self._cache_ttl
+        return time.time() - cache_entry["timestamp"] < self._cache_ttl
 
     def _get_from_cache(self, cache_key: str) -> Any:
         """Get value from cache if valid"""
         if cache_key in self._cache:
             entry = self._cache[cache_key]
             if self._is_cache_valid(entry):
-                return entry['data']
+                return entry["data"]
             else:
                 # Remove expired entry
                 del self._cache[cache_key]
@@ -115,10 +119,7 @@ class MetadataClient:
 
     def _set_cache(self, cache_key: str, data: Any) -> None:
         """Set value in cache with timestamp"""
-        self._cache[cache_key] = {
-            'data': data,
-            'timestamp': time.time()
-        }
+        self._cache[cache_key] = {"data": data, "timestamp": time.time()}
 
     def clear_cache(self, schedule_name: Optional[str] = None) -> None:
         """Clear cache entries, optionally for a specific schedule"""
@@ -143,7 +144,9 @@ class MetadataClient:
         """
         self._ensure_metadata_loaded(schedule_name, force_refresh=True)
 
-    def query_sql(self, sql: str, schedule_name: str, parameters: Optional[List[Any]] = None) -> pd.DataFrame:
+    def query_sql(
+        self, sql: str, schedule_name: str, parameters: Optional[List[Any]] = None
+    ) -> pd.DataFrame:
         """
         Execute raw SQL query against the metadata database.
 
@@ -250,8 +253,9 @@ class MetadataClient:
         self._ensure_metadata_loaded(schedule_name)
         return self.db.get_exposure_data(schedule_name)
 
-    def get_upstream_health(self, model_name: str, schedule_name: str,
-                            max_depth: int = 10) -> List[ModelDependency]:
+    def get_upstream_health(
+        self, model_name: str, schedule_name: str, max_depth: int = 10
+    ) -> List[ModelDependency]:
         """
         Get health status of all upstream dependencies for a model.
 
@@ -274,27 +278,31 @@ class MetadataClient:
             if row.health_status:
                 health_status = HealthStatus(row.health_status)
             elif row.status:
-                if row.status in ['error', 'fail']:
+                if row.status in ["error", "fail"]:
                     health_status = HealthStatus.CRITICAL
-                elif row.status == 'warn':
+                elif row.status == "warn":
                     health_status = HealthStatus.WARNING
                 else:
                     health_status = HealthStatus.HEALTHY
 
-            dependencies.append(ModelDependency(
-                unique_id=row.unique_id,
-                name=row.name,
-                level=row.level,
-                resource_type=ResourceType(row.resource_type),
-                status=row.status,
-                execution_time=row.execution_time,
-                executed_at=row.executed_at,
-                health_status=health_status
-            ))
+            dependencies.append(
+                ModelDependency(
+                    unique_id=row.unique_id,
+                    name=row.name,
+                    level=row.level,
+                    resource_type=ResourceType(row.resource_type),
+                    status=row.status,
+                    execution_time=row.execution_time,
+                    executed_at=row.executed_at,
+                    health_status=health_status,
+                )
+            )
 
         return dependencies
 
-    def get_downstream_impact(self, model_name: str, schedule_name: str, max_depth: int = 10) -> DependencyImpact:
+    def get_downstream_impact(
+        self, model_name: str, schedule_name: str, max_depth: int = 10
+    ) -> DependencyImpact:
         """
         Analyze the downstream impact of a failed model.
 
@@ -324,7 +332,7 @@ class MetadataClient:
             HealthDashboard with aggregated health metrics
         """
         # Check cache first
-        cache_key = self._get_cache_key('health_dashboard', schedule_name)
+        cache_key = self._get_cache_key("health_dashboard", schedule_name)
         cached_result = self._get_from_cache(cache_key)
         if cached_result is not None:
             return cached_result
@@ -337,21 +345,21 @@ class MetadataClient:
         # Get source freshness data (lighter operation)
         sources = self.get_source_freshness(schedule_name)
         sources_checked = len(sources)
-        stale_sources = len([s for s in sources if s.freshness_status != 'pass'])
+        stale_sources = len([s for s in sources if s.freshness_status != "pass"])
 
         dashboard = HealthDashboard(
             schedule_name=schedule_name,
-            total_models=model_metrics['total_models'],
-            healthy_models=model_metrics['healthy_models'],
-            warning_models=model_metrics['warning_models'],
-            critical_models=model_metrics['critical_models'],
-            avg_execution_time=model_metrics['avg_execution_time'],
-            test_success_rate=model_metrics['test_success_rate'],
-            total_tests=model_metrics['total_tests'],
-            failed_tests=model_metrics['failed_tests'],
+            total_models=model_metrics["total_models"],
+            healthy_models=model_metrics["healthy_models"],
+            warning_models=model_metrics["warning_models"],
+            critical_models=model_metrics["critical_models"],
+            avg_execution_time=model_metrics["avg_execution_time"],
+            test_success_rate=model_metrics["test_success_rate"],
+            total_tests=model_metrics["total_tests"],
+            failed_tests=model_metrics["failed_tests"],
             sources_checked=sources_checked,
             stale_sources=stale_sources,
-            last_updated=datetime.utcnow()
+            last_updated=datetime.utcnow(),
         )
 
         # Cache the result
@@ -390,7 +398,7 @@ class MetadataClient:
         models = self.get_model_health(schedule_name)
         # Filter out models without execution time and sort by execution time
         models_with_time = [m for m in models if m.execution_time is not None]
-        models_with_time.sort(key=lambda x: x.execution_time, reverse=True)
+        models_with_time.sort(key=lambda x: x.execution_time or 0.0, reverse=True)
         return models_with_time[:limit]
 
     def get_performance_summary(self, schedule_name: str, days: int = 7) -> PerformanceMetrics:
@@ -410,18 +418,18 @@ class MetadataClient:
 
         # Calculate current metrics (could be enhanced with historical data)
         slowest_models = [
-            {
-                'name': m.name,
-                'execution_time': m.execution_time,
-                'status': m.status
-            }
+            {"name": m.name, "execution_time": m.execution_time, "status": m.status}
             for m in self.get_slowest_models(schedule_name, 10)
         ]
 
         total_models = len(models)
-        successful_models = len([m for m in models if m.status == 'success'])
+        successful_models = len([m for m in models if m.status == "success"])
         models_with_time = [m for m in models if m.execution_time]
-        avg_execution_time = sum(m.execution_time for m in models_with_time) / len(models_with_time) if models_with_time else 0.0
+        avg_execution_time = (
+            sum(m.execution_time or 0.0 for m in models_with_time) / len(models_with_time)
+            if models_with_time
+            else 0.0
+        )
         success_rate = (successful_models * 100.0 / total_models) if total_models > 0 else 0.0
 
         return PerformanceMetrics(
@@ -431,7 +439,7 @@ class MetadataClient:
             average_execution_time=avg_execution_time,
             total_runs=total_models,  # Using models as proxy for runs
             success_rate=success_rate,
-            performance_trend=[]  # Would need historical data
+            performance_trend=[],  # Would need historical data
         )
 
     # Keep backward compatibility
@@ -440,16 +448,19 @@ class MetadataClient:
         return self.get_performance_summary(schedule_name, days)
 
     # Keep backward compatibility
-    def get_upstream_model_health(self, model_name: str, schedule_name: str,
-                                  max_depth: int = 10) -> List[ModelDependency]:
+    def get_upstream_model_health(
+        self, model_name: str, schedule_name: str, max_depth: int = 10
+    ) -> List[ModelDependency]:
         """Deprecated: Use get_upstream_health instead"""
         return self.get_upstream_health(model_name, schedule_name, max_depth)
 
-    def query(self,
-              schedule_name: str,
-              include_models: bool = True,
-              include_tests: bool = True,
-              include_sources: bool = True) -> MetadataResponse:
+    def query(
+        self,
+        schedule_name: str,
+        include_models: bool = True,
+        include_tests: bool = True,
+        include_sources: bool = True,
+    ) -> MetadataResponse:
         """
         Get comprehensive metadata response for a schedule.
 
@@ -468,14 +479,14 @@ class MetadataClient:
             response.models = self.get_model_health(schedule_name)
 
         if include_tests:
-            response.tests = self.get_test_results(schedule_name)
+            response.tests = self.get_test_results(schedule_name)  # type: ignore
 
         if include_sources:
             response.sources = self.get_source_freshness(schedule_name)
 
         return response
 
-    def get_model_health_stream(self, schedule_name: str, batch_size: int = 100):
+    def get_model_health_stream(self, schedule_name: str, batch_size: int = 100) -> Any:
         """
         Stream model health data in batches to handle large datasets efficiently.
 
@@ -506,34 +517,34 @@ class MetadataClient:
             batch_models = []
             for _, row in df.iterrows():
                 model_health = ModelHealth(
-                    unique_id=row['unique_id'],
-                    name=row['name'],
-                    resource_type=ResourceType(row['resource_type']),
-                    status=row['status'],
-                    execution_time=row['execution_time'],
-                    executed_at=row['executed_at'],
-                    health_status=HealthStatus(row['health_status']),
-                    total_tests=row['total_tests'],
-                    failed_tests=row['failed_tests'],
-                    depends_on=row['depends_on'] or [],
-                    schema_name=row['schema_name'],
-                    database_name=row['database_name'],
-                    error_message=row['error_message'],
-                    alias=row['alias'],
-                    materialized_type=row['materialized_type'],
-                    description=row['description'],
-                    meta=row['meta'] if row['meta'] else {},
-                    tags=row['tags'] if row['tags'] else [],
-                    owner=row['owner'],
-                    package_name=row['package_name'],
-                    language=row['language'],
-                    access=row['access'],
-                    compiled_sql=row['compiled_sql'],
-                    raw_sql=row['raw_sql'],
-                    columns=row['columns'] if row['columns'] else {},
-                    children_l1=row['children_l1'] if row['children_l1'] else [],
-                    parents_models=row['parents_models'] if row['parents_models'] else [],
-                    parents_sources=row['parents_sources'] if row['parents_sources'] else []
+                    unique_id=row["unique_id"],
+                    name=row["name"],
+                    resource_type=ResourceType(row["resource_type"]),
+                    status=row["status"],
+                    execution_time=row["execution_time"],
+                    executed_at=row["executed_at"],
+                    health_status=HealthStatus(row["health_status"]),
+                    total_tests=row["total_tests"],
+                    failed_tests=row["failed_tests"],
+                    depends_on=row["depends_on"] or [],
+                    schema_name=row["schema_name"],
+                    database_name=row["database_name"],
+                    error_message=row["error_message"],
+                    alias=row["alias"],
+                    materialized_type=row["materialized_type"],
+                    description=row["description"],
+                    meta=row["meta"] if row["meta"] else {},
+                    tags=row["tags"] if row["tags"] else [],
+                    owner=row["owner"],
+                    package_name=row["package_name"],
+                    language=row["language"],
+                    access=row["access"],
+                    compiled_sql=row["compiled_sql"],
+                    raw_sql=row["raw_sql"],
+                    columns=row["columns"] if row["columns"] else {},
+                    children_l1=row["children_l1"] if row["children_l1"] else [],
+                    parents_models=row["parents_models"] if row["parents_models"] else [],
+                    parents_sources=row["parents_sources"] if row["parents_sources"] else [],
                 )
                 batch_models.append(model_health)
 
@@ -544,13 +555,13 @@ class MetadataClient:
                 break
 
     @property
-    def dependency_graph(self):
+    def dependency_graph(self) -> dict[str, Any]:
         """Lazy-loaded dependency graph property"""
-        if not hasattr(self, '_dependency_graph'):
-            self._dependency_graph = {}
+        if not hasattr(self, "_dependency_graph"):
+            self._dependency_graph: dict[str, Any] = {}
         return self._dependency_graph
 
-    def get_dependency_graph_cached(self, schedule_name: str) -> dict:
+    def get_dependency_graph_cached(self, schedule_name: str) -> dict[str, dict[str, Any]]:
         """Get or compute dependency graph with caching"""
         if schedule_name not in self._dependency_cache:
             self._ensure_metadata_loaded(schedule_name)
@@ -565,10 +576,10 @@ class MetadataClient:
 
             graph = {}
             for _, row in df.iterrows():
-                graph[row['unique_id']] = {
-                    'name': row['name'],
-                    'parents': row['depends_on'] if row['depends_on'] else [],
-                    'children': row['children'] if row['children'] else []
+                graph[row["unique_id"]] = {
+                    "name": row["name"],
+                    "parents": row["depends_on"] if row["depends_on"] else [],
+                    "children": row["children"] if row["children"] else [],
                 }
 
             self._dependency_cache[schedule_name] = graph

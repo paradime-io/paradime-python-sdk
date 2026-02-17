@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import requests
 
@@ -537,7 +537,7 @@ class BoltClient:
         return artifact_url
 
     def get_latest_manifest_json(
-        self, schedule_name: str, command_index: Optional[int] = None, max_runs: int = 1
+        self, schedule_name: str, command_index: Optional[int] = None, max_runs: int = 50
     ) -> dict:
         """
         Retrieves the latest manifest JSON for a given schedule.
@@ -565,7 +565,7 @@ class BoltClient:
     ) -> dict:
         """
         Retrieves and merges the latest run_results JSON from all relevant commands for a given schedule.
-        This method will collect run_results.json from multiple commands (e.g., dbt run + dbt test) 
+        This method will collect run_results.json from multiple commands (e.g., dbt run + dbt test)
         and merge them into a single comprehensive result.
 
         Args:
@@ -585,7 +585,7 @@ class BoltClient:
                 max_runs=max_runs,
             )
             return requests.get(run_results_url).json()
-        
+
         # Get the latest runs for the schedule
         latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=max_runs).runs
 
@@ -600,7 +600,7 @@ class BoltClient:
         for run in latest_runs:
             # Get all commands for this run
             all_commands = self.list_run_commands(run.id)
-            
+
             # Check each command for run_results.json (newest first)
             for command in reversed(all_commands):
                 # Skip commands that did not complete successfully
@@ -655,9 +655,7 @@ class BoltClient:
 
         return requests.get(sources_url).json()
 
-    def get_all_latest_artifacts_fast(
-        self, schedule_name: str, max_runs: int = 1
-    ) -> dict:
+    def get_all_latest_artifacts_fast(self, schedule_name: str, max_runs: int = 1) -> dict:
         """
         Fast version: Retrieves artifacts by directly accessing them from the latest successful run.
         Uses concurrent downloads and connection pooling for better performance.
@@ -669,19 +667,20 @@ class BoltClient:
         Returns:
             dict: Dictionary containing all available artifacts with keys: 'manifest', 'run_results', 'sources'.
         """
-        import requests
         import concurrent.futures
-        from typing import Tuple, Optional
-        
-        artifacts = {}
-        
+        from typing import Any, Optional, Tuple
+
+        import requests
+
+        artifacts: dict[str, dict[str, Any]] = {}
+
         # Create a session for connection pooling
         session = requests.Session()
-        
+
         def download_artifact(artifact_id: int, artifact_type: str) -> Tuple[str, Optional[dict]]:
             """Download a single artifact with retry logic"""
             import time
-            
+
             for attempt in range(3):  # 3 retry attempts
                 try:
                     url = self.get_artifact_url(artifact_id)
@@ -697,36 +696,41 @@ class BoltClient:
                         time.sleep(1 * (attempt + 1))
                         continue
                     return artifact_type, None
-            
+
             return artifact_type, None
-        
+
         # Get latest run (success or failure) for complete monitoring
         runs_result = self.list_runs(schedule_name=schedule_name, limit=max_runs)
-        
+
         for run in runs_result.runs:
             if run.state in ["SUCCESS", "ERROR", "FAILED"]:  # Exclude SKIPPED runs
                 commands = self.list_run_commands(run.id)
-                
+
                 # Collect all artifact download tasks
                 download_tasks = []
-                
+
                 for cmd in commands:
                     # Filter for dbt commands only (exclude git clone, deps, etc.)
-                    if (cmd.return_code is not None and 
-                        self._is_relevant_dbt_command(cmd.command)):
+                    if cmd.return_code is not None and self._is_relevant_dbt_command(cmd.command):
                         try:
                             cmd_artifacts = self.list_command_artifacts(cmd.id)
-                            
+
                             for artifact in cmd_artifacts:
-                                if artifact.path.endswith("manifest.json") and "manifest" not in artifacts:
+                                if (
+                                    artifact.path.endswith("manifest.json")
+                                    and "manifest" not in artifacts
+                                ):
                                     download_tasks.append((artifact.id, "manifest"))
                                 elif artifact.path.endswith("run_results.json"):
                                     download_tasks.append((artifact.id, "run_results"))
-                                elif artifact.path.endswith("sources.json") and "sources" not in artifacts:
+                                elif (
+                                    artifact.path.endswith("sources.json")
+                                    and "sources" not in artifacts
+                                ):
                                     download_tasks.append((artifact.id, "sources"))
                         except Exception:
                             continue
-                
+
                 # Download artifacts concurrently
                 if download_tasks:
                     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
@@ -734,34 +738,32 @@ class BoltClient:
                             executor.submit(download_artifact, artifact_id, artifact_type)
                             for artifact_id, artifact_type in download_tasks
                         ]
-                        
+
                         for future in concurrent.futures.as_completed(futures):
                             artifact_type, content = future.result()
                             if content:
                                 if artifact_type == "run_results" and "run_results" in artifacts:
                                     # Merge run results
-                                    artifacts["run_results"] = self._merge_run_results([
-                                        artifacts["run_results"], content
-                                    ])
+                                    artifacts["run_results"] = self._merge_run_results(
+                                        [artifacts["run_results"], content]
+                                    )
                                 else:
                                     artifacts[artifact_type] = content
-                
+
                 # If we found artifacts, we're done
                 if artifacts:
                     break
-        
+
         session.close()
-        
+
         if not artifacts:
             raise BoltScheduleArtifactNotFoundException(
                 f"No artifacts found for schedule {schedule_name!r} in the latest {max_runs} runs."
             )
-        
+
         return artifacts
 
-    def get_all_latest_artifacts(
-        self, schedule_name: str, max_runs: int = 1
-    ) -> dict:
+    def get_all_latest_artifacts(self, schedule_name: str, max_runs: int = 1) -> dict:
         """
         Retrieves all available artifacts (manifest, run_results, sources) for a given schedule.
         This method intelligently collects artifacts from all relevant commands in the latest run.
@@ -779,49 +781,49 @@ class BoltClient:
     def _is_relevant_dbt_command(self, command: str) -> bool:
         """
         Check if a command is a relevant dbt command that produces artifacts we care about.
-        
+
         Args:
             command: The command string to check
-            
+
         Returns:
             bool: True if the command is a relevant dbt command
         """
         command_lower = command.lower().strip()
-        
+
         # Commands to include - these produce useful artifacts
         relevant_patterns = [
-            'dbt run',           # Model execution
-            'dbt test',          # Test execution  
-            'dbt build',         # Combined run + test
-            'dbt source',        # Source freshness
-            'dbt snapshot',      # Snapshot execution
-            'dbt compile',       # Compilation (produces manifest)
-            'dbt parse',         # Parsing (produces manifest)
+            "dbt run",  # Model execution
+            "dbt test",  # Test execution
+            "dbt build",  # Combined run + test
+            "dbt source",  # Source freshness
+            "dbt snapshot",  # Snapshot execution
+            "dbt compile",  # Compilation (produces manifest)
+            "dbt parse",  # Parsing (produces manifest)
         ]
-        
+
         # Commands to exclude - these don't produce useful metadata
         exclude_patterns = [
-            'git clone',         # Git operations
-            'git checkout',
-            'git pull',
-            'dbt deps',          # Dependency installation
-            'dbt clean',         # Cleanup operations
-            'dbt debug',         # Debug info
-            'pip install',       # Package installation
-            'poetry install',
-            'npm install',
+            "git clone",  # Git operations
+            "git checkout",
+            "git pull",
+            "dbt deps",  # Dependency installation
+            "dbt clean",  # Cleanup operations
+            "dbt debug",  # Debug info
+            "pip install",  # Package installation
+            "poetry install",
+            "npm install",
         ]
-        
+
         # Check exclusions first
         for exclude_pattern in exclude_patterns:
             if exclude_pattern in command_lower:
                 return False
-        
+
         # Check if it's a relevant dbt command
         for relevant_pattern in relevant_patterns:
             if relevant_pattern in command_lower:
                 return True
-        
+
         # Default to False for unknown commands
         return False
 
@@ -839,7 +841,7 @@ class BoltClient:
         """
         if not run_results_list:
             return {}
-        
+
         if len(run_results_list) == 1:
             return run_results_list[0]
 
@@ -848,11 +850,11 @@ class BoltClient:
             "metadata": run_results_list[0].get("metadata", {}),
             "results": [],
             "elapsed_time": sum(r.get("elapsed_time", 0) for r in run_results_list),
-            "args": run_results_list[0].get("args", {})
+            "args": run_results_list[0].get("args", {}),
         }
 
         # Collect all results
-        seen_results = {}
+        seen_results: dict[str, dict[str, Any]] = {}
         for run_results in run_results_list:
             for result in run_results.get("results", []):
                 unique_id = result.get("unique_id")
@@ -862,11 +864,16 @@ class BoltClient:
                         existing_result = seen_results[unique_id]
                         existing_timing = existing_result.get("timing", [])
                         new_timing = result.get("timing", [])
-                        
+
                         # Compare completed_at timestamps if available
-                        if (new_timing and existing_timing and 
-                            len(new_timing) > 0 and len(existing_timing) > 0 and
-                            new_timing[-1].get("completed_at", "") > existing_timing[-1].get("completed_at", "")):
+                        if (
+                            new_timing
+                            and existing_timing
+                            and len(new_timing) > 0
+                            and len(existing_timing) > 0
+                            and new_timing[-1].get("completed_at", "")
+                            > existing_timing[-1].get("completed_at", "")
+                        ):
                             seen_results[unique_id] = result
                     else:
                         seen_results[unique_id] = result

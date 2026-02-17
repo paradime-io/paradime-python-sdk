@@ -1,12 +1,12 @@
 from .client import MetadataClient
 from .types import (
-    ModelHealth,
-    TestResult,
-    SourceFreshness,
-    ModelDependency,
-    HealthDashboard,
     DependencyImpact,
+    HealthDashboard,
+    ModelDependency,
+    ModelHealth,
     PerformanceMetrics,
+    SourceFreshness,
+    TestResult,
 )
 
 __all__ = [

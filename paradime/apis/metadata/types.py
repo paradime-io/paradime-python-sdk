@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from paradime.tools.pydantic import BaseModel, Field
 
@@ -72,22 +72,22 @@ class ModelHealth(BaseModel):
     @classmethod
     def from_row(cls, row: Any) -> "ModelHealth":
         """Create ModelHealth from database row or tuple"""
-        if hasattr(row, '_asdict'):
+        if hasattr(row, "_asdict"):
             data = row._asdict()
         elif isinstance(row, dict):
             data = row
         else:
             # Assume it's a tuple/list with specific order
             data = {
-                'unique_id': row[0],
-                'name': row[1],
-                'resource_type': row[2],
-                'status': row[3],
-                'execution_time': row[4],
-                'executed_at': row[5],
-                'health_status': row[6],
-                'total_tests': row[7] if len(row) > 7 else 0,
-                'failed_tests': row[8] if len(row) > 8 else 0,
+                "unique_id": row[0],
+                "name": row[1],
+                "resource_type": row[2],
+                "status": row[3],
+                "execution_time": row[4],
+                "executed_at": row[5],
+                "health_status": row[6],
+                "total_tests": row[7] if len(row) > 7 else 0,
+                "failed_tests": row[8] if len(row) > 8 else 0,
             }
 
         return cls(**data)
@@ -115,7 +115,7 @@ class SeedData(BaseModel):
 
     # Database location
     database: Optional[str] = None
-    schema_name: Optional[str] = Field(None, alias='schema')
+    schema_name: Optional[str] = Field(None, alias="schema")
     alias: Optional[str] = None
 
     # Execution information
@@ -171,7 +171,7 @@ class SnapshotData(BaseModel):
 
     # Database location
     database: Optional[str] = None
-    schema_name: Optional[str] = Field(None, alias='schema')
+    schema_name: Optional[str] = Field(None, alias="schema")
     alias: Optional[str] = None
 
     # Execution information
@@ -223,8 +223,8 @@ class SourceFreshness(BaseModel):
     # Core identification
     unique_id: str
     source_name: str  # sourceName in dbt Discovery API
-    name: str         # table name / identifier
-    table_name: str   # For backwards compatibility
+    name: str  # table name / identifier
+    table_name: str  # For backwards compatibility
 
     # Freshness information
     freshness_status: FreshnessStatus  # state in dbt Discovery API
@@ -241,7 +241,7 @@ class SourceFreshness(BaseModel):
 
     # Database location
     database: Optional[str] = None
-    schema_name: Optional[str] = Field(None, alias='schema')  # schema field in Discovery API
+    schema_name: Optional[str] = Field(None, alias="schema")  # schema field in Discovery API
     identifier: Optional[str] = None
 
     # Metadata and documentation
@@ -263,7 +263,7 @@ class SourceFreshness(BaseModel):
 
     # Statistics and columns (for full Discovery API parity)
     columns: Optional[Any] = None  # Can be dict or list depending on source
-    stats: Optional[Any] = None     # Can be dict or list depending on source
+    stats: Optional[Any] = None  # Can be dict or list depending on source
     tests: List[str] = []  # Test unique IDs
 
     # Legacy fields for backwards compatibility
@@ -399,16 +399,20 @@ class HealthDashboard(BaseModel):
         return cls(
             schedule_name=schedule_name,
             total_models=len(df),
-            healthy_models=len(df[df['health_status'] == 'Healthy']),
-            warning_models=len(df[df['health_status'] == 'Warning']),
-            critical_models=len(df[df['health_status'] == 'Critical']),
-            avg_execution_time=df['execution_time'].mean() if 'execution_time' in df.columns else 0.0,
-            test_success_rate=100.0 if len(df) == 0 else (df['failed_tests'] == 0).sum() * 100.0 / len(df),
-            total_tests=df['total_tests'].sum() if 'total_tests' in df.columns else 0,
-            failed_tests=df['failed_tests'].sum() if 'failed_tests' in df.columns else 0,
+            healthy_models=len(df[df["health_status"] == "Healthy"]),
+            warning_models=len(df[df["health_status"] == "Warning"]),
+            critical_models=len(df[df["health_status"] == "Critical"]),
+            avg_execution_time=(
+                df["execution_time"].mean() if "execution_time" in df.columns else 0.0
+            ),
+            test_success_rate=(
+                100.0 if len(df) == 0 else (df["failed_tests"] == 0).sum() * 100.0 / len(df)
+            ),
+            total_tests=df["total_tests"].sum() if "total_tests" in df.columns else 0,
+            failed_tests=df["failed_tests"].sum() if "failed_tests" in df.columns else 0,
             sources_checked=0,  # Will be populated separately
-            stale_sources=0,    # Will be populated separately
-            last_updated=datetime.utcnow()
+            stale_sources=0,  # Will be populated separately
+            last_updated=datetime.utcnow(),
         )
 
 
@@ -428,11 +432,11 @@ class DependencyImpact(BaseModel):
 
         for row in results:
             name = row[0] if isinstance(row, (tuple, list)) else row.name
-            status = row[2] if isinstance(row, (tuple, list)) else getattr(row, 'status', None)
+            status = row[2] if isinstance(row, (tuple, list)) else getattr(row, "status", None)
 
-            if status in ['error', 'fail']:
+            if status in ["error", "fail"]:
                 critical.append(name)
-            elif status in ['warn']:
+            elif status in ["warn"]:
                 warning.append(name)
             else:
                 potentially_affected.append(name)
@@ -442,7 +446,7 @@ class DependencyImpact(BaseModel):
             critical_models=critical,
             warning_models=warning,
             potentially_affected=potentially_affected,
-            total_affected=len(critical) + len(warning) + len(potentially_affected)
+            total_affected=len(critical) + len(warning) + len(potentially_affected),
         )
 
 
@@ -458,6 +462,7 @@ class PerformanceMetrics(BaseModel):
 
 class ParsedArtifacts(BaseModel):
     """Container for parsed dbt artifacts"""
+
     manifest: Optional[Any] = None
     run_results: Optional[Any] = None
     sources: Optional[Any] = None
@@ -469,6 +474,7 @@ class ParsedArtifacts(BaseModel):
 
 class MetadataResponse(BaseModel):
     """Generic response container for metadata queries"""
+
     models: List[ModelHealth] = []
     tests: List[TestData] = []
     sources: List[SourceFreshness] = []
