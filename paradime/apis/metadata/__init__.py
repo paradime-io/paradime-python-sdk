@@ -12,7 +12,7 @@ from .types import (
 __all__ = [
     "MetadataClient",
     "ModelHealth",
-    "TestResult", 
+    "TestResult",
     "SourceFreshness",
     "ModelDependency",
     "HealthDashboard",

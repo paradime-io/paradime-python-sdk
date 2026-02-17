@@ -369,121 +369,222 @@ class MetadataDatabase:
         
         # Create views for common queries
         self._create_views()
+        
+        # Create performance indexes
+        self._create_indexes()
     
     def _create_views(self) -> None:
         """Create views for common metadata queries"""
         
-        # Simple view without complex joins - we'll calculate test counts in the application layer
+        # Optimized view with SQL-level test count calculations
         self.conn.execute("""
             CREATE OR REPLACE VIEW models_with_tests AS
+            WITH test_counts AS (
+                SELECT 
+                    array_element as model_id,
+                    COUNT(*) as total_tests,
+                    COUNT(CASE WHEN status IN ('fail', 'error') THEN 1 END) as failed_tests
+                FROM dbt_run_results,
+                     LATERAL (SELECT UNNEST(depends_on) as array_element) 
+                WHERE resource_type = 'test' AND depends_on IS NOT NULL
+                GROUP BY array_element
+            )
             SELECT 
-                unique_id,
-                name,
-                resource_type,
-                status,
-                execution_time,
-                executed_at,
-                schedule_name,
-                depends_on,
-                schema_name,
-                database_name,
-                error_message,
-                0 as total_tests,
-                0 as failed_tests,
+                r.unique_id,
+                r.name,
+                r.resource_type,
+                r.status,
+                r.execution_time,
+                r.executed_at,
+                r.schedule_name,
+                r.depends_on,
+                r.schema_name,
+                r.database_name,
+                r.error_message,
+                COALESCE(t.total_tests, 0) as total_tests,
+                COALESCE(t.failed_tests, 0) as failed_tests,
                 CASE 
-                    WHEN status IN ('error', 'fail') THEN 'Critical'
+                    WHEN r.status IN ('error', 'fail') THEN 'Critical'
+                    WHEN COALESCE(t.failed_tests, 0) > 0 THEN 'Warning'
                     ELSE 'Healthy'
-                END as health_status
-            FROM dbt_run_results
-            WHERE resource_type = 'model'
+                END as health_status,
+                r.alias,
+                r.materialized_type,
+                r.description,
+                r.meta,
+                r.tags,
+                r.owner,
+                r.package_name,
+                r.language,
+                r.access,
+                r.compiled_sql,
+                r.raw_sql,
+                r.columns,
+                r.children_l1,
+                r.parents_models,
+                r.parents_sources
+            FROM dbt_run_results r
+            LEFT JOIN test_counts t ON r.unique_id = t.model_id
+            WHERE r.resource_type = 'model'
         """)
         
-        # Latest run results per model
+        # Latest run results per model with better performance
         self.conn.execute("""
             CREATE OR REPLACE VIEW latest_model_results AS
             SELECT *
             FROM (
                 SELECT *,
-                       ROW_NUMBER() OVER (PARTITION BY unique_id, schedule_name ORDER BY executed_at DESC) as rn
+                       ROW_NUMBER() OVER (PARTITION BY unique_id, schedule_name ORDER BY executed_at DESC NULLS LAST) as rn
                 FROM models_with_tests
             ) ranked
             WHERE rn = 1
         """)
+        
+        # Dashboard metrics view for optimized aggregations
+        self.conn.execute("""
+            CREATE OR REPLACE VIEW dashboard_metrics AS
+            SELECT 
+                schedule_name,
+                COUNT(*) as total_models,
+                COUNT(CASE WHEN health_status = 'Healthy' THEN 1 END) as healthy_models,
+                COUNT(CASE WHEN health_status = 'Warning' THEN 1 END) as warning_models,
+                COUNT(CASE WHEN health_status = 'Critical' THEN 1 END) as critical_models,
+                AVG(CASE WHEN execution_time IS NOT NULL THEN execution_time END) as avg_execution_time,
+                SUM(total_tests) as total_tests,
+                SUM(failed_tests) as failed_tests,
+                CASE 
+                    WHEN SUM(total_tests) = 0 THEN 100.0
+                    ELSE ((SUM(total_tests) - SUM(failed_tests)) * 100.0 / SUM(total_tests))
+                END as test_success_rate
+            FROM latest_model_results
+            GROUP BY schedule_name
+        """)
+    
+    def _create_indexes(self) -> None:
+        """Create database indexes for performance optimization"""
+        
+        # Core performance indexes
+        indexes = [
+            # Primary lookup indexes
+            "CREATE INDEX IF NOT EXISTS idx_run_results_schedule_resource ON dbt_run_results(schedule_name, resource_type)",
+            "CREATE INDEX IF NOT EXISTS idx_run_results_unique_id ON dbt_run_results(unique_id)",
+            "CREATE INDEX IF NOT EXISTS idx_run_results_status ON dbt_run_results(status)",
+            "CREATE INDEX IF NOT EXISTS idx_run_results_executed_at ON dbt_run_results(executed_at DESC)",
+            
+            # Source freshness indexes  
+            "CREATE INDEX IF NOT EXISTS idx_source_freshness_schedule ON dbt_source_freshness_results(schedule_name)",
+            "CREATE INDEX IF NOT EXISTS idx_source_freshness_status ON dbt_source_freshness_results(freshness_status)",
+            
+            # Model metadata indexes
+            "CREATE INDEX IF NOT EXISTS idx_model_metadata_schedule ON model_metadata(schedule_name)",
+            "CREATE INDEX IF NOT EXISTS idx_model_metadata_resource_type ON model_metadata(resource_type)",
+            
+            # Test data indexes
+            "CREATE INDEX IF NOT EXISTS idx_test_data_schedule ON dbt_test_data(schedule_name)",
+            "CREATE INDEX IF NOT EXISTS idx_test_data_status ON dbt_test_data(status)",
+            
+            # Seed and snapshot indexes
+            "CREATE INDEX IF NOT EXISTS idx_seed_data_schedule ON dbt_seed_data(schedule_name)",
+            "CREATE INDEX IF NOT EXISTS idx_snapshot_data_schedule ON dbt_snapshot_data(schedule_name)",
+            "CREATE INDEX IF NOT EXISTS idx_exposure_data_schedule ON dbt_exposure_data(schedule_name)",
+            
+            # Composite indexes for common queries
+            "CREATE INDEX IF NOT EXISTS idx_run_results_schedule_type_status ON dbt_run_results(schedule_name, resource_type, status)",
+            "CREATE INDEX IF NOT EXISTS idx_run_results_name_schedule ON dbt_run_results(name, schedule_name)"
+        ]
+        
+        for index_sql in indexes:
+            try:
+                self.conn.execute(index_sql)
+            except Exception as e:
+                # Index might already exist, continue
+                pass
     
     def load_run_results(self, run_results_data: List[Dict[str, Any]], schedule_name: str) -> None:
-        """Load run results data into dbt_run_results table"""
+        """Load run results data into dbt_run_results table using optimized bulk operations"""
         if not run_results_data:
             return
         
-        # Insert data row by row to handle NULL values properly
+        # Clear existing data for this schedule
         self.conn.execute("DELETE FROM dbt_run_results WHERE schedule_name = ?", [schedule_name])
         
-        for row in run_results_data:
-            # Ensure all required columns are present with proper defaults
-            row_data = {
-                'unique_id': row.get('unique_id'),
-                'name': row.get('name'),
-                'resource_type': row.get('resource_type'),
-                'status': row.get('status'),
-                'execution_time': row.get('execution_time'),
-                'executed_at': row.get('executed_at'),
-                'schedule_name': schedule_name,
-                'depends_on': row.get('depends_on', []),
-                'error_message': row.get('error_message'),
-                'schema_name': row.get('schema_name'),
-                'database_name': row.get('database_name'),
-                'model_type': row.get('model_type'),
-                'config': row.get('config', {}),
-                'tags': row.get('tags', []),
-                'meta': row.get('meta', {}),
-                'compile_started_at': row.get('compile_started_at'),
-                'compile_completed_at': row.get('compile_completed_at'),
-                'execute_started_at': row.get('execute_started_at'),
-                'execute_completed_at': row.get('execute_completed_at'),
-                'thread_id': row.get('thread_id'),
-                'adapter_response': row.get('adapter_response', {}),
-                'alias': row.get('alias'),
-                'materialized_type': row.get('materialized_type'),
-                'description': row.get('description', ''),
-                'access': row.get('access'),
-                'language': row.get('language'),
-                'package_name': row.get('package_name'),
-                'owner': row.get('owner'),
-                'compiled_sql': row.get('compiled_sql'),
-                'raw_sql': row.get('raw_sql'),
-                'columns': row.get('columns', {}),
-                'children_l1': row.get('children', []),
-                'parents_models': row.get('parents_models', []),
-                'parents_sources': row.get('parents_sources', []),
-                'original_file_path': row.get('original_file_path'),
-                'root_path': row.get('root_path')
-            }
+        # Process in batches to manage memory
+        batch_size = 1000
+        for i in range(0, len(run_results_data), batch_size):
+            batch = run_results_data[i:i + batch_size]
+            self._load_run_results_batch(batch, schedule_name)
+    
+    def _load_run_results_batch(self, batch_data: List[Dict[str, Any]], schedule_name: str) -> None:
+        """Load a batch of run results using bulk insert"""
+        if not batch_data:
+            return
             
-            self.conn.execute("""
-                INSERT INTO dbt_run_results (
-                    unique_id, name, resource_type, status, execution_time, executed_at,
-                    schedule_name, depends_on, error_message, schema_name, database_name,
-                    model_type, config, tags, meta, compile_started_at, compile_completed_at,
-                    execute_started_at, execute_completed_at, thread_id, adapter_response,
-                    alias, materialized_type, description, access, language, package_name,
-                    owner, compiled_sql, raw_sql, columns, children_l1, parents_models,
-                    parents_sources, original_file_path, root_path
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, [
-                row_data['unique_id'], row_data['name'], row_data['resource_type'],
-                row_data['status'], row_data['execution_time'], row_data['executed_at'],
-                row_data['schedule_name'], row_data['depends_on'], row_data['error_message'],
-                row_data['schema_name'], row_data['database_name'], row_data['model_type'],
-                row_data['config'], row_data['tags'], row_data['meta'],
-                row_data['compile_started_at'], row_data['compile_completed_at'],
-                row_data['execute_started_at'], row_data['execute_completed_at'],
-                row_data['thread_id'], row_data['adapter_response'],
-                row_data['alias'], row_data['materialized_type'], row_data['description'],
-                row_data['access'], row_data['language'], row_data['package_name'],
-                row_data['owner'], row_data['compiled_sql'], row_data['raw_sql'],
-                row_data['columns'], row_data['children_l1'], row_data['parents_models'],
-                row_data['parents_sources'], row_data['original_file_path'], row_data['root_path']
-            ])
+        # Prepare batch data with proper defaults
+        prepared_rows = []
+        for row in batch_data:
+            # Ensure all required columns are present with proper defaults
+            row_data = [
+                row.get('unique_id'),
+                row.get('name'),
+                row.get('resource_type'),
+                row.get('status'),
+                row.get('execution_time'),
+                row.get('executed_at'),
+                schedule_name,
+                row.get('depends_on', []),
+                row.get('error_message'),
+                row.get('schema_name'),
+                row.get('database_name'),
+                row.get('model_type'),
+                row.get('config', {}),
+                row.get('tags', []),
+                row.get('meta', {}),
+                row.get('compile_started_at'),
+                row.get('compile_completed_at'),
+                row.get('execute_started_at'),
+                row.get('execute_completed_at'),
+                row.get('thread_id'),
+                row.get('adapter_response', {}),
+                row.get('alias'),
+                row.get('materialized_type'),
+                row.get('description', ''),
+                row.get('access'),
+                row.get('language'),
+                row.get('package_name'),
+                row.get('owner'),
+                row.get('compiled_sql'),
+                row.get('raw_sql'),
+                row.get('columns', {}),
+                row.get('children', []),
+                row.get('parents_models', []),
+                row.get('parents_sources', []),
+                row.get('original_file_path'),
+                row.get('root_path')
+            ]
+            prepared_rows.append(row_data)
+        
+        # Use bulk insert for better performance
+        insert_sql = """
+            INSERT INTO dbt_run_results (
+                unique_id, name, resource_type, status, execution_time, executed_at,
+                schedule_name, depends_on, error_message, schema_name, database_name,
+                model_type, config, tags, meta, compile_started_at, compile_completed_at,
+                execute_started_at, execute_completed_at, thread_id, adapter_response,
+                alias, materialized_type, description, access, language, package_name,
+                owner, compiled_sql, raw_sql, columns, children_l1, parents_models,
+                parents_sources, original_file_path, root_path
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        try:
+            self.conn.executemany(insert_sql, prepared_rows)
+        except Exception as e:
+            # Fallback to individual inserts if bulk fails
+            for row_data in prepared_rows:
+                try:
+                    self.conn.execute(insert_sql, row_data)
+                except Exception as row_error:
+                    print(f"Warning: Could not insert row {row_data[0]}: {row_error}")
     
     def load_source_freshness(self, source_data: List[Dict[str, Any]], schedule_name: str) -> None:
         """Load source freshness data into dbt_source_freshness_results table"""
@@ -1815,6 +1916,47 @@ class MetadataDatabase:
         """
         
         return self.conn.execute(sql, [schedule_name, target_id, schedule_name]).df()
+    
+    def get_dashboard_metrics_optimized(self, schedule_name: str) -> Dict[str, Any]:
+        """Get dashboard metrics using optimized SQL aggregations"""
+        sql = """
+            SELECT 
+                total_models,
+                healthy_models,
+                warning_models,
+                critical_models,
+                avg_execution_time,
+                total_tests,
+                failed_tests,
+                test_success_rate
+            FROM dashboard_metrics
+            WHERE schedule_name = ?
+        """
+        
+        result = self.conn.execute(sql, [schedule_name]).df()
+        if result.empty:
+            return {
+                'total_models': 0,
+                'healthy_models': 0,
+                'warning_models': 0,
+                'critical_models': 0,
+                'avg_execution_time': 0.0,
+                'total_tests': 0,
+                'failed_tests': 0,
+                'test_success_rate': 100.0
+            }
+        
+        row = result.iloc[0]
+        return {
+            'total_models': int(row['total_models']),
+            'healthy_models': int(row['healthy_models']),
+            'warning_models': int(row['warning_models']),
+            'critical_models': int(row['critical_models']),
+            'avg_execution_time': float(row['avg_execution_time']) if row['avg_execution_time'] else 0.0,
+            'total_tests': int(row['total_tests']),
+            'failed_tests': int(row['failed_tests']),
+            'test_success_rate': float(row['test_success_rate'])
+        }
     
     def close(self) -> None:
         """Close database connection"""

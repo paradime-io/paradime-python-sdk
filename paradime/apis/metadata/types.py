@@ -52,7 +52,7 @@ class ModelHealth(BaseModel):
     schema_name: Optional[str] = None
     database_name: Optional[str] = None
     error_message: Optional[str] = None
-    
+
     alias: Optional[str] = None
     materialized_type: Optional[str] = None
     description: Optional[str] = None
@@ -80,7 +80,7 @@ class ModelHealth(BaseModel):
             # Assume it's a tuple/list with specific order
             data = {
                 'unique_id': row[0],
-                'name': row[1], 
+                'name': row[1],
                 'resource_type': row[2],
                 'status': row[3],
                 'execution_time': row[4],
@@ -89,7 +89,7 @@ class ModelHealth(BaseModel):
                 'total_tests': row[7] if len(row) > 7 else 0,
                 'failed_tests': row[8] if len(row) > 8 else 0,
             }
-        
+
         return cls(**data)
 
 
@@ -107,35 +107,35 @@ class TestResult(BaseModel):
 
 class SeedData(BaseModel):
     """Seed metadata"""
-    
+
     # Core identification
     unique_id: str
     name: str
     resource_type: ResourceType
-    
+
     # Database location
     database: Optional[str] = None
     schema_name: Optional[str] = Field(None, alias='schema')
     alias: Optional[str] = None
-    
+
     # Execution information
     status: Optional[RunStatus] = None
     execution_time: Optional[float] = None  # executionTime
     run_elapsed_time: Optional[float] = None  # runElapsedTime
-    
+
     # Timing information
     compile_started_at: Optional[datetime] = None  # compileStartedAt
     compile_completed_at: Optional[datetime] = None  # compileCompletedAt
     execute_started_at: Optional[datetime] = None  # executeStartedAt
     execute_completed_at: Optional[datetime] = None  # executeCompletedAt
     run_generated_at: Optional[datetime] = None  # runGeneratedAt
-    
+
     # Code and SQL
     compiled_code: Optional[str] = None  # compiledCode
     compiled_sql: Optional[str] = None  # compiledSql
     raw_code: Optional[str] = None  # rawCode
     raw_sql: Optional[str] = None  # rawSql
-    
+
     # Metadata and documentation
     description: Optional[str] = None
     comment: Optional[str] = None
@@ -143,55 +143,55 @@ class SeedData(BaseModel):
     tags: List[str] = []
     owner: Optional[str] = None
     package_name: Optional[str] = None  # packageName
-    
+
     # Execution details
     error: Optional[str] = None
     skip: Optional[bool] = None
     thread_id: Optional[str] = None
     type: Optional[str] = None
-    
+
     # Lineage
     children_l1: List[str] = []  # childrenL1 - nodes that depend on this seed
-    
+
     # Statistics and columns
     columns: Optional[Any] = None
     stats: Optional[Any] = None
-    
+
     # Legacy/additional fields
     depends_on: List[str] = []  # For consistency with other resource types
 
 
 class SnapshotData(BaseModel):
     """Snapshot metadata"""
-    
+
     # Core identification
     unique_id: str
     name: str
     resource_type: ResourceType
-    
+
     # Database location
     database: Optional[str] = None
     schema_name: Optional[str] = Field(None, alias='schema')
     alias: Optional[str] = None
-    
+
     # Execution information
     status: Optional[RunStatus] = None
     execution_time: Optional[float] = None  # executionTime
     run_elapsed_time: Optional[float] = None  # runElapsedTime
-    
+
     # Timing information
     compile_started_at: Optional[datetime] = None  # compileStartedAt
     compile_completed_at: Optional[datetime] = None  # compileCompletedAt
     execute_started_at: Optional[datetime] = None  # executeStartedAt
     execute_completed_at: Optional[datetime] = None  # executeCompletedAt
     run_generated_at: Optional[datetime] = None  # runGeneratedAt
-    
+
     # Code and SQL
     compiled_code: Optional[str] = None  # compiledCode
     compiled_sql: Optional[str] = None  # compiledSql
     raw_code: Optional[str] = None  # rawCode
     raw_sql: Optional[str] = None  # rawSql
-    
+
     # Metadata and documentation
     description: Optional[str] = None
     comment: Optional[str] = None
@@ -199,22 +199,22 @@ class SnapshotData(BaseModel):
     tags: List[str] = []
     owner: Optional[str] = None
     package_name: Optional[str] = None  # packageName
-    
+
     # Execution details
     error: Optional[str] = None
     skip: Optional[bool] = None
     thread_id: Optional[str] = None  # threadId
     type: Optional[str] = None
-    
+
     # Lineage
     children_l1: List[str] = []  # childrenL1 - nodes that depend on this snapshot
     parents_models: List[str] = []  # parentsModels - parent model dependencies
     parents_sources: List[str] = []  # parentsSources - parent source dependencies
-    
+
     # Statistics and columns
     columns: Optional[Any] = None
     stats: Optional[Any] = None
-    
+
     # Legacy/additional fields
     depends_on: List[str] = []  # For consistency with other resource types
 
@@ -225,7 +225,7 @@ class SourceFreshness(BaseModel):
     source_name: str  # sourceName in dbt Discovery API
     name: str         # table name / identifier
     table_name: str   # For backwards compatibility
-    
+
     # Freshness information
     freshness_status: FreshnessStatus  # state in dbt Discovery API
     freshness_checked: Optional[bool] = None
@@ -233,17 +233,17 @@ class SourceFreshness(BaseModel):
     snapshotted_at: Optional[datetime]  # snapshottedAt
     max_loaded_at_time_ago_in_s: Optional[float] = None  # maxLoadedAtTimeAgoInS
     hours_since_load: Optional[float] = None  # Calculated field for backwards compatibility
-    
+
     # Criteria and thresholds
     error_after_hours: Optional[int] = None
     warn_after_hours: Optional[int] = None
     criteria: Optional[Any] = None  # Full criteria object
-    
+
     # Database location
     database: Optional[str] = None
     schema_name: Optional[str] = Field(None, alias='schema')  # schema field in Discovery API
     identifier: Optional[str] = None
-    
+
     # Metadata and documentation
     description: Optional[str] = None
     source_description: Optional[str] = None  # sourceDescription
@@ -253,35 +253,35 @@ class SourceFreshness(BaseModel):
     owner: Optional[str] = None
     loader: Optional[str] = None
     type: Optional[str] = None
-    
+
     # Run information
     run_elapsed_time: Optional[float] = None  # runElapsedTime
     run_generated_at: Optional[datetime] = None  # runGeneratedAt
-    
+
     # Lineage
     children_l1: List[str] = []  # childrenL1 - nodes that depend on this source
-    
+
     # Statistics and columns (for full Discovery API parity)
     columns: Optional[Any] = None  # Can be dict or list depending on source
     stats: Optional[Any] = None     # Can be dict or list depending on source
     tests: List[str] = []  # Test unique IDs
-    
+
     # Legacy fields for backwards compatibility
     alert_level: Optional[str] = None
 
 
 class TestData(BaseModel):
     """Test metadata"""
-    
+
     # Core identification
     unique_id: str
     name: Optional[str] = None
     resource_type: ResourceType
-    
+
     # Run identification
     run_id: Optional[int] = None  # runId
     invocation_id: Optional[str] = None  # invocationId
-    
+
     # Test-specific information
     column_name: Optional[str] = None  # columnName - test column
     state: Optional[str] = None  # state: error, fail, warn, pass
@@ -289,50 +289,50 @@ class TestData(BaseModel):
     fail: Optional[bool] = None  # fail result
     warn: Optional[bool] = None  # warn result
     skip: Optional[bool] = None  # skip result
-    
+
     # Execution information
     execution_time: Optional[float] = None  # executionTime
     run_elapsed_time: Optional[float] = None  # runElapsedTime
-    
+
     # Timing information
     compile_started_at: Optional[datetime] = None  # compileStartedAt
     compile_completed_at: Optional[datetime] = None  # compileCompletedAt
     execute_started_at: Optional[datetime] = None  # executeStartedAt
     execute_completed_at: Optional[datetime] = None  # executeCompletedAt
     run_generated_at: Optional[datetime] = None  # runGeneratedAt
-    
+
     # Code and SQL
     compiled_code: Optional[str] = None  # compiledCode
     compiled_sql: Optional[str] = None  # compiledSql
     raw_code: Optional[str] = None  # rawCode
     raw_sql: Optional[str] = None  # rawSql
-    
+
     # Metadata and documentation
     description: Optional[str] = None
     meta: Optional[Any] = None
     tags: List[str] = []
-    
+
     # Technical details
     language: Optional[str] = None
     dbt_version: Optional[str] = None  # dbtVersion
     thread_id: Optional[str] = None  # threadId
     error: Optional[str] = None  # error message
-    
+
     # Dependencies
     depends_on: List[str] = []  # dependsOn
 
 
 class ExposureData(BaseModel):
     """Exposure metadata"""
-    
+
     # Core identification
     unique_id: str
     name: Optional[str] = None
     resource_type: ResourceType
-    
+
     # Run identification
     run_id: Optional[int] = None  # runId
-    
+
     # Exposure-specific information
     exposure_type: Optional[str] = None  # exposureType
     maturity: Optional[str] = None
@@ -340,27 +340,27 @@ class ExposureData(BaseModel):
     owner_email: Optional[str] = None  # ownerEmail
     url: Optional[str] = None
     package_name: Optional[str] = None  # packageName
-    
+
     # Execution information
     status: Optional[str] = None
     execution_time: Optional[float] = None  # executionTime
     thread_id: Optional[str] = None  # threadId
-    
+
     # Timing information
     compile_started_at: Optional[datetime] = None  # compileStartedAt
     compile_completed_at: Optional[datetime] = None  # compileCompletedAt
     execute_started_at: Optional[datetime] = None  # executeStartedAt
     execute_completed_at: Optional[datetime] = None  # executeCompletedAt
     manifest_generated_at: Optional[datetime] = None  # manifestGeneratedAt
-    
+
     # Metadata and documentation
     description: Optional[str] = None
     meta: Optional[Any] = None
     tags: List[str] = []
-    
+
     # Technical details
     dbt_version: Optional[str] = None  # dbtVersion
-    
+
     # Dependencies and lineage
     depends_on: List[str] = []  # dependsOn
     parents: List[str] = []  # parents - all parent resources
@@ -425,18 +425,18 @@ class DependencyImpact(BaseModel):
         critical = []
         warning = []
         potentially_affected = []
-        
+
         for row in results:
             name = row[0] if isinstance(row, (tuple, list)) else row.name
             status = row[2] if isinstance(row, (tuple, list)) else getattr(row, 'status', None)
-            
+
             if status in ['error', 'fail']:
                 critical.append(name)
             elif status in ['warn']:
                 warning.append(name)
             else:
                 potentially_affected.append(name)
-        
+
         return cls(
             failed_model=failed_model,
             critical_models=critical,
@@ -462,7 +462,7 @@ class ParsedArtifacts(BaseModel):
     run_results: Optional[Any] = None
     sources: Optional[Any] = None
     schedule_name: str
-    
+
     class Config:
         arbitrary_types_allowed = True
 
