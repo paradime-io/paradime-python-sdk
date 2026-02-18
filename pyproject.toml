@@ -12,7 +12,7 @@ packages = [
 paradime = 'paradime.cli.cli:cli'
 
 [tool.poetry.dependencies]
-python = ">=3.8.1"
+python = ">=3.11"
 pydantic = ">=1.10.14,<3.0.0"
 requests = "^2.31.0"
 click = "^8.1.7"
