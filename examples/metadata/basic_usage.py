@@ -75,8 +75,8 @@ def main() -> None:
         """
 
         results = client.metadata.query_sql(query, schedule_name)
-        for _, row in results.iterrows():
-            print(f"  {row['schema_name']}: {row['model_count']} models")
+        for row in results.to_pandas().itertuples():
+            print(f"  {row.schema_name}: {row.model_count} models")
 
         print("\n✅ Analysis complete!")
 

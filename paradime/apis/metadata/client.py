@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 from typing import Any, List, Optional
 
-import pandas as pd  # type: ignore
+import polars as pl
 
 from paradime.apis.bolt.client import BoltClient
 from paradime.apis.bolt.exception import BoltScheduleArtifactNotFoundException
@@ -146,7 +146,7 @@ class MetadataClient:
 
     def query_sql(
         self, sql: str, schedule_name: str, parameters: Optional[List[Any]] = None
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """
         Execute raw SQL query against the metadata database.
 
@@ -272,7 +272,7 @@ class MetadataClient:
         df = self.db.get_upstream_dependencies(model_name, schedule_name, max_depth)
 
         dependencies = []
-        for row in df.itertuples(index=False):
+        for row in df.to_pandas().itertuples():
             # Determine health status
             health_status = None
             if row.health_status:
@@ -317,7 +317,7 @@ class MetadataClient:
         self._ensure_metadata_loaded(schedule_name)
 
         df = self.db.get_downstream_impact(model_name, schedule_name, max_depth)
-        results = [tuple(row) for row in df.itertuples(index=False)]
+        results = [tuple(row) for row in df.to_pandas().itertuples(index=False)]
 
         return DependencyImpact.from_results(results, model_name)
 
@@ -509,13 +509,13 @@ class MetadataClient:
                 LIMIT ? OFFSET ?
             """
 
-            df = self.db.conn.execute(sql, [schedule_name, batch_size, offset]).df()
-            if df.empty:
+            df = pl.from_pandas(self.db.conn.execute(sql, [schedule_name, batch_size, offset]).df())
+            if df.is_empty():
                 break
 
             # Convert to ModelHealth objects
             batch_models = []
-            for _, row in df.iterrows():
+            for row in df.to_pandas().itertuples():
                 model_health = ModelHealth(
                     unique_id=row["unique_id"],
                     name=row["name"],
@@ -572,10 +572,10 @@ class MetadataClient:
                 FROM model_metadata
                 WHERE schedule_name = ?
             """
-            df = self.db.conn.execute(sql, [schedule_name]).df()
+            df = pl.from_pandas(self.db.conn.execute(sql, [schedule_name]).df())
 
             graph = {}
-            for _, row in df.iterrows():
+            for row in df.to_pandas().itertuples():
                 graph[row["unique_id"]] = {
                     "name": row["name"],
                     "parents": row["depends_on"] if row["depends_on"] else [],

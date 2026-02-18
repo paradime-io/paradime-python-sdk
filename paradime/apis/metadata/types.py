@@ -395,7 +395,7 @@ class HealthDashboard(BaseModel):
 
     @classmethod
     def from_dataframe(cls, df: Any, schedule_name: str) -> "HealthDashboard":
-        """Create HealthDashboard from pandas DataFrame with aggregated data"""
+        """Create HealthDashboard from polars DataFrame with aggregated data"""
         return cls(
             schedule_name=schedule_name,
             total_models=len(df),

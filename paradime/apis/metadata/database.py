@@ -2,7 +2,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 import duckdb
-import pandas as pd
+import polars as pl
 
 from .types import ModelHealth, SourceFreshness, TestResult
 
@@ -1195,12 +1195,12 @@ class MetadataDatabase:
                 ],
             )
 
-    def query_sql(self, sql: str, parameters: Optional[List[Any]] = None) -> pd.DataFrame:
+    def query_sql(self, sql: str, parameters: Optional[List[Any]] = None) -> pl.DataFrame:
         """Execute SQL query and return results as DataFrame"""
         if parameters:
-            return self.conn.execute(sql, parameters).df()
+            return pl.from_pandas(self.conn.execute(sql, parameters).df())
         else:
-            return self.conn.execute(sql).df()
+            return pl.from_pandas(self.conn.execute(sql).df())
 
     def get_model_health(self, schedule_name: str) -> List[ModelHealth]:
         """Get model health status for a schedule"""
@@ -1237,7 +1237,7 @@ class MetadataDatabase:
             ORDER BY executed_at DESC
         """
 
-        models_df = self.conn.execute(models_sql, [schedule_name]).df()
+        models_df = pl.from_pandas(self.conn.execute(models_sql, [schedule_name]).df())
 
         # Get test counts for each model
         tests_sql = """
@@ -1250,11 +1250,11 @@ class MetadataDatabase:
             GROUP BY depends_on
         """
 
-        tests_df = self.conn.execute(tests_sql, [schedule_name]).df()
+        tests_df = pl.from_pandas(self.conn.execute(tests_sql, [schedule_name]).df())
 
         # Create a mapping of model_id -> test counts
         test_counts = {}
-        for _, test_row in tests_df.iterrows():
+        for test_row in tests_df.iter_rows(named=True):
             if test_row["depends_on"] and len(test_row["depends_on"]) > 0:
                 for model_id in test_row["depends_on"]:
                     if model_id not in test_counts:
@@ -1264,7 +1264,7 @@ class MetadataDatabase:
 
         # Build ModelHealth objects
         results = []
-        for _, model_row in models_df.iterrows():
+        for model_row in models_df.iter_rows(named=True):
             model_id = model_row["unique_id"]
             test_info = test_counts.get(model_id, {"total": 0, "failed": 0})
 
@@ -1356,10 +1356,10 @@ class MetadataDatabase:
 
         sql += " ORDER BY executed_at DESC"
 
-        df = self.conn.execute(sql, [schedule_name]).df()
+        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
 
         results = []
-        for row in df.itertuples(index=False):
+        for row in df.to_pandas().itertuples():
             results.append(
                 TestResult(
                     unique_id=row.unique_id,
@@ -1442,10 +1442,10 @@ class MetadataDatabase:
                 hours_since_load DESC
         """
 
-        df = self.conn.execute(sql, [schedule_name]).df()
+        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
 
         results = []
-        for row in df.itertuples(index=False):
+        for row in df.to_pandas().itertuples():
             # Calculate alert level for backwards compatibility
             if hasattr(row, "alert_level") and row.alert_level:
                 alert_level = row.alert_level
@@ -1581,10 +1581,10 @@ class MetadataDatabase:
             ORDER BY name
         """
 
-        df = self.conn.execute(sql, [schedule_name]).df()
+        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
 
         results = []
-        for row in df.itertuples(index=False):
+        for row in df.to_pandas().itertuples():
             results.append(
                 SeedData(
                     # Core identification
@@ -1710,10 +1710,10 @@ class MetadataDatabase:
             ORDER BY name
         """
 
-        df = self.conn.execute(sql, [schedule_name]).df()
+        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
 
         results = []
-        for row in df.itertuples(index=False):
+        for row in df.to_pandas().itertuples():
             results.append(
                 SnapshotData(
                     # Core identification
@@ -1835,10 +1835,10 @@ class MetadataDatabase:
             ORDER BY name
         """
 
-        df = self.conn.execute(sql, [schedule_name]).df()
+        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
 
         results = []
-        for row in df.itertuples(index=False):
+        for row in df.to_pandas().itertuples():
             results.append(
                 TestData(
                     # Core identification
@@ -1850,7 +1850,7 @@ class MetadataDatabase:
                         int(row.run_id)  # type: ignore
                         if hasattr(row, "run_id")
                         and row.run_id is not None
-                        and not pd.isna(row.run_id)
+                        and row.run_id is not None
                         else None
                     ),
                     invocation_id=getattr(row, "invocation_id", None),
@@ -1957,10 +1957,10 @@ class MetadataDatabase:
             ORDER BY name
         """
 
-        df = self.conn.execute(sql, [schedule_name]).df()
+        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
 
         results = []
-        for row in df.itertuples(index=False):
+        for row in df.to_pandas().itertuples():
             results.append(
                 ExposureData(
                     # Core identification
@@ -1972,7 +1972,7 @@ class MetadataDatabase:
                         int(row.run_id)  # type: ignore
                         if hasattr(row, "run_id")
                         and row.run_id is not None
-                        and not pd.isna(row.run_id)
+                        and row.run_id is not None
                         else None
                     ),
                     # Exposure-specific information
@@ -2040,7 +2040,7 @@ class MetadataDatabase:
 
     def get_upstream_dependencies(
         self, model_name: str, schedule_name: str, max_depth: int = 10
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get upstream dependencies for a model - simplified approach"""
         # For now, return a simple upstream lookup without recursion
         # This can be enhanced later with proper recursive support
@@ -2052,9 +2052,9 @@ class MetadataDatabase:
             WHERE name = ? AND schedule_name = ?
         """
 
-        model_result = self.conn.execute(model_sql, [model_name, schedule_name]).df()
-        if model_result.empty:
-            return pd.DataFrame(
+        model_result = pl.from_pandas(self.conn.execute(model_sql, [model_name, schedule_name]).df())
+        if model_result.is_empty():
+            return pl.DataFrame(
                 columns=[
                     "unique_id",
                     "name",
@@ -2067,9 +2067,9 @@ class MetadataDatabase:
                 ]
             )
 
-        depends_on = model_result.iloc[0]["depends_on"]
+        depends_on = model_result.row(0, named=True)["depends_on"]
         if not depends_on:
-            return pd.DataFrame(
+            return pl.DataFrame(
                 columns=[
                     "unique_id",
                     "name",
@@ -2104,11 +2104,11 @@ class MetadataDatabase:
         """
 
         params = [schedule_name] + depends_on + [schedule_name]
-        return self.conn.execute(sql, params).df()
+        return pl.from_pandas(self.conn.execute(sql, params).df())
 
     def get_downstream_impact(
         self, model_name: str, schedule_name: str, max_depth: int = 10
-    ) -> pd.DataFrame:
+    ) -> pl.DataFrame:
         """Get downstream impact of a model - simplified approach"""
         # Get the target model's unique_id first
         target_sql = """
@@ -2117,9 +2117,9 @@ class MetadataDatabase:
             WHERE name = ? AND schedule_name = ?
         """
 
-        target_result = self.conn.execute(target_sql, [model_name, schedule_name]).df()
-        if target_result.empty:
-            return pd.DataFrame(
+        target_result = pl.from_pandas(self.conn.execute(target_sql, [model_name, schedule_name]).df())
+        if target_result.is_empty():
+            return pl.DataFrame(
                 columns=[
                     "name",
                     "downstream_level",
@@ -2129,7 +2129,7 @@ class MetadataDatabase:
                 ]
             )
 
-        target_id = target_result.iloc[0]["unique_id"]
+        target_id = target_result.row(0, named=True)["unique_id"]
 
         # Find models that depend on this target model (level 1 downstream)
         sql = """
@@ -2148,7 +2148,7 @@ class MetadataDatabase:
             ORDER BY m.name
         """
 
-        return self.conn.execute(sql, [schedule_name, target_id, schedule_name]).df()
+        return pl.from_pandas(self.conn.execute(sql, [schedule_name, target_id, schedule_name]).df())
 
     def get_dashboard_metrics_optimized(self, schedule_name: str) -> Dict[str, Any]:
         """Get dashboard metrics using optimized SQL aggregations"""
@@ -2166,8 +2166,8 @@ class MetadataDatabase:
             WHERE schedule_name = ?
         """
 
-        result = self.conn.execute(sql, [schedule_name]).df()
-        if result.empty:
+        result = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
+        if result.is_empty():
             return {
                 "total_models": 0,
                 "healthy_models": 0,
@@ -2179,7 +2179,7 @@ class MetadataDatabase:
                 "test_success_rate": 100.0,
             }
 
-        row = result.iloc[0]
+        row = result.row(0, named=True)
         return {
             "total_models": int(row["total_models"]),
             "healthy_models": int(row["healthy_models"]),
