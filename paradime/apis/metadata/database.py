@@ -2052,34 +2052,36 @@ class MetadataDatabase:
             WHERE name = ? AND schedule_name = ?
         """
 
-        model_result = pl.from_pandas(self.conn.execute(model_sql, [model_name, schedule_name]).df())
+        model_result = pl.from_pandas(
+            self.conn.execute(model_sql, [model_name, schedule_name]).df()
+        )
         if model_result.is_empty():
             return pl.DataFrame(
-                columns=[
-                    "unique_id",
-                    "name",
-                    "level",
-                    "resource_type",
-                    "status",
-                    "execution_time",
-                    "executed_at",
-                    "health_status",
-                ]
+                {
+                    "unique_id": [],
+                    "name": [],
+                    "level": [],
+                    "resource_type": [],
+                    "status": [],
+                    "execution_time": [],
+                    "executed_at": [],
+                    "health_status": [],
+                }
             )
 
         depends_on = model_result.row(0, named=True)["depends_on"]
         if not depends_on:
             return pl.DataFrame(
-                columns=[
-                    "unique_id",
-                    "name",
-                    "level",
-                    "resource_type",
-                    "status",
-                    "execution_time",
-                    "executed_at",
-                    "health_status",
-                ]
+                {
+                    "unique_id": [],
+                    "name": [],
+                    "level": [],
+                    "resource_type": [],
+                    "status": [],
+                    "execution_time": [],
+                    "executed_at": [],
+                    "health_status": [],
+                }
             )
 
         # Get direct dependencies (level 1)
@@ -2117,16 +2119,18 @@ class MetadataDatabase:
             WHERE name = ? AND schedule_name = ?
         """
 
-        target_result = pl.from_pandas(self.conn.execute(target_sql, [model_name, schedule_name]).df())
+        target_result = pl.from_pandas(
+            self.conn.execute(target_sql, [model_name, schedule_name]).df()
+        )
         if target_result.is_empty():
             return pl.DataFrame(
-                columns=[
-                    "name",
-                    "downstream_level",
-                    "current_status",
-                    "executed_at",
-                    "impact_status",
-                ]
+                {
+                    "name": [],
+                    "downstream_level": [],
+                    "current_status": [],
+                    "executed_at": [],
+                    "impact_status": [],
+                }
             )
 
         target_id = target_result.row(0, named=True)["unique_id"]
@@ -2148,7 +2152,9 @@ class MetadataDatabase:
             ORDER BY m.name
         """
 
-        return pl.from_pandas(self.conn.execute(sql, [schedule_name, target_id, schedule_name]).df())
+        return pl.from_pandas(
+            self.conn.execute(sql, [schedule_name, target_id, schedule_name]).df()
+        )
 
     def get_dashboard_metrics_optimized(self, schedule_name: str) -> Dict[str, Any]:
         """Get dashboard metrics using optimized SQL aggregations"""
