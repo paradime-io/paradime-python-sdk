@@ -4,6 +4,7 @@ import click
 
 from paradime.cli.integrations.adf import adf_list_pipelines, adf_pipelines
 from paradime.cli.integrations.airbyte import airbyte_list_connections, airbyte_sync
+from paradime.cli.integrations.census import census_list_syncs, census_sync
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync
 from paradime.cli.integrations.hex import hex_list_projects, hex_trigger
 from paradime.cli.integrations.montecarlo import montecarlo_artifacts_import
@@ -36,6 +37,8 @@ run.add_command(fivetran_sync)
 run.add_command(fivetran_list_connectors)
 run.add_command(airbyte_sync)
 run.add_command(airbyte_list_connections)
+run.add_command(census_sync)
+run.add_command(census_list_syncs)
 run.add_command(adf_pipelines)
 run.add_command(adf_list_pipelines)
 run.add_command(hex_trigger)
