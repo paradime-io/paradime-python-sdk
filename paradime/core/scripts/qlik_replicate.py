@@ -39,7 +39,7 @@ Authentication:
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional
+from typing import List
 
 import requests
 
@@ -303,21 +303,6 @@ def _wait_for_task_completion(
     sleep_interval = 5  # Poll every 5 seconds
     counter = 0
 
-    # Get initial state
-    initial_state = None
-    try:
-        initial_response = requests.get(
-            f"{base_url}/servers/{server_name}/tasks/{task_name}",
-            headers=headers,
-        )
-        if initial_response.status_code == 200:
-            initial_data = initial_response.json()
-            initial_state = initial_data.get("state")
-    except Exception as e:
-        print(
-            f"    ⚠️  [{task_name}] Could not get initial state: {str(e)[:50]}... Proceeding anyway."
-        )
-
     while True:
         elapsed = time.time() - start_time
         if elapsed > timeout_seconds:
@@ -333,9 +318,7 @@ def _wait_for_task_completion(
             )
 
             if task_response.status_code != 200:
-                raise Exception(
-                    f"Task status check failed with HTTP {task_response.status_code}"
-                )
+                raise Exception(f"Task status check failed with HTTP {task_response.status_code}")
 
             task_data = task_response.json()
             task_state = task_data.get("state", "unknown")
@@ -369,13 +352,13 @@ def _wait_for_task_completion(
                     print(
                         f"{timestamp} ✅ [{task_name}] Task stopped successfully ({elapsed_min}m {elapsed_sec}s)"
                     )
-                    return f"STOPPED (task completed normally)"
+                    return "STOPPED (task completed normally)"
                 elif task_state == "ERROR":
                     print(f"{timestamp} ❌ [{task_name}] Task encountered an error")
-                    return f"ERROR (task failed)"
+                    return "ERROR (task failed)"
                 elif task_state == "RECOVERY":
                     print(f"{timestamp} 🔄 [{task_name}] Task in recovery mode")
-                    return f"RECOVERY (task is recovering)"
+                    return "RECOVERY (task is recovering)"
 
             elif task_state in ["RUNNING", "STARTING"]:
                 # Still running, continue waiting
@@ -446,7 +429,7 @@ def stop_qlik_replicate_tasks(
             print(f"{timestamp} 🛑 [{task_name}] Stopping task...")
             stop_response = requests.post(
                 f"{base_url}/servers/{server_name}/tasks/{task_name}",
-                params={"action": "stop", "timeout": timeout_seconds},
+                params={"action": "stop", "timeout": str(timeout_seconds)},
                 headers=headers,
             )
 
