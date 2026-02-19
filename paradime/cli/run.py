@@ -5,6 +5,7 @@ import click
 from paradime.cli.integrations.adf import adf_list_pipelines, adf_pipelines
 from paradime.cli.integrations.airbyte import airbyte_list_connections, airbyte_sync
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync
+from paradime.cli.integrations.hex import hex_list_projects, hex_trigger
 from paradime.cli.integrations.montecarlo import montecarlo_artifacts_import
 from paradime.cli.integrations.power_bi import power_bi_list_datasets, power_bi_refresh
 from paradime.cli.integrations.tableau import (
@@ -37,4 +38,6 @@ run.add_command(airbyte_sync)
 run.add_command(airbyte_list_connections)
 run.add_command(adf_pipelines)
 run.add_command(adf_list_pipelines)
+run.add_command(hex_trigger)
+run.add_command(hex_list_projects)
 run.add_command(montecarlo_artifacts_import)
