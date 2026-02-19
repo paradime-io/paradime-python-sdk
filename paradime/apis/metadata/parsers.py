@@ -1,23 +1,14 @@
 from datetime import datetime
 from typing import Any, Dict, List
 
-try:
-    from dbt_artifacts_parser import (  # type: ignore
-        parse_manifest,
-        parse_run_results,
-        parse_sources,
-    )
-    from dbt_artifacts_parser.parsers.manifest.manifest_v12 import ManifestV12  # type: ignore
-    from dbt_artifacts_parser.parsers.run_results.run_results_v6 import RunResultsV6  # type: ignore
-    from dbt_artifacts_parser.parsers.sources.sources_v3 import SourcesV3  # type: ignore
-except ImportError:
-    # Fallback for different versions or if package not available
-    ManifestV12 = None
-    RunResultsV6 = None
-    SourcesV3 = None
-    parse_manifest = None
-    parse_run_results = None
-    parse_sources = None
+from dbt_artifacts_parser import (
+    parse_manifest,
+    parse_run_results,
+    parse_sources,
+)
+from dbt_artifacts_parser.parsers.manifest.manifest_v12 import ManifestV12
+from dbt_artifacts_parser.parsers.run_results.run_results_v6 import RunResultsV6
+from dbt_artifacts_parser.parsers.sources.sources_v3 import SourcesV3
 
 from .types import ParsedArtifacts
 
@@ -26,7 +17,6 @@ class ArtifactParser:
     """Parser for dbt artifacts using dbt-artifacts-parser and backend-inspired transformation logic"""
 
     def __init__(self, enable_streaming: bool = True):
-        self.use_dbt_parser = parse_manifest is not None
         self.enable_streaming = enable_streaming
         self._batch_size = 1000  # Default batch size for streaming
 
@@ -43,34 +33,28 @@ class ArtifactParser:
         """
         parsed = ParsedArtifacts(schedule_name=schedule_name)
 
-        if self.use_dbt_parser and parse_manifest and parse_run_results and parse_sources:
-            # Use dbt-artifacts-parser for type-safe parsing
-            if "manifest" in artifacts:
-                try:
-                    parsed.manifest = parse_manifest(artifacts["manifest"])
-                except Exception as e:
-                    # Fallback to raw dict if parsing fails
-                    print(f"Warning: Failed to parse manifest with dbt-artifacts-parser: {e}")
-                    parsed.manifest = artifacts["manifest"]
+        # Use dbt-artifacts-parser for type-safe parsing
+        if "manifest" in artifacts:
+            try:
+                parsed.manifest = parse_manifest(artifacts["manifest"])
+            except Exception as e:
+                # Fallback to raw dict if parsing fails
+                print(f"Warning: Failed to parse manifest with dbt-artifacts-parser: {e}")
+                parsed.manifest = artifacts["manifest"]
 
-            if "run_results" in artifacts:
-                try:
-                    parsed.run_results = parse_run_results(artifacts["run_results"])
-                except Exception as e:
-                    print(f"Warning: Failed to parse run_results with dbt-artifacts-parser: {e}")
-                    parsed.run_results = artifacts["run_results"]
+        if "run_results" in artifacts:
+            try:
+                parsed.run_results = parse_run_results(artifacts["run_results"])
+            except Exception as e:
+                print(f"Warning: Failed to parse run_results with dbt-artifacts-parser: {e}")
+                parsed.run_results = artifacts["run_results"]
 
-            if "sources" in artifacts:
-                try:
-                    parsed.sources = parse_sources(artifacts["sources"])
-                except Exception as e:
-                    print(f"Warning: Failed to parse sources with dbt-artifacts-parser: {e}")
-                    parsed.sources = artifacts["sources"]
-        else:
-            # Use raw dictionaries if dbt-artifacts-parser not available
-            parsed.manifest = artifacts.get("manifest")
-            parsed.run_results = artifacts.get("run_results")
-            parsed.sources = artifacts.get("sources")
+        if "sources" in artifacts:
+            try:
+                parsed.sources = parse_sources(artifacts["sources"])
+            except Exception as e:
+                print(f"Warning: Failed to parse sources with dbt-artifacts-parser: {e}")
+                parsed.sources = artifacts["sources"]
 
         return parsed
 
