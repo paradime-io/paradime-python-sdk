@@ -11,6 +11,12 @@ from paradime.cli.integrations.aws_glue import (
     aws_glue_trigger_jobs,
     aws_glue_trigger_workflows,
 )
+from paradime.cli.integrations.aws_lambda import aws_lambda_list, aws_lambda_trigger
+from paradime.cli.integrations.aws_sagemaker import aws_sagemaker_list, aws_sagemaker_trigger
+from paradime.cli.integrations.aws_stepfunctions import (
+    aws_stepfunctions_list,
+    aws_stepfunctions_trigger,
+)
 from paradime.cli.integrations.census import census_list_syncs, census_sync
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync
 from paradime.cli.integrations.hex import hex_list_projects, hex_trigger
@@ -56,6 +62,12 @@ run.add_command(aws_glue_trigger_workflows)
 run.add_command(aws_glue_trigger_jobs)
 run.add_command(aws_glue_list_workflows)
 run.add_command(aws_glue_list_jobs)
+run.add_command(aws_lambda_trigger)
+run.add_command(aws_lambda_list)
+run.add_command(aws_sagemaker_trigger)
+run.add_command(aws_sagemaker_list)
+run.add_command(aws_stepfunctions_trigger)
+run.add_command(aws_stepfunctions_list)
 run.add_command(census_sync)
 run.add_command(census_list_syncs)
 run.add_command(adf_pipelines)
