@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import requests
 
@@ -536,8 +536,8 @@ class BoltClient:
 
         return artifact_url
 
-    def get_latest_manifest_json(
-        self, schedule_name: str, command_index: Optional[int] = None, max_runs: int = 50
+    def _get_latest_manifest_json(
+        self, schedule_name: str, command_index: Optional[int] = None
     ) -> dict:
         """
         Retrieves the latest manifest JSON for a given schedule.
@@ -545,7 +545,6 @@ class BoltClient:
         Args:
             schedule_name (str): The name of the schedule.
             command_index (Optional[int]): The index of the command in the schedule. Defaults to None.
-            max_runs (int): The maximum number of latest runs to search through. Defaults to 50.
 
         Returns:
             dict: The content of the latest manifest JSON.
@@ -555,26 +554,26 @@ class BoltClient:
             schedule_name=schedule_name,
             artifact_path="target/manifest.json",
             command_index=command_index,
-            max_runs=max_runs,
+            max_runs=1,
         )
 
         return requests.get(manifest_url).json()
 
-    def get_latest_run_results_json(
-        self, schedule_name: str, command_index: Optional[int] = None, max_runs: int = 1
+    def _get_latest_run_results_json(
+        self, schedule_name: str, command_index: Optional[int] = None, merge: bool = False
     ) -> dict:
         """
-        Retrieves and merges the latest run_results JSON from all relevant commands for a given schedule.
-        This method will collect run_results.json from multiple commands (e.g., dbt run + dbt test)
-        and merge them into a single comprehensive result.
+        Retrieves the latest run_results JSON for a given schedule.
+        By default returns the first run_results.json found, consistent with other get_latest_* functions.
+        When merge=True, collects run_results.json from multiple commands and merges them.
 
         Args:
             schedule_name (str): The name of the schedule.
             command_index (Optional[int]): The index of a specific command. If provided, only gets results from that command.
-            max_runs (int): The maximum number of latest runs to search through. Defaults to 50.
+            merge (bool): If True, merge run_results from multiple commands. If False, return first found. Defaults to False.
 
         Returns:
-            dict: The merged content of the latest run_results JSON files.
+            dict: The content of the latest run_results JSON file(s).
         """
         if command_index is not None:
             # Get run results from specific command
@@ -582,12 +581,12 @@ class BoltClient:
                 schedule_name=schedule_name,
                 artifact_path="target/run_results.json",
                 command_index=command_index,
-                max_runs=max_runs,
+                max_runs=1,
             )
             return requests.get(run_results_url).json()
 
         # Get the latest runs for the schedule
-        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=max_runs).runs
+        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=1).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
@@ -614,26 +613,31 @@ class BoltClient:
                         artifact_url = self.get_artifact_url(artifact.id)
                         run_results = requests.get(artifact_url).json()
                         all_run_results.append(run_results)
+                        if not merge:
+                            # Return first found when merge=False (consistent behavior)
+                            return run_results
                         break
 
-            # If we found at least one run_results.json, process them
-            if all_run_results:
+            # If we found at least one run_results.json and not merging, we're done
+            if all_run_results and not merge:
                 break
 
         if not all_run_results:
             raise BoltScheduleArtifactNotFoundException(
-                f"No run_results.json found for schedule {schedule_name!r} in the latest {max_runs} runs."
+                f"No run_results.json found for schedule {schedule_name!r} in the latest run."
             )
 
-        # If only one run_results.json, return it as-is
-        if len(all_run_results) == 1:
+        # If only one run_results.json or merge=False, return it as-is
+        if len(all_run_results) == 1 or not merge:
             return all_run_results[0]
 
-        # Merge multiple run_results.json files
-        return self._merge_run_results(all_run_results)
+        # Merge multiple run_results.json files when merge=True
+        from paradime.apis.metadata.utils import merge_run_results
 
-    def get_latest_sources_json(
-        self, schedule_name: str, command_index: Optional[int] = None, max_runs: int = 1
+        return merge_run_results(all_run_results)
+
+    def _get_latest_sources_json(
+        self, schedule_name: str, command_index: Optional[int] = None
     ) -> dict:
         """
         Retrieves the latest sources JSON for a given schedule.
@@ -641,7 +645,6 @@ class BoltClient:
         Args:
             schedule_name (str): The name of the schedule.
             command_index (Optional[int]): The index of the command in the schedule. Defaults to None.
-            max_runs (int): The maximum number of latest runs to search through. Defaults to 50.
 
         Returns:
             dict: The content of the latest sources JSON.
@@ -650,123 +653,15 @@ class BoltClient:
             schedule_name=schedule_name,
             artifact_path="target/sources.json",
             command_index=command_index,
-            max_runs=max_runs,
+            max_runs=1,
         )
 
         return requests.get(sources_url).json()
 
-    def get_all_latest_artifacts_fast(self, schedule_name: str, max_runs: int = 1) -> dict:
-        """
-        Fast version: Retrieves artifacts by directly accessing them from the latest successful run.
-        Uses concurrent downloads and connection pooling for better performance.
-
-        Args:
-            schedule_name (str): The name of the schedule.
-            max_runs (int): The maximum number of latest runs to search through. Defaults to 1.
-
-        Returns:
-            dict: Dictionary containing all available artifacts with keys: 'manifest', 'run_results', 'sources'.
-        """
-        import concurrent.futures
-        from typing import Any, Optional, Tuple
-
-        import requests
-
-        artifacts: dict[str, dict[str, Any]] = {}
-
-        # Create a session for connection pooling
-        session = requests.Session()
-
-        def download_artifact(artifact_id: int, artifact_type: str) -> Tuple[str, Optional[dict]]:
-            """Download a single artifact with retry logic"""
-            import time
-
-            for attempt in range(3):  # 3 retry attempts
-                try:
-                    url = self.get_artifact_url(artifact_id)
-                    response = session.get(url, timeout=30)
-                    if response.status_code == 200:
-                        return artifact_type, response.json()
-                    elif response.status_code >= 500 and attempt < 2:  # Retry on server errors
-                        time.sleep(1 * (attempt + 1))  # Exponential backoff
-                        continue
-                    return artifact_type, None
-                except Exception:
-                    if attempt < 2:
-                        time.sleep(1 * (attempt + 1))
-                        continue
-                    return artifact_type, None
-
-            return artifact_type, None
-
-        # Get latest run (success or failure) for complete monitoring
-        runs_result = self.list_runs(schedule_name=schedule_name, limit=max_runs)
-
-        for run in runs_result.runs:
-            if run.state in ["SUCCESS", "ERROR", "FAILED"]:  # Exclude SKIPPED runs
-                commands = self.list_run_commands(run.id)
-
-                # Collect all artifact download tasks
-                download_tasks = []
-
-                for cmd in commands:
-                    # Filter for dbt commands only (exclude git clone, deps, etc.)
-                    if cmd.return_code is not None and self._is_relevant_dbt_command(cmd.command):
-                        try:
-                            cmd_artifacts = self.list_command_artifacts(cmd.id)
-
-                            for artifact in cmd_artifacts:
-                                if (
-                                    artifact.path.endswith("manifest.json")
-                                    and "manifest" not in artifacts
-                                ):
-                                    download_tasks.append((artifact.id, "manifest"))
-                                elif artifact.path.endswith("run_results.json"):
-                                    download_tasks.append((artifact.id, "run_results"))
-                                elif (
-                                    artifact.path.endswith("sources.json")
-                                    and "sources" not in artifacts
-                                ):
-                                    download_tasks.append((artifact.id, "sources"))
-                        except Exception:
-                            continue
-
-                # Download artifacts concurrently
-                if download_tasks:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                        futures = [
-                            executor.submit(download_artifact, artifact_id, artifact_type)
-                            for artifact_id, artifact_type in download_tasks
-                        ]
-
-                        for future in concurrent.futures.as_completed(futures):
-                            artifact_type, content = future.result()
-                            if content:
-                                if artifact_type == "run_results" and "run_results" in artifacts:
-                                    # Merge run results
-                                    artifacts["run_results"] = self._merge_run_results(
-                                        [artifacts["run_results"], content]
-                                    )
-                                else:
-                                    artifacts[artifact_type] = content
-
-                # If we found artifacts, we're done
-                if artifacts:
-                    break
-
-        session.close()
-
-        if not artifacts:
-            raise BoltScheduleArtifactNotFoundException(
-                f"No artifacts found for schedule {schedule_name!r} in the latest {max_runs} runs."
-            )
-
-        return artifacts
 
     def get_all_latest_artifacts(self, schedule_name: str, max_runs: int = 1) -> dict:
         """
         Retrieves all available artifacts (manifest, run_results, sources) for a given schedule.
-        This method intelligently collects artifacts from all relevant commands in the latest run.
 
         Args:
             schedule_name (str): The name of the schedule.
@@ -775,8 +670,29 @@ class BoltClient:
         Returns:
             dict: Dictionary containing all available artifacts with keys: 'manifest', 'run_results', 'sources'.
         """
-        # Use the fast version by default
-        return self.get_all_latest_artifacts_fast(schedule_name, max_runs)
+        artifacts = {}
+
+        try:
+            artifacts["manifest"] = self._get_latest_manifest_json(schedule_name)
+        except BoltScheduleArtifactNotFoundException:
+            pass
+
+        try:
+            artifacts["run_results"] = self._get_latest_run_results_json(schedule_name, merge=True)
+        except BoltScheduleArtifactNotFoundException:
+            pass
+
+        try:
+            artifacts["sources"] = self._get_latest_sources_json(schedule_name)
+        except BoltScheduleArtifactNotFoundException:
+            pass
+
+        if not artifacts:
+            raise BoltScheduleArtifactNotFoundException(
+                f"No artifacts found for schedule {schedule_name!r}."
+            )
+
+        return artifacts
 
     def _is_relevant_dbt_command(self, command: str) -> bool:
         """
@@ -826,57 +742,3 @@ class BoltClient:
 
         # Default to False for unknown commands
         return False
-
-    def _merge_run_results(self, run_results_list: List[dict]) -> dict:
-        """
-        Merges multiple run_results.json files into a single comprehensive result.
-        This is useful when a schedule has multiple commands that generate run_results.json
-        (e.g., dbt run and dbt test).
-
-        Args:
-            run_results_list (List[dict]): List of run_results.json dictionaries to merge.
-
-        Returns:
-            dict: Merged run_results.json with all results combined.
-        """
-        if not run_results_list:
-            return {}
-
-        if len(run_results_list) == 1:
-            return run_results_list[0]
-
-        # Use the metadata from the most recent run_results
-        merged = {
-            "metadata": run_results_list[0].get("metadata", {}),
-            "results": [],
-            "elapsed_time": sum(r.get("elapsed_time", 0) for r in run_results_list),
-            "args": run_results_list[0].get("args", {}),
-        }
-
-        # Collect all results
-        seen_results: dict[str, dict[str, Any]] = {}
-        for run_results in run_results_list:
-            for result in run_results.get("results", []):
-                unique_id = result.get("unique_id")
-                if unique_id:
-                    # If we've seen this result before, keep the one with latest timing
-                    if unique_id in seen_results:
-                        existing_result = seen_results[unique_id]
-                        existing_timing = existing_result.get("timing", [])
-                        new_timing = result.get("timing", [])
-
-                        # Compare completed_at timestamps if available
-                        if (
-                            new_timing
-                            and existing_timing
-                            and len(new_timing) > 0
-                            and len(existing_timing) > 0
-                            and new_timing[-1].get("completed_at", "")
-                            > existing_timing[-1].get("completed_at", "")
-                        ):
-                            seen_results[unique_id] = result
-                    else:
-                        seen_results[unique_id] = result
-
-        merged["results"] = list(seen_results.values())
-        return merged

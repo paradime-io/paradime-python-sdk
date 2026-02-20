@@ -1,14 +1,6 @@
 from datetime import datetime
 from typing import Any, Dict, List
 
-from dbt_artifacts_parser import (
-    parse_manifest,
-    parse_run_results,
-    parse_sources,
-)
-from dbt_artifacts_parser.parsers.manifest.manifest_v12 import ManifestV12
-from dbt_artifacts_parser.parsers.run_results.run_results_v6 import RunResultsV6
-from dbt_artifacts_parser.parsers.sources.sources_v3 import SourcesV3
 
 from .types import ParsedArtifacts
 
@@ -33,28 +25,16 @@ class ArtifactParser:
         """
         parsed = ParsedArtifacts(schedule_name=schedule_name)
 
-        # Use dbt-artifacts-parser for type-safe parsing
+        # Use raw dictionaries for now to maintain compatibility
+        # TODO: Future enhancement to use typed parsing with dbt-artifacts-parser
         if "manifest" in artifacts:
-            try:
-                parsed.manifest = parse_manifest(artifacts["manifest"])
-            except Exception as e:
-                # Fallback to raw dict if parsing fails
-                print(f"Warning: Failed to parse manifest with dbt-artifacts-parser: {e}")
-                parsed.manifest = artifacts["manifest"]
+            parsed.manifest = artifacts["manifest"]
 
         if "run_results" in artifacts:
-            try:
-                parsed.run_results = parse_run_results(artifacts["run_results"])
-            except Exception as e:
-                print(f"Warning: Failed to parse run_results with dbt-artifacts-parser: {e}")
-                parsed.run_results = artifacts["run_results"]
+            parsed.run_results = artifacts["run_results"]
 
         if "sources" in artifacts:
-            try:
-                parsed.sources = parse_sources(artifacts["sources"])
-            except Exception as e:
-                print(f"Warning: Failed to parse sources with dbt-artifacts-parser: {e}")
-                parsed.sources = artifacts["sources"]
+            parsed.sources = artifacts["sources"]
 
         return parsed
 

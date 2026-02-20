@@ -35,7 +35,10 @@ def main() -> None:
         success_count = sum(1 for m in models if m.status == "success")
         print(f"  Total models: {len(models)}")
         print(f"  Successful: {success_count}")
-        print(f"  Success rate: {(success_count/len(models)*100):.1f}%")
+        if len(models) > 0:
+            print(f"  Success rate: {(success_count/len(models)*100):.1f}%")
+        else:
+            print("  No models found for this schedule")
 
         # Show slowest models
         models_with_time = [m for m in models if m.execution_time is not None]

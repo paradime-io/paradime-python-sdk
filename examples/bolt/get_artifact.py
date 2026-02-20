@@ -6,8 +6,9 @@ paradime = Paradime(api_endpoint="API_ENDPOINT", api_key="API_KEY", api_secret="
 
 BOLT_SCHEDULE_NAME = "daily_run"
 
-# Get manifest.json dictionary.
-manifest_json = paradime.bolt.get_latest_manifest_json(schedule_name=BOLT_SCHEDULE_NAME)
+# Get all artifacts (including manifest.json).
+artifacts = paradime.bolt.get_all_latest_artifacts(schedule_name=BOLT_SCHEDULE_NAME)
+manifest_json = artifacts.get("manifest")
 
 
 # Get any artifact.
