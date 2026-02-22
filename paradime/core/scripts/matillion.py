@@ -11,11 +11,47 @@ logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def _get_access_token(*, client_id: str, client_secret: str) -> str:
+    """
+    Get OAuth access token for Matillion DPC API.
+
+    Args:
+        client_id: OAuth client ID
+        client_secret: OAuth client secret
+
+    Returns:
+        Access token string
+    """
+    # Matillion DPC OAuth token endpoint
+    token_url = "https://id.core.matillion.com/oauth/dpc/token"
+
+    # Use form-encoded data as per Matillion docs
+    payload = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "audience": "https://api.matillion.com",
+    }
+
+    response = requests.post(
+        token_url,
+        data=payload,  # Use data instead of json for form-encoded
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+
+    handle_http_error(response, "Error obtaining access token:")
+
+    token_data = response.json()
+    return token_data.get("access_token")
+
+
 def trigger_matillion_pipeline(
     *,
     base_url: str,
-    api_token: str,
-    pipeline_ids: List[str],
+    client_id: str,
+    client_secret: str,
+    project_id: str,
+    pipeline_names: List[str],
     environment: str,
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
@@ -24,9 +60,11 @@ def trigger_matillion_pipeline(
     Trigger execution for multiple Matillion pipelines.
 
     Args:
-        base_url: Matillion instance base URL (e.g., https://your-instance.matillion.com)
-        api_token: Matillion API token
-        pipeline_ids: List of Matillion pipeline IDs to execute
+        base_url: Matillion DPC API base URL (e.g., https://us1.api.matillion.com)
+        client_id: OAuth client ID
+        client_secret: OAuth client secret
+        project_id: Matillion project ID
+        pipeline_names: List of pipeline names to execute
         environment: Matillion environment name
         wait_for_completion: Whether to wait for executions to complete
         timeout_minutes: Maximum time to wait for completion
@@ -37,24 +75,32 @@ def trigger_matillion_pipeline(
     futures = []
     results = []
 
+    # Get OAuth access token
+    print("🔐 Authenticating with Matillion DPC API...")
+    access_token = _get_access_token(
+        client_id=client_id,
+        client_secret=client_secret,
+    )
+
     # Add visual separator and header
     print(f"\n{'='*60}")
     print("🚀 TRIGGERING MATILLION PIPELINES")
     print(f"{'='*60}")
 
     with ThreadPoolExecutor() as executor:
-        for i, pipeline_id in enumerate(set(pipeline_ids), 1):
-            print(f"\n[{i}/{len(set(pipeline_ids))}] 📊 {pipeline_id}")
+        for i, pipeline_name in enumerate(set(pipeline_names), 1):
+            print(f"\n[{i}/{len(set(pipeline_names))}] 📊 {pipeline_name}")
             print(f"{'-'*40}")
 
             futures.append(
                 (
-                    pipeline_id,
+                    pipeline_name,
                     executor.submit(
                         trigger_single_pipeline,
                         base_url=base_url,
-                        api_token=api_token,
-                        pipeline_id=pipeline_id,
+                        access_token=access_token,
+                        project_id=project_id,
+                        pipeline_name=pipeline_name,
                         environment=environment,
                         wait_for_completion=wait_for_completion,
                         timeout_minutes=timeout_minutes,
@@ -69,21 +115,21 @@ def trigger_matillion_pipeline(
 
         # Wait for completion and collect results
         pipeline_results = []
-        for pipeline_id, future in futures:
+        for pipeline_name, future in futures:
             # Use longer timeout when waiting for completion
             future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
             response_txt = future.result(timeout=future_timeout)
-            pipeline_results.append((pipeline_id, response_txt))
+            pipeline_results.append((pipeline_name, response_txt))
             results.append(response_txt)
 
         # Display results as simple table
         print(f"\n{'='*80}")
         print("📊 EXECUTION RESULTS")
         print(f"{'='*80}")
-        print(f"{'PIPELINE':<30} {'STATUS':<10} {'DASHBOARD'}")
-        print(f"{'-'*30} {'-'*10} {'-'*45}")
+        print(f"{'PIPELINE':<30} {'STATUS':<10}")
+        print(f"{'-'*30} {'-'*10}")
 
-        for pipeline_id, response_txt in pipeline_results:
+        for pipeline_name, response_txt in pipeline_results:
             # Format result with emoji
             if "SUCCESS" in response_txt:
                 status = "✅ SUCCESS"
@@ -94,8 +140,7 @@ def trigger_matillion_pipeline(
             else:
                 status = "ℹ️ COMPLETED"
 
-            dashboard_url = f"{base_url}/pipelines/{pipeline_id}"
-            print(f"{pipeline_id:<30} {status:<10} {dashboard_url}")
+            print(f"{pipeline_name:<30} {status:<10}")
 
         print(f"{'='*80}\n")
 
@@ -105,8 +150,9 @@ def trigger_matillion_pipeline(
 def trigger_single_pipeline(
     *,
     base_url: str,
-    api_token: str,
-    pipeline_id: str,
+    access_token: str,
+    project_id: str,
+    pipeline_name: str,
     environment: str,
     wait_for_completion: bool = True,
     timeout_minutes: int = 1440,
@@ -115,9 +161,10 @@ def trigger_single_pipeline(
     Trigger execution for a single Matillion pipeline.
 
     Args:
-        base_url: Matillion instance base URL
-        api_token: Matillion API token
-        pipeline_id: Matillion pipeline ID
+        base_url: Matillion DPC API base URL
+        access_token: OAuth access token
+        project_id: Matillion project ID
+        pipeline_name: Pipeline name to execute
         environment: Matillion environment name
         wait_for_completion: Whether to wait for execution to complete
         timeout_minutes: Maximum time to wait for completion
@@ -125,8 +172,10 @@ def trigger_single_pipeline(
     Returns:
         Status message indicating execution result
     """
+    base_url = base_url.rstrip("/")
+
     headers = {
-        "Authorization": f"Bearer {api_token}",
+        "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
 
@@ -134,61 +183,44 @@ def trigger_single_pipeline(
 
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
 
-    # Check pipeline status before attempting execution
-    print(f"{timestamp} 🔍 [{pipeline_id}] Checking pipeline status...")
-    try:
-        status_response = requests.get(
-            f"{base_url}/api/v1/pipelines/{pipeline_id}",
-            headers=headers,
-        )
-
-        if status_response.status_code == 200:
-            status_data = status_response.json()
-            pipeline_name = status_data.get("name", pipeline_id)
-            pipeline_type = status_data.get("type", "unknown")
-
-            print(f"{timestamp} 📊 [{pipeline_id}] Name: {pipeline_name} | Type: {pipeline_type}")
-
-    except Exception as e:
-        print(
-            f"{timestamp} ⚠️  [{pipeline_id}] Could not check status: {str(e)[:50]}... Proceeding anyway."
-        )
-
     # Trigger the pipeline execution
+    # Endpoint: POST /dpc/v1/projects/{projectId}/pipeline-executions
+    execution_url = f"{base_url}/dpc/v1/projects/{project_id}/pipeline-executions"
+
     execution_payload = {
-        "environment": environment,
+        "pipelineName": pipeline_name,
+        "environmentName": environment,
     }
 
-    print(f"{timestamp} 🚀 [{pipeline_id}] Triggering pipeline execution...")
+    print(f"{timestamp} 🚀 [{pipeline_name}] Triggering pipeline execution...")
     execution_response = requests.post(
-        f"{base_url}/api/v1/pipelines/{pipeline_id}/execute",
+        execution_url,
         json=execution_payload,
         headers=headers,
     )
 
     handle_http_error(
         execution_response,
-        f"Error triggering execution for pipeline '{pipeline_id}':",
+        f"Error triggering execution for pipeline '{pipeline_name}':",
     )
 
     execution_data = execution_response.json()
-    execution_id = execution_data.get("executionId") or execution_data.get("id")
+    execution_id = execution_data.get("pipelineExecutionId")
 
-    # Show dashboard link immediately after successful trigger
-    dashboard_url = f"{base_url}/pipelines/{pipeline_id}/executions/{execution_id}"
-    print(f"{timestamp} 🔗 [{pipeline_id}] Dashboard: {dashboard_url}")
+    print(f"{timestamp} ✅ [{pipeline_name}] Pipeline triggered (Execution ID: {execution_id})")
 
     if not wait_for_completion:
         return f"Pipeline triggered. Execution ID: {execution_id}"
 
-    print(f"{timestamp} ⏳ [{pipeline_id}] Monitoring execution progress...")
+    print(f"{timestamp} ⏳ [{pipeline_name}] Monitoring execution progress...")
 
     # Wait for execution completion
     execution_status = _wait_for_execution_completion(
         base_url=base_url,
-        api_token=api_token,
-        pipeline_id=pipeline_id,
+        access_token=access_token,
+        project_id=project_id,
         execution_id=execution_id,
+        pipeline_name=pipeline_name,
         timeout_minutes=timeout_minutes,
     )
 
@@ -198,26 +230,30 @@ def trigger_single_pipeline(
 def _wait_for_execution_completion(
     *,
     base_url: str,
-    api_token: str,
-    pipeline_id: str,
+    access_token: str,
+    project_id: str,
     execution_id: str,
+    pipeline_name: str,
     timeout_minutes: int,
 ) -> str:
     """
     Poll execution status until completion or timeout.
 
     Args:
-        base_url: Matillion instance base URL
-        api_token: Matillion API token
-        pipeline_id: Matillion pipeline ID
-        execution_id: Execution ID to monitor
+        base_url: Matillion DPC API base URL
+        access_token: OAuth access token
+        project_id: Matillion project ID
+        execution_id: Pipeline execution ID
+        pipeline_name: Pipeline name for logging
         timeout_minutes: Maximum time to wait for completion
 
     Returns:
         Final execution status
     """
+    base_url = base_url.rstrip("/")
+
     headers = {
-        "Authorization": f"Bearer {api_token}",
+        "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
     start_time = time.time()
@@ -229,13 +265,15 @@ def _wait_for_execution_completion(
         elapsed = time.time() - start_time
         if elapsed > timeout_seconds:
             raise Exception(
-                f"Timeout waiting for pipeline '{pipeline_id}' execution to complete after {timeout_minutes} minutes"
+                f"Timeout waiting for pipeline '{pipeline_name}' execution to complete after {timeout_minutes} minutes"
             )
 
         try:
             # Get execution status
+            # Endpoint: GET /dpc/v1/projects/{projectId}/pipeline-executions/{executionId}
+            status_url = f"{base_url}/dpc/v1/projects/{project_id}/pipeline-executions/{execution_id}"
             execution_response = requests.get(
-                f"{base_url}/api/v1/pipelines/{pipeline_id}/executions/{execution_id}",
+                status_url,
                 headers=headers,
             )
 
@@ -245,7 +283,8 @@ def _wait_for_execution_completion(
                 )
 
             execution_data = execution_response.json()
-            status = execution_data.get("status", "unknown")
+            # Matillion DPC uses 'status' field with values like: RUNNING, SUCCESS, FAILED
+            status = execution_data.get("status", "UNKNOWN").upper()
 
             # Log progress every 6 checks (30 seconds)
             if counter == 0 or counter % 6 == 0:
@@ -254,13 +293,9 @@ def _wait_for_execution_completion(
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
-                if status == "RUNNING":
+                if status in ["RUNNING", "QUEUED"]:
                     print(
-                        f"{timestamp} 🔄 [{pipeline_id}] Running... ({elapsed_min}m {elapsed_sec}s elapsed)"
-                    )
-                elif status == "PENDING":
-                    print(
-                        f"{timestamp} ⏳ [{pipeline_id}] Pending... ({elapsed_min}m {elapsed_sec}s elapsed)"
+                        f"{timestamp} 🔄 [{pipeline_name}] Running... ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
 
             # Check if execution is complete
@@ -271,26 +306,26 @@ def _wait_for_execution_completion(
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
                 print(
-                    f"{timestamp} ✅ [{pipeline_id}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
+                    f"{timestamp} ✅ [{pipeline_name}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
                 )
                 return "SUCCESS"
 
-            elif status == "FAILED":
+            elif status in ["FAILED", "ERROR"]:
                 import datetime
 
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"{timestamp} ❌ [{pipeline_id}] Execution failed")
-                error_message = execution_data.get("error", "No error details available")
+                print(f"{timestamp} ❌ [{pipeline_name}] Execution failed")
+                error_message = execution_data.get("message", "No error details available")
                 return f"FAILED: {error_message}"
 
-            elif status == "CANCELLED":
+            elif status in ["CANCELLED", "CANCELED"]:
                 import datetime
 
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"{timestamp} ⚠️  [{pipeline_id}] Execution was cancelled")
+                print(f"{timestamp} ⚠️  [{pipeline_name}] Execution was cancelled")
                 return "CANCELLED"
 
-            elif status in ["RUNNING", "PENDING"]:
+            elif status in ["RUNNING", "QUEUED"]:
                 # Still running, continue waiting
                 pass
 
@@ -305,37 +340,174 @@ def _wait_for_execution_completion(
             import datetime
 
             timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(f"{timestamp} ⚠️  [{pipeline_id}] Network error: {str(e)[:50]}... Retrying.")
+            print(f"{timestamp} ⚠️  [{pipeline_name}] Network error: {str(e)[:50]}... Retrying.")
             time.sleep(sleep_interval)
             continue
+
+
+def list_matillion_projects(
+    *,
+    base_url: str,
+    client_id: str,
+    client_secret: str,
+) -> None:
+    """
+    List all Matillion projects.
+
+    Args:
+        base_url: Matillion DPC API base URL (e.g., https://us1.api.matillion.com)
+        client_id: OAuth client ID
+        client_secret: OAuth client secret
+    """
+    base_url = base_url.rstrip("/")
+
+    # Get OAuth access token
+    print("🔐 Authenticating with Matillion DPC API...")
+    access_token = _get_access_token(
+        client_id=client_id,
+        client_secret=client_secret,
+    )
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    # List projects with pagination
+    # Endpoint: GET /dpc/v1/projects
+    url = f"{base_url}/dpc/v1/projects"
+
+    print("\n🔍 Listing all projects")
+
+    # Start with first page
+    all_projects = []
+    page = 0
+    page_size = 25
+
+    while True:
+        params = {
+            "page": page,
+            "size": page_size,
+        }
+
+        projects_response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+        )
+
+        handle_http_error(projects_response, "Error getting projects:")
+
+        # Handle empty response
+        if not projects_response.text or projects_response.text.strip() == "":
+            break
+
+        try:
+            projects_data = projects_response.json()
+        except Exception as e:
+            content_type = projects_response.headers.get("Content-Type", "")
+            print(f"❌ Error parsing response: {str(e)}")
+            print(f"Response status: {projects_response.status_code}")
+            print(f"Response content-type: {content_type}")
+            print(f"Response text (first 500 chars): {projects_response.text[:500]}")
+            raise
+
+        # Debug: show what we received
+        if page == 0:
+            print(f"\n🔍 Debug - API Response:")
+            print(f"   Status: {projects_response.status_code}")
+            print(f"   Response keys: {list(projects_data.keys()) if isinstance(projects_data, dict) else 'Not a dict'}")
+            if isinstance(projects_data, dict):
+                print(f"   Total projects: {projects_data.get('total', 'N/A')}")
+                print(f"   Page: {projects_data.get('page', 'N/A')}")
+                print(f"   Size: {projects_data.get('size', 'N/A')}")
+                print(f"   Results count: {len(projects_data.get('results', []))}")
+
+        # Extract projects from paginated response
+        if not projects_data or not isinstance(projects_data, dict):
+            break
+
+        projects = projects_data.get("results", [])
+        if not projects:
+            if page == 0:
+                print(f"\n⚠️  No projects returned by API")
+                print(f"   This could mean:")
+                print(f"   1. The OAuth client doesn't have permission to list projects")
+                print(f"   2. Projects exist but aren't visible to this API client")
+                print(f"   3. You may need to assign the API client to projects in Matillion settings")
+            break
+
+        all_projects.extend(projects)
+
+        # Check if there are more pages
+        total = projects_data.get("total", 0)
+        if len(all_projects) >= total:
+            break
+
+        page += 1
+
+    if not all_projects:
+        print("No projects found.")
+        return
+
+    print(f"\n{'='*80}")
+    print(f"📋 FOUND {len(all_projects)} PROJECT(S)")
+    print(f"{'='*80}")
+
+    for i, project in enumerate(all_projects, 1):
+        project_id = project.get("id", "Unknown")
+        project_name = project.get("name", "Unknown")
+        description = project.get("description", "")
+
+        print(f"\n[{i}/{len(all_projects)}] 📁 {project_name}")
+        print(f"{'-'*50}")
+        print(f"   Project ID: {project_id}")
+        if description:
+            print(f"   Description: {description}")
+
+    print(f"\n{'='*80}\n")
 
 
 def list_matillion_pipelines(
     *,
     base_url: str,
-    api_token: str,
+    client_id: str,
+    client_secret: str,
+    project_id: str,
     environment: Optional[str] = None,
 ) -> None:
     """
-    List all Matillion pipelines with their IDs and status.
+    List all Matillion pipelines (published pipelines) with their status.
 
     Args:
-        base_url: Matillion instance base URL
-        api_token: Matillion API token
+        base_url: Matillion DPC API base URL (e.g., https://us1.api.matillion.com)
+        client_id: OAuth client ID
+        client_secret: OAuth client secret
+        project_id: Matillion project ID
         environment: Optional environment name to filter pipelines
     """
+    base_url = base_url.rstrip("/")
+
+    # Get OAuth access token
+    print("🔐 Authenticating with Matillion DPC API...")
+    access_token = _get_access_token(
+        client_id=client_id,
+        client_secret=client_secret,
+    )
+
     headers = {
-        "Authorization": f"Bearer {api_token}",
+        "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
 
-    # Build URL based on whether environment is provided
+    # List published pipelines
+    # Endpoint: GET /dpc/v1/projects/{projectId}/published-pipelines
+    url = f"{base_url}/dpc/v1/projects/{project_id}/published-pipelines"
+
     if environment:
-        url = f"{base_url}/api/v1/environments/{environment}/pipelines"
         print(f"\n🔍 Listing pipelines for environment: {environment}")
     else:
-        url = f"{base_url}/api/v1/pipelines"
-        print("\n🔍 Listing all pipelines")
+        print("\n🔍 Listing all published pipelines")
 
     pipelines_response = requests.get(
         url,
@@ -344,12 +516,39 @@ def list_matillion_pipelines(
 
     handle_http_error(pipelines_response, "Error getting pipelines:")
 
-    pipelines_data = pipelines_response.json()
+    # Handle empty response
+    if not pipelines_response.text or pipelines_response.text.strip() == "":
+        print("No pipelines found (empty response).")
+        return
 
-    if not pipelines_data or (isinstance(pipelines_data, dict) and "pipelines" in pipelines_data):
-        pipelines = pipelines_data.get("pipelines", []) if isinstance(pipelines_data, dict) else []
+    try:
+        pipelines_data = pipelines_response.json()
+    except Exception as e:
+        content_type = pipelines_response.headers.get("Content-Type", "")
+        print(f"❌ Error parsing response: {str(e)}")
+        print(f"Response status: {pipelines_response.status_code}")
+        print(f"Response content-type: {content_type}")
+        print(f"Response text (first 500 chars): {pipelines_response.text[:500]}")
+        raise
+
+    # Handle different response structures
+    if not pipelines_data:
+        print("No pipelines found.")
+        return
+
+    # Extract pipelines array
+    # Matillion DPC API returns paginated results with "results" field
+    if isinstance(pipelines_data, dict):
+        pipelines = pipelines_data.get("results", pipelines_data.get("pipelines", []))
+    elif isinstance(pipelines_data, list):
+        pipelines = pipelines_data
     else:
-        pipelines = pipelines_data if isinstance(pipelines_data, list) else []
+        print("No pipelines found (unexpected response format).")
+        return
+
+    # Filter by environment if specified
+    if environment:
+        pipelines = [p for p in pipelines if p.get("environmentName") == environment]
 
     if not pipelines:
         print("No pipelines found.")
@@ -360,38 +559,18 @@ def list_matillion_pipelines(
     print(f"{'='*80}")
 
     for i, pipeline in enumerate(pipelines, 1):
+        # Handle different field name formats
+        pipeline_name = pipeline.get("pipelineName", pipeline.get("name", "Unknown"))
+        environment_name = pipeline.get("environmentName", pipeline.get("environment", "Unknown"))
         pipeline_id = pipeline.get("id", "Unknown")
-        name = pipeline.get("name", "Unknown")
-        pipeline_type = pipeline.get("type", "Unknown")
-        environment_name = pipeline.get("environment", "Unknown")
+        published_time = pipeline.get("publishedTime", pipeline.get("publishedAt", "N/A"))
 
-        # Get last execution info if available
-        last_execution = pipeline.get("lastExecution", {})
-        last_status = last_execution.get("status", "Never run")
-        last_run_at = last_execution.get("startedAt", "Never")
-
-        # Format status with emoji
-        status_emoji = (
-            "✅"
-            if last_status == "SUCCESS"
-            else (
-                "❌"
-                if last_status == "FAILED"
-                else "🔄" if last_status == "RUNNING" else "⏸️" if last_status == "PENDING" else "❓"
-            )
-        )
-
-        # Create dashboard deep link
-        dashboard_url = f"{base_url}/pipelines/{pipeline_id}"
-
-        print(f"\n[{i}/{len(pipelines)}] 📊 {pipeline_id}")
+        print(f"\n[{i}/{len(pipelines)}] 📊 {pipeline_name}")
         print(f"{'-'*50}")
-        print(f"   Name: {name}")
-        print(f"   Type: {pipeline_type}")
         print(f"   Environment: {environment_name}")
-        print(f"   {status_emoji} Last Status: {last_status}")
-        if last_run_at != "Never":
-            print(f"   🕐 Last Run: {last_run_at}")
-        print(f"   🔗 Dashboard: {dashboard_url}")
+        if pipeline_id != "Unknown":
+            print(f"   Pipeline ID: {pipeline_id}")
+        if published_time != "N/A":
+            print(f"   Published: {published_time}")
 
     print(f"\n{'='*80}\n")

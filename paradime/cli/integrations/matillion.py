@@ -4,24 +4,38 @@ from typing import List, Optional
 import click
 
 from paradime.cli.utils import env_click_option
-from paradime.core.scripts.matillion import list_matillion_pipelines, trigger_matillion_pipeline
+from paradime.core.scripts.matillion import (
+    list_matillion_pipelines,
+    list_matillion_projects,
+    trigger_matillion_pipeline,
+)
 
 
 @click.command(context_settings=dict(max_content_width=160))
 @env_click_option(
     "base-url",
     "MATILLION_BASE_URL",
-    help="Your Matillion instance base URL (e.g., https://your-instance.matillion.com)",
+    help="Your Matillion DPC API base URL (e.g., https://us1.api.matillion.com or https://eu1.api.matillion.com)",
 )
 @env_click_option(
-    "api-token",
-    "MATILLION_API_TOKEN",
-    help="Your Matillion API token. You can generate this in your Matillion account settings.",
+    "client-id",
+    "MATILLION_CLIENT_ID",
+    help="Your Matillion OAuth client ID. Generate this in your Matillion account settings.",
+)
+@env_click_option(
+    "client-secret",
+    "MATILLION_CLIENT_SECRET",
+    help="Your Matillion OAuth client secret. Generate this in your Matillion account settings.",
 )
 @click.option(
-    "--pipeline-id",
+    "--project-id",
+    help="The Matillion project ID",
+    required=True,
+)
+@click.option(
+    "--pipeline-name",
     multiple=True,
-    help="The ID(s) of the pipeline(s) you want to execute",
+    help="The name(s) of the pipeline(s) you want to execute",
     required=True,
 )
 @click.option(
@@ -43,22 +57,26 @@ from paradime.core.scripts.matillion import list_matillion_pipelines, trigger_ma
 )
 def matillion_pipeline(
     base_url: str,
-    api_token: str,
-    pipeline_id: List[str],
+    client_id: str,
+    client_secret: str,
+    project_id: str,
+    pipeline_name: List[str],
     environment: str,
     wait_for_completion: bool,
     timeout_minutes: int,
 ) -> None:
     """
-    Trigger execution for Matillion pipelines.
+    Trigger execution for Matillion Data Productivity Cloud pipelines.
     """
-    click.echo(f"Starting execution for {len(pipeline_id)} Matillion pipeline(s)...")
+    click.echo(f"Starting execution for {len(pipeline_name)} Matillion pipeline(s)...")
 
     try:
         results = trigger_matillion_pipeline(
             base_url=base_url,
-            api_token=api_token,
-            pipeline_ids=list(pipeline_id),
+            client_id=client_id,
+            client_secret=client_secret,
+            project_id=project_id,
+            pipeline_names=list(pipeline_name),
             environment=environment,
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
@@ -82,12 +100,22 @@ def matillion_pipeline(
 @env_click_option(
     "base-url",
     "MATILLION_BASE_URL",
-    help="Your Matillion instance base URL (e.g., https://your-instance.matillion.com)",
+    help="Your Matillion DPC API base URL (e.g., https://us1.api.matillion.com or https://eu1.api.matillion.com)",
 )
 @env_click_option(
-    "api-token",
-    "MATILLION_API_TOKEN",
-    help="Your Matillion API token. You can generate this in your Matillion account settings.",
+    "client-id",
+    "MATILLION_CLIENT_ID",
+    help="Your Matillion OAuth client ID. Generate this in your Matillion account settings.",
+)
+@env_click_option(
+    "client-secret",
+    "MATILLION_CLIENT_SECRET",
+    help="Your Matillion OAuth client secret. Generate this in your Matillion account settings.",
+)
+@click.option(
+    "--project-id",
+    help="The Matillion project ID",
+    required=True,
 )
 @click.option(
     "--environment",
@@ -96,11 +124,13 @@ def matillion_pipeline(
 )
 def matillion_list_pipelines(
     base_url: str,
-    api_token: str,
+    client_id: str,
+    client_secret: str,
+    project_id: str,
     environment: Optional[str],
 ) -> None:
     """
-    List all available Matillion pipelines with their status.
+    List all available Matillion Data Productivity Cloud published pipelines.
     """
     if environment:
         click.echo(f"Listing Matillion pipelines for environment {environment}...")
@@ -109,6 +139,41 @@ def matillion_list_pipelines(
 
     list_matillion_pipelines(
         base_url=base_url,
-        api_token=api_token,
+        client_id=client_id,
+        client_secret=client_secret,
+        project_id=project_id,
         environment=environment,
+    )
+
+
+@click.command(context_settings=dict(max_content_width=160))
+@env_click_option(
+    "base-url",
+    "MATILLION_BASE_URL",
+    help="Your Matillion DPC API base URL (e.g., https://us1.api.matillion.com or https://eu1.api.matillion.com)",
+)
+@env_click_option(
+    "client-id",
+    "MATILLION_CLIENT_ID",
+    help="Your Matillion OAuth client ID. Generate this in your Matillion account settings.",
+)
+@env_click_option(
+    "client-secret",
+    "MATILLION_CLIENT_SECRET",
+    help="Your Matillion OAuth client secret. Generate this in your Matillion account settings.",
+)
+def matillion_list_projects(
+    base_url: str,
+    client_id: str,
+    client_secret: str,
+) -> None:
+    """
+    List all available Matillion Data Productivity Cloud projects.
+    """
+    click.echo("Listing all Matillion projects...")
+
+    list_matillion_projects(
+        base_url=base_url,
+        client_id=client_id,
+        client_secret=client_secret,
     )
