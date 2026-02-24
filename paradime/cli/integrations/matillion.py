@@ -129,10 +129,7 @@ def matillion_list_pipelines(
     """
     List all available Matillion Data Productivity Cloud published pipelines.
     """
-    if environment:
-        click.echo(f"Listing Matillion pipelines for environment {environment}...")
-    else:
-        click.echo("Listing all Matillion pipelines...")
+    click.echo(f"Listing Matillion pipelines for environment {environment}...")
 
     list_matillion_pipelines(
         base_url=base_url,

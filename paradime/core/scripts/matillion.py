@@ -1,14 +1,11 @@
-import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 from typing import List
 
 import requests
 
 from paradime.core.scripts.utils import handle_http_error
-
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 def _get_access_token(*, client_id: str, client_secret: str) -> str:
@@ -45,25 +42,20 @@ def _get_access_token(*, client_id: str, client_secret: str) -> str:
     return token_data.get("access_token")
 
 
-def _resolve_project_id(
+def _fetch_all_projects(
     *,
     base_url: str,
     access_token: str,
-    project_name: str,
-) -> str:
+) -> list:
     """
-    Resolve a project name to its UUID by listing projects.
+    Fetch all Matillion projects with pagination.
 
     Args:
         base_url: Matillion DPC API base URL
         access_token: OAuth access token
-        project_name: Project name to look up
 
     Returns:
-        Project UUID
-
-    Raises:
-        Exception: If project name is not found or matches multiple projects
+        List of project dicts
     """
     headers = {
         "Authorization": f"Bearer {access_token}",
@@ -96,6 +88,30 @@ def _resolve_project_id(
 
         page += 1
 
+    return all_projects
+
+
+def _resolve_project_id(
+    *,
+    base_url: str,
+    access_token: str,
+    project_name: str,
+) -> str:
+    """
+    Resolve a project name to its UUID by listing projects.
+
+    Args:
+        base_url: Matillion DPC API base URL
+        access_token: OAuth access token
+        project_name: Project name to look up
+
+    Returns:
+        Project UUID
+
+    Raises:
+        Exception: If project name is not found or matches multiple projects
+    """
+    all_projects = _fetch_all_projects(base_url=base_url, access_token=access_token)
     matches = [p for p in all_projects if p.get("name") == project_name]
 
     if not matches:
@@ -256,9 +272,7 @@ def trigger_single_pipeline(
         "Content-Type": "application/json",
     }
 
-    import datetime
-
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    timestamp = datetime.now().strftime("%H:%M:%S")
 
     # Trigger the pipeline execution
     # Endpoint: POST /dpc/v1/projects/{projectId}/pipeline-executions
@@ -368,9 +382,7 @@ def _wait_for_execution_completion(
 
             # Log progress every 6 checks (30 seconds)
             if counter == 0 or counter % 6 == 0:
-                import datetime
-
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                timestamp = datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
                 if status in ["RUNNING", "QUEUED"]:
@@ -380,9 +392,7 @@ def _wait_for_execution_completion(
 
             # Check if execution is complete
             if status == "SUCCESS":
-                import datetime
-
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                timestamp = datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
                 print(
@@ -391,9 +401,7 @@ def _wait_for_execution_completion(
                 return "SUCCESS"
 
             elif status in ["FAILED", "ERROR"]:
-                import datetime
-
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                timestamp = datetime.now().strftime("%H:%M:%S")
                 print(f"{timestamp} ❌ [{pipeline_name}] Execution failed")
                 error_message = result.get(
                     "message", execution_data.get("message", "No error details available")
@@ -401,9 +409,7 @@ def _wait_for_execution_completion(
                 return f"FAILED: {error_message}"
 
             elif status in ["CANCELLED", "CANCELED"]:
-                import datetime
-
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                timestamp = datetime.now().strftime("%H:%M:%S")
                 print(f"{timestamp} ⚠️  [{pipeline_name}] Execution was cancelled")
                 return "CANCELLED"
 
@@ -419,9 +425,7 @@ def _wait_for_execution_completion(
             time.sleep(sleep_interval)
 
         except requests.exceptions.RequestException as e:
-            import datetime
-
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+            timestamp = datetime.now().strftime("%H:%M:%S")
             print(f"{timestamp} ⚠️  [{pipeline_name}] Network error: {str(e)[:50]}... Retrying.")
             time.sleep(sleep_interval)
             continue
@@ -443,81 +447,15 @@ def list_matillion_projects(
     """
     base_url = base_url.rstrip("/")
 
-    # Get OAuth access token
     print("🔐 Authenticating with Matillion DPC API...")
     access_token = _get_access_token(
         client_id=client_id,
         client_secret=client_secret,
     )
 
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-
-    # List projects with pagination
-    # Endpoint: GET /dpc/v1/projects
-    url = f"{base_url}/dpc/v1/projects"
-
     print("\n🔍 Listing all projects")
 
-    # Start with first page
-    all_projects = []
-    page = 0
-    page_size = 25
-
-    while True:
-        params = {
-            "page": page,
-            "size": page_size,
-        }
-
-        projects_response = requests.get(
-            url,
-            headers=headers,
-            params=params,
-        )
-
-        handle_http_error(projects_response, "Error getting projects:")
-
-        # Handle empty response
-        if not projects_response.text or projects_response.text.strip() == "":
-            break
-
-        try:
-            projects_data = projects_response.json()
-        except Exception as e:
-            content_type = projects_response.headers.get("Content-Type", "")
-            print(f"❌ Error parsing response: {str(e)}")
-            print(f"Response status: {projects_response.status_code}")
-            print(f"Response content-type: {content_type}")
-            print(f"Response text (first 500 chars): {projects_response.text[:500]}")
-            raise
-
-        # Extract projects from paginated response
-        if not projects_data or not isinstance(projects_data, dict):
-            break
-
-        projects = projects_data.get("results", [])
-        if not projects:
-            if page == 0:
-                print("\n⚠️  No projects returned by API")
-                print("   This could mean:")
-                print("   1. The OAuth client doesn't have permission to list projects")
-                print("   2. Projects exist but aren't visible to this API client")
-                print(
-                    "   3. You may need to assign the API client to projects in Matillion settings"
-                )
-            break
-
-        all_projects.extend(projects)
-
-        # Check if there are more pages
-        total = projects_data.get("total", 0)
-        if len(all_projects) >= total:
-            break
-
-        page += 1
+    all_projects = _fetch_all_projects(base_url=base_url, access_token=access_token)
 
     if not all_projects:
         print("No projects found.")
@@ -580,54 +518,20 @@ def list_matillion_pipelines(
         "Content-Type": "application/json",
     }
 
-    # List published pipelines
-    # Endpoint: GET /dpc/v1/projects/{projectId}/published-pipelines
     url = f"{base_url}/dpc/v1/projects/{project_id}/published-pipelines"
 
-    if environment:
-        print(f"\n🔍 Listing pipelines for environment: {environment}")
-    else:
-        print("\n🔍 Listing all published pipelines")
+    print(f"\n🔍 Listing pipelines for environment: {environment}")
 
     pipelines_response = requests.get(
         url,
         headers=headers,
-        params={
-            "environmentName": environment,
-        },
+        params={"environmentName": environment},
     )
 
     handle_http_error(pipelines_response, "Error getting pipelines:")
 
-    # Handle empty response
-    if not pipelines_response.text or pipelines_response.text.strip() == "":
-        print("No pipelines found (empty response).")
-        return
-
-    try:
-        pipelines_data = pipelines_response.json()
-    except Exception as e:
-        content_type = pipelines_response.headers.get("Content-Type", "")
-        print(f"❌ Error parsing response: {str(e)}")
-        print(f"Response status: {pipelines_response.status_code}")
-        print(f"Response content-type: {content_type}")
-        print(f"Response text (first 500 chars): {pipelines_response.text[:500]}")
-        raise
-
-    # Handle different response structures
-    if not pipelines_data:
-        print("No pipelines found.")
-        return
-
-    # Extract pipelines array
-    # Matillion DPC API returns paginated results with "results" field
-    if isinstance(pipelines_data, dict):
-        pipelines = pipelines_data.get("results", pipelines_data.get("pipelines", []))
-    elif isinstance(pipelines_data, list):
-        pipelines = pipelines_data
-    else:
-        print("No pipelines found (unexpected response format).")
-        return
+    pipelines_data = pipelines_response.json()
+    pipelines = pipelines_data.get("results", [])
 
     if not pipelines:
         print("No pipelines found.")
@@ -638,17 +542,11 @@ def list_matillion_pipelines(
     print(f"{'='*80}")
 
     for i, pipeline in enumerate(pipelines, 1):
-        # Handle different field name formats
-        pipeline_name = pipeline.get("pipelineName", pipeline.get("name", "Unknown"))
-        environment_name = pipeline.get("environmentName", pipeline.get("environment", "Unknown"))
-        pipeline_id = pipeline.get("id", "Unknown")
-        published_time = pipeline.get("publishedTime", pipeline.get("publishedAt", "N/A"))
+        pipeline_name = pipeline.get("name", "Unknown")
+        published_time = pipeline.get("publishedTime", "N/A")
 
         print(f"\n[{i}/{len(pipelines)}] 📊 {pipeline_name}")
         print(f"{'-'*50}")
-        print(f"   Environment: {environment_name}")
-        if pipeline_id != "Unknown":
-            print(f"   Pipeline ID: {pipeline_id}")
         if published_time != "N/A":
             print(f"   Published: {published_time}")
 
