@@ -1,5 +1,5 @@
 import sys
-from typing import List, Optional
+from typing import List
 
 import click
 
@@ -28,12 +28,12 @@ from paradime.core.scripts.matillion import (
     help="Your Matillion OAuth client secret. Generate this in your Matillion account settings.",
 )
 @click.option(
-    "--project-id",
-    help="The Matillion project ID",
+    "--project-name",
+    help="The Matillion project name",
     required=True,
 )
 @click.option(
-    "--pipeline-name",
+    "--pipeline-names",
     multiple=True,
     help="The name(s) of the pipeline(s) you want to execute",
     required=True,
@@ -44,8 +44,7 @@ from paradime.core.scripts.matillion import (
     required=True,
 )
 @click.option(
-    "--wait-for-completion",
-    is_flag=True,
+    "--wait-for-completion/--no-wait-for-completion",
     help="Wait for pipeline executions to complete before returning",
     default=True,
 )
@@ -59,8 +58,8 @@ def matillion_pipeline(
     base_url: str,
     client_id: str,
     client_secret: str,
-    project_id: str,
-    pipeline_name: List[str],
+    project_name: str,
+    pipeline_names: List[str],
     environment: str,
     wait_for_completion: bool,
     timeout_minutes: int,
@@ -68,15 +67,15 @@ def matillion_pipeline(
     """
     Trigger execution for Matillion Data Productivity Cloud pipelines.
     """
-    click.echo(f"Starting execution for {len(pipeline_name)} Matillion pipeline(s)...")
+    click.echo(f"Starting execution for {len(pipeline_names)} Matillion pipeline(s)...")
 
     try:
         results = trigger_matillion_pipeline(
             base_url=base_url,
             client_id=client_id,
             client_secret=client_secret,
-            project_id=project_id,
-            pipeline_names=list(pipeline_name),
+            project_name=project_name,
+            pipeline_names=list(pipeline_names),
             environment=environment,
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
@@ -84,9 +83,7 @@ def matillion_pipeline(
 
         # Check if any executions failed or were cancelled
         failed_executions = [
-            result
-            for result in results
-            if "FAILED" in result or "CANCELLED" in result
+            result for result in results if "FAILED" in result or "CANCELLED" in result
         ]
         if failed_executions:
             sys.exit(1)
@@ -113,20 +110,20 @@ def matillion_pipeline(
     help="Your Matillion OAuth client secret. Generate this in your Matillion account settings.",
 )
 @click.option(
-    "--project-id",
-    help="The Matillion project ID",
+    "--project-name",
+    help="The Matillion project name",
     required=True,
 )
 @click.option(
     "--environment",
-    help="Optional environment name to filter pipelines by environment",
+    help="The Matillion environment name to filter pipelines by",
     required=True,
 )
 def matillion_list_pipelines(
     base_url: str,
     client_id: str,
     client_secret: str,
-    project_id: str,
+    project_name: str,
     environment: str,
 ) -> None:
     """
@@ -141,7 +138,7 @@ def matillion_list_pipelines(
         base_url=base_url,
         client_id=client_id,
         client_secret=client_secret,
-        project_id=project_id,
+        project_name=project_name,
         environment=environment,
     )
 

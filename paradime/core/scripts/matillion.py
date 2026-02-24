@@ -1,7 +1,7 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
+from typing import List
 
 import requests
 
@@ -45,12 +45,81 @@ def _get_access_token(*, client_id: str, client_secret: str) -> str:
     return token_data.get("access_token")
 
 
+def _resolve_project_id(
+    *,
+    base_url: str,
+    access_token: str,
+    project_name: str,
+) -> str:
+    """
+    Resolve a project name to its UUID by listing projects.
+
+    Args:
+        base_url: Matillion DPC API base URL
+        access_token: OAuth access token
+        project_name: Project name to look up
+
+    Returns:
+        Project UUID
+
+    Raises:
+        Exception: If project name is not found or matches multiple projects
+    """
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    url = f"{base_url}/dpc/v1/projects"
+    all_projects = []
+    page = 0
+    page_size = 25
+
+    while True:
+        params = {"page": page, "size": page_size}
+        response = requests.get(url, headers=headers, params=params)
+        handle_http_error(response, "Error listing projects:")
+
+        data = response.json()
+        if not data or not isinstance(data, dict):
+            break
+
+        projects = data.get("results", [])
+        if not projects:
+            break
+
+        all_projects.extend(projects)
+
+        total = data.get("total", 0)
+        if len(all_projects) >= total:
+            break
+
+        page += 1
+
+    matches = [p for p in all_projects if p.get("name") == project_name]
+
+    if not matches:
+        available = [p.get("name", "Unknown") for p in all_projects]
+        raise Exception(f"Project '{project_name}' not found. Available projects: {available}")
+
+    if len(matches) > 1:
+        ids = [p.get("id") for p in matches]
+        raise Exception(
+            f"Multiple projects found with name '{project_name}': {ids}. "
+            f"This is unexpected — please contact support."
+        )
+
+    project_id = matches[0]["id"]
+    print(f"📁 Resolved project '{project_name}' -> {project_id}")
+    return project_id
+
+
 def trigger_matillion_pipeline(
     *,
     base_url: str,
     client_id: str,
     client_secret: str,
-    project_id: str,
+    project_name: str,
     pipeline_names: List[str],
     environment: str,
     wait_for_completion: bool = True,
@@ -63,7 +132,7 @@ def trigger_matillion_pipeline(
         base_url: Matillion DPC API base URL (e.g., https://us1.api.matillion.com)
         client_id: OAuth client ID
         client_secret: OAuth client secret
-        project_id: Matillion project ID
+        project_name: Matillion project name (will be resolved to project ID)
         pipeline_names: List of pipeline names to execute
         environment: Matillion environment name
         wait_for_completion: Whether to wait for executions to complete
@@ -80,6 +149,14 @@ def trigger_matillion_pipeline(
     access_token = _get_access_token(
         client_id=client_id,
         client_secret=client_secret,
+    )
+
+    # Resolve project name to ID
+    base_url = base_url.rstrip("/")
+    project_id = _resolve_project_id(
+        base_url=base_url,
+        access_token=access_token,
+        project_name=project_name,
     )
 
     # Add visual separator and header
@@ -271,7 +348,9 @@ def _wait_for_execution_completion(
         try:
             # Get execution status
             # Endpoint: GET /dpc/v1/projects/{projectId}/pipeline-executions/{executionId}
-            status_url = f"{base_url}/dpc/v1/projects/{project_id}/pipeline-executions/{execution_id}"
+            status_url = (
+                f"{base_url}/dpc/v1/projects/{project_id}/pipeline-executions/{execution_id}"
+            )
             execution_response = requests.get(
                 status_url,
                 headers=headers,
@@ -283,8 +362,9 @@ def _wait_for_execution_completion(
                 )
 
             execution_data = execution_response.json()
-            # Matillion DPC uses 'status' field with values like: RUNNING, SUCCESS, FAILED
-            status = execution_data.get("status", "UNKNOWN").upper()
+            # Matillion DPC nests status under "result": {"status": "RUNNING", ...}
+            result = execution_data.get("result", {})
+            status = result.get("status", execution_data.get("status", "UNKNOWN")).upper()
 
             # Log progress every 6 checks (30 seconds)
             if counter == 0 or counter % 6 == 0:
@@ -315,7 +395,9 @@ def _wait_for_execution_completion(
 
                 timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 print(f"{timestamp} ❌ [{pipeline_name}] Execution failed")
-                error_message = execution_data.get("message", "No error details available")
+                error_message = result.get(
+                    "message", execution_data.get("message", "No error details available")
+                )
                 return f"FAILED: {error_message}"
 
             elif status in ["CANCELLED", "CANCELED"]:
@@ -412,17 +494,6 @@ def list_matillion_projects(
             print(f"Response text (first 500 chars): {projects_response.text[:500]}")
             raise
 
-        # Debug: show what we received
-        if page == 0:
-            print(f"\n🔍 Debug - API Response:")
-            print(f"   Status: {projects_response.status_code}")
-            print(f"   Response keys: {list(projects_data.keys()) if isinstance(projects_data, dict) else 'Not a dict'}")
-            if isinstance(projects_data, dict):
-                print(f"   Total projects: {projects_data.get('total', 'N/A')}")
-                print(f"   Page: {projects_data.get('page', 'N/A')}")
-                print(f"   Size: {projects_data.get('size', 'N/A')}")
-                print(f"   Results count: {len(projects_data.get('results', []))}")
-
         # Extract projects from paginated response
         if not projects_data or not isinstance(projects_data, dict):
             break
@@ -430,11 +501,13 @@ def list_matillion_projects(
         projects = projects_data.get("results", [])
         if not projects:
             if page == 0:
-                print(f"\n⚠️  No projects returned by API")
-                print(f"   This could mean:")
-                print(f"   1. The OAuth client doesn't have permission to list projects")
-                print(f"   2. Projects exist but aren't visible to this API client")
-                print(f"   3. You may need to assign the API client to projects in Matillion settings")
+                print("\n⚠️  No projects returned by API")
+                print("   This could mean:")
+                print("   1. The OAuth client doesn't have permission to list projects")
+                print("   2. Projects exist but aren't visible to this API client")
+                print(
+                    "   3. You may need to assign the API client to projects in Matillion settings"
+                )
             break
 
         all_projects.extend(projects)
@@ -473,7 +546,7 @@ def list_matillion_pipelines(
     base_url: str,
     client_id: str,
     client_secret: str,
-    project_id: str,
+    project_name: str,
     environment: str,
 ) -> None:
     """
@@ -483,8 +556,8 @@ def list_matillion_pipelines(
         base_url: Matillion DPC API base URL (e.g., https://us1.api.matillion.com)
         client_id: OAuth client ID
         client_secret: OAuth client secret
-        project_id: Matillion project ID
-        environment: Optional environment name to filter pipelines
+        project_name: Matillion project name (will be resolved to project ID)
+        environment: Matillion environment name to filter pipelines
     """
     base_url = base_url.rstrip("/")
 
@@ -493,6 +566,13 @@ def list_matillion_pipelines(
     access_token = _get_access_token(
         client_id=client_id,
         client_secret=client_secret,
+    )
+
+    # Resolve project name to ID
+    project_id = _resolve_project_id(
+        base_url=base_url,
+        access_token=access_token,
+        project_name=project_name,
     )
 
     headers = {
