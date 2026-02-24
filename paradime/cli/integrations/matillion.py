@@ -120,14 +120,14 @@ def matillion_pipeline(
 @click.option(
     "--environment",
     help="Optional environment name to filter pipelines by environment",
-    required=False,
+    required=True,
 )
 def matillion_list_pipelines(
     base_url: str,
     client_id: str,
     client_secret: str,
     project_id: str,
-    environment: Optional[str],
+    environment: str,
 ) -> None:
     """
     List all available Matillion Data Productivity Cloud published pipelines.

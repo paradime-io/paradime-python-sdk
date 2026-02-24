@@ -474,7 +474,7 @@ def list_matillion_pipelines(
     client_id: str,
     client_secret: str,
     project_id: str,
-    environment: Optional[str] = None,
+    environment: str,
 ) -> None:
     """
     List all Matillion pipelines (published pipelines) with their status.
@@ -512,6 +512,9 @@ def list_matillion_pipelines(
     pipelines_response = requests.get(
         url,
         headers=headers,
+        params={
+            "environmentName": environment,
+        },
     )
 
     handle_http_error(pipelines_response, "Error getting pipelines:")
@@ -545,10 +548,6 @@ def list_matillion_pipelines(
     else:
         print("No pipelines found (unexpected response format).")
         return
-
-    # Filter by environment if specified
-    if environment:
-        pipelines = [p for p in pipelines if p.get("environmentName") == environment]
 
     if not pipelines:
         print("No pipelines found.")
