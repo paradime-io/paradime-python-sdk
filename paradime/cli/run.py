@@ -25,6 +25,7 @@ from paradime.cli.integrations.gcp_cloud_function import (
 )
 from paradime.cli.integrations.gcp_cloud_run import gcp_cloud_run_list, gcp_cloud_run_trigger
 from paradime.cli.integrations.gcp_dataflow import gcp_dataflow_list, gcp_dataflow_trigger
+from paradime.cli.integrations.gcp_dataproc import gcp_dataproc_list_clusters, gcp_dataproc_trigger
 from paradime.cli.integrations.hex import hex_list_projects, hex_trigger
 from paradime.cli.integrations.hightouch import (
     hightouch_list_sync_sequences,
@@ -91,3 +92,5 @@ run.add_command(gcp_cloud_run_list)
 run.add_command(gcp_cloud_run_trigger)
 run.add_command(gcp_dataflow_list)
 run.add_command(gcp_dataflow_trigger)
+run.add_command(gcp_dataproc_list_clusters)
+run.add_command(gcp_dataproc_trigger)
