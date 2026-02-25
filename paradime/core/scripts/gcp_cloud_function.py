@@ -210,10 +210,9 @@ def list_cloud_functions(
         name = func.name.split("/")[-1]
         state = functions_v2.Function.State(func.state).name
         state_emoji = (
-            "✅" if state == "ACTIVE"
-            else "🔄" if state == "DEPLOYING"
-            else "❌" if state == "FAILED"
-            else "❓"
+            "✅"
+            if state == "ACTIVE"
+            else "🔄" if state == "DEPLOYING" else "❌" if state == "FAILED" else "❓"
         )
 
         url = func.service_config.uri if func.service_config else "N/A"
