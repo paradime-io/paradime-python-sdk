@@ -19,6 +19,10 @@ from paradime.cli.integrations.aws_stepfunctions import (
 )
 from paradime.cli.integrations.census import census_list_syncs, census_sync
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync
+from paradime.cli.integrations.gcp_cloud_function import (
+    gcp_cloud_function_list,
+    gcp_cloud_function_trigger,
+)
 from paradime.cli.integrations.hex import hex_list_projects, hex_trigger
 from paradime.cli.integrations.hightouch import (
     hightouch_list_sync_sequences,
@@ -79,3 +83,5 @@ run.add_command(hightouch_sync)
 run.add_command(hightouch_sync_sequence)
 run.add_command(hightouch_list_syncs)
 run.add_command(hightouch_list_sync_sequences)
+run.add_command(gcp_cloud_function_trigger)
+run.add_command(gcp_cloud_function_list)
