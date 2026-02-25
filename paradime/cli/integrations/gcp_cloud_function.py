@@ -4,10 +4,7 @@ from typing import List, Optional
 import click
 
 from paradime.cli.utils import env_click_option
-from paradime.core.scripts.gcp_cloud_function import (
-    list_cloud_functions,
-    trigger_cloud_functions,
-)
+from paradime.core.scripts.gcp_cloud_function import list_cloud_functions, trigger_cloud_functions
 
 
 @click.command(context_settings=dict(max_content_width=160))
