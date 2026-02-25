@@ -121,6 +121,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
 .venv
 env/
 venv/
@@ -160,3 +161,4 @@ cython_debug/
 .idea
 
 paradime_schedules.yml
+paradime-sa-key.json
