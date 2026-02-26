@@ -32,6 +32,11 @@ from paradime.cli.integrations.hightouch import (
     hightouch_sync,
     hightouch_sync_sequence,
 )
+from paradime.cli.integrations.matillion import (
+    matillion_list_pipelines,
+    matillion_list_projects,
+    matillion_pipeline,
+)
 from paradime.cli.integrations.montecarlo import montecarlo_artifacts_import
 from paradime.cli.integrations.power_bi import power_bi_list_datasets, power_bi_refresh
 from paradime.cli.integrations.tableau import (
@@ -90,3 +95,6 @@ run.add_command(gcp_cloud_function_list)
 run.add_command(gcp_cloud_run_list)
 run.add_command(gcp_cloud_run_trigger)
 run.add_command(gcp_dataflow_trigger)
+run.add_command(matillion_pipeline)
+run.add_command(matillion_list_pipelines)
+run.add_command(matillion_list_projects)
