@@ -4,7 +4,7 @@ from typing import Optional
 import click
 
 from paradime.cli.utils import env_click_option
-from paradime.core.scripts.gcp_dataflow import list_dataflow_jobs, trigger_dataflow_job
+from paradime.core.scripts.gcp_dataflow import trigger_dataflow_job
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -91,36 +91,3 @@ def gcp_dataflow_trigger(
     except Exception as e:
         click.echo(f"❌ Dataflow job launch failed: {str(e)}")
         raise click.Abort()
-
-
-@click.command(context_settings=dict(max_content_width=160))
-@env_click_option(
-    "service-account-key-file",
-    "GCP_SERVICE_ACCOUNT_KEY_FILE",
-    help="Path to your GCP service account JSON key file.",
-)
-@env_click_option(
-    "project",
-    "GCP_PROJECT_ID",
-    help="Your GCP project ID.",
-)
-@env_click_option(
-    "location",
-    "GCP_LOCATION",
-    help="GCP region (e.g. 'us-central1').",
-)
-def gcp_dataflow_list(
-    service_account_key_file: str,
-    project: str,
-    location: str,
-) -> None:
-    """
-    List Dataflow jobs in the specified project and region.
-    """
-    click.echo("Listing Dataflow jobs...")
-
-    list_dataflow_jobs(
-        service_account_key_file=service_account_key_file,
-        project=project,
-        location=location,
-    )
