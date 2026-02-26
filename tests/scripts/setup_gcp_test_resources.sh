@@ -37,7 +37,9 @@ PROJECT_ID="$1"
 REGION="${2:-us-central1}"
 SA_NAME="paradime-sdk-test"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-KEY_FILE="$(pwd)/paradime-sa-key.json"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+KEY_FILE="${REPO_ROOT}/paradime-sa-key.json"
 BUCKET_NAME="${PROJECT_ID}-paradime-test"
 BQ_LOCATION="us"  # BigQuery Data Transfer uses multi-region locations
 
@@ -346,7 +348,7 @@ echo ""
 # Step 10: Generate .env file
 # ---------------------------------------------------------
 echo ">>> Step 10: Generating .env file..."
-ENV_FILE="$(pwd)/.env.gcp-test"
+ENV_FILE="${REPO_ROOT}/.env.gcp-test"
 cat > "${ENV_FILE}" << ENVEOF
 # GCP Test Environment Variables for Paradime SDK
 # Generated on $(date -u +"%Y-%m-%dT%H:%M:%SZ")

@@ -22,6 +22,8 @@ PROJECT_ID="$1"
 REGION="${2:-us-central1}"
 SA_NAME="paradime-sdk-test"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 BUCKET_NAME="${PROJECT_ID}-paradime-test"
 
 echo "============================================================"
@@ -40,8 +42,8 @@ echo "    - GCS bucket: gs://${BUCKET_NAME}"
 echo "    - BigQuery dataset: paradime_test"
 echo "    - BigQuery scheduled queries named 'paradime-test-scheduled-query'"
 echo "    - Service account: ${SA_EMAIL}"
-echo "    - Local key file: paradime-sa-key.json"
-echo "    - Local .env file: .env.gcp-test"
+echo "    - Local key file: ${REPO_ROOT}/paradime-sa-key.json"
+echo "    - Local .env file: ${REPO_ROOT}/.env.gcp-test"
 echo ""
 read -p "  Are you sure? (y/N) " -n 1 -r
 echo ""
@@ -140,18 +142,18 @@ gcloud iam service-accounts delete "${SA_EMAIL}" \
 # Local files
 # ---------------------------------------------------------
 echo ">>> Cleaning up local files..."
-if [ -f "paradime-sa-key.json" ]; then
-    rm "paradime-sa-key.json"
-    echo "    ✅ Deleted paradime-sa-key.json"
+if [ -f "${REPO_ROOT}/paradime-sa-key.json" ]; then
+    rm "${REPO_ROOT}/paradime-sa-key.json"
+    echo "    ✅ Deleted ${REPO_ROOT}/paradime-sa-key.json"
 else
-    echo "    ⚠️ paradime-sa-key.json not found."
+    echo "    ⚠️ ${REPO_ROOT}/paradime-sa-key.json not found."
 fi
 
-if [ -f ".env.gcp-test" ]; then
-    rm ".env.gcp-test"
-    echo "    ✅ Deleted .env.gcp-test"
+if [ -f "${REPO_ROOT}/.env.gcp-test" ]; then
+    rm "${REPO_ROOT}/.env.gcp-test"
+    echo "    ✅ Deleted ${REPO_ROOT}/.env.gcp-test"
 else
-    echo "    ⚠️ .env.gcp-test not found."
+    echo "    ⚠️ ${REPO_ROOT}/.env.gcp-test not found."
 fi
 
 echo ""
