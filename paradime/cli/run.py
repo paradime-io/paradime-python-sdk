@@ -24,7 +24,7 @@ from paradime.cli.integrations.gcp_cloud_function import (
     gcp_cloud_function_trigger,
 )
 from paradime.cli.integrations.gcp_cloud_run import gcp_cloud_run_list, gcp_cloud_run_trigger
-from paradime.cli.integrations.gcp_dataflow import gcp_dataflow_list, gcp_dataflow_trigger
+from paradime.cli.integrations.gcp_dataflow import gcp_dataflow_trigger
 from paradime.cli.integrations.gcp_dataproc import gcp_dataproc_list_clusters, gcp_dataproc_trigger
 from paradime.cli.integrations.hex import hex_list_projects, hex_trigger
 from paradime.cli.integrations.hightouch import (
@@ -32,6 +32,11 @@ from paradime.cli.integrations.hightouch import (
     hightouch_list_syncs,
     hightouch_sync,
     hightouch_sync_sequence,
+)
+from paradime.cli.integrations.matillion import (
+    matillion_list_pipelines,
+    matillion_list_projects,
+    matillion_pipeline,
 )
 from paradime.cli.integrations.montecarlo import montecarlo_artifacts_import
 from paradime.cli.integrations.power_bi import power_bi_list_datasets, power_bi_refresh
@@ -90,7 +95,9 @@ run.add_command(gcp_cloud_function_trigger)
 run.add_command(gcp_cloud_function_list)
 run.add_command(gcp_cloud_run_list)
 run.add_command(gcp_cloud_run_trigger)
-run.add_command(gcp_dataflow_list)
 run.add_command(gcp_dataflow_trigger)
 run.add_command(gcp_dataproc_list_clusters)
 run.add_command(gcp_dataproc_trigger)
+run.add_command(matillion_pipeline)
+run.add_command(matillion_list_pipelines)
+run.add_command(matillion_list_projects)
