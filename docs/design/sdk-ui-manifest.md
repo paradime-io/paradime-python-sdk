@@ -17,26 +17,29 @@ A single, standardised manifest per integration that defines:
 - What fields each command needs (with types, validation, and UI hints)
 - How fields relate to each other (conditional visibility, dependencies)
 - Which fields need dynamic data resolved at runtime (e.g., "list of connectors")
+- Help URLs at both the integration level and individual field level for contextual documentation
+- Encoding hints (e.g., base64) so the frontend can encode field values before submission
 - Enough information for the CLI, the backend API, and the frontend to all work from the same definition
 
 ---
 
 ## Architecture Overview
 
+The SDK provides the **schema models** (Pydantic classes) and a **registry** for manifests. The per-integration manifest instances are defined in the **backend repo**, not in the SDK. This keeps the UI-specific definitions (help URLs, field ordering, encoding hints) close to the API layer that serves them and the frontend that consumes them, while the SDK remains focused on core function implementations and the shared type vocabulary.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                     SDK (this repo)                         │
 │                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  │
-│  │  Integration  │  │  Integration │  │  Integration     │  │
-│  │  Manifest     │──│  Core Funcs  │──│  CLI (generated) │  │
-│  │  (source of   │  │  (execute)   │  │  (auto-derived)  │  │
-│  │   truth)      │  │              │  │                  │  │
+│  │  Schema       │  │  Integration │  │  Integration     │  │
+│  │  Models       │  │  Core Funcs  │  │  CLI commands    │  │
+│  │  (Pydantic)   │  │  (execute)   │  │  (Click)         │  │
 │  └──────┬───────┘  └──────────────┘  └──────────────────┘  │
 │         │                                                   │
 │  ┌──────▼───────┐                                           │
-│  │  Registry     │  ← collects all integration manifests    │
-│  └──────┬───────┘                                           │
+│  │  Registry     │  ← provides register/lookup/serialize    │
+│  └──────┬───────┘    (populated by backend at startup)      │
 └─────────┼───────────────────────────────────────────────────┘
           │
           │  SDK is a dependency
@@ -44,19 +47,23 @@ A single, standardised manifest per integration that defines:
 ┌─────────────────────────────────────────────────────────────┐
 │                  paradime-backend                            │
 │                                                             │
-│  ┌──────────────────┐     ┌─────────────────────────────┐  │
-│  │  /integrations    │     │  Dynamic Field Resolver      │  │
-│  │  API endpoint     │     │  - calls list_connectors()   │  │
-│  │                   │     │  - calls list_workbooks()    │  │
-│  │  1. reads registry│     │  - populates dropdown opts   │  │
-│  │  2. resolves      │────▶│  - caches where appropriate  │  │
-│  │     dynamic fields│     │                              │  │
-│  │  3. returns JSON  │     └─────────────────────────────┘  │
-│  └────────┬─────────┘                                       │
-└───────────┼─────────────────────────────────────────────────┘
-            │
-            │  JSON response
-            ▼
+│  ┌──────────────────┐  ┌────────────────────────────────┐  │
+│  │  Integration      │  │  /integrations API endpoint    │  │
+│  │  Manifests        │  │                                │  │
+│  │  (source of truth)│  │  1. loads manifests into       │  │
+│  │                   │  │     SDK registry at startup    │  │
+│  │  fivetran.py      │  │  2. resolves dynamic fields    │  │
+│  │  tableau.py       │──│  3. returns JSON to frontend   │  │
+│  │  hightouch.py     │  │                                │  │
+│  │  ...              │  │  Dynamic Field Resolver        │  │
+│  │                   │  │  - calls list_connectors()     │  │
+│  └──────────────────┘  │  - populates dropdown opts     │  │
+│                         │  - caches where appropriate    │  │
+│                         └───────────┬────────────────────┘  │
+└─────────────────────────────────────┼───────────────────────┘
+                                      │
+                                      │  JSON response
+                                      ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  paradime-frontend                           │
 │                                                             │
@@ -67,6 +74,8 @@ A single, standardised manifest per integration that defines:
 │  │  - applies conditional visibility rules               │   │
 │  │  - handles repeatable field groups                    │   │
 │  │  - validates required/optional per schema             │   │
+│  │  - renders help_url links on integrations and fields  │   │
+│  │  - base64-encodes fields with encode: "base64"        │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -86,6 +95,7 @@ Each integration defines a manifest. The manifest is the single source of truth 
 | `description` | `string` | Short description shown in UI |
 | `icon` | `string` | Icon identifier (from Blueprint icons or a logo URL) |
 | `category` | `string` | Grouping category: `"etl"`, `"bi"`, `"orchestration"`, `"data-quality"`, etc. |
+| `help_url` | `string \| null` | URL linking to setup documentation for this integration. Frontend renders this as a help icon/link in the integration header (e.g., `"https://docs.paradime.io/integrations/fivetran"`). |
 | `auth_fields` | `list[Field]` | Credentials shared across all commands (e.g., api_key, api_secret) |
 | `commands` | `list[Command]` | The operations this integration supports |
 
@@ -121,6 +131,8 @@ This is the core of the UI manifest. Each field describes one parameter with eno
 | `dynamic_options` | `DynamicOptions \| null` | For dropdowns whose values come from a function call (see section 1.7) |
 | `group` | `string \| null` | Logical grouping for UI layout (fields with the same group render together) |
 | `order` | `int` | Display order within the command (lower = higher) |
+| `help_url` | `string \| null` | URL linking to documentation for this specific field. Frontend renders this as a small help icon next to the field label (e.g., `"https://fivetran.com/docs/rest-api/getting-started"` on the API key field). |
+| `encode` | `string \| null` | Encoding hint for the frontend. When set to `"base64"`, the frontend must base64-encode the raw field value before submitting it to the backend. Useful for JSON payloads, certificates, or other structured text that needs safe transport. Only applicable to `text` and `textarea` field types. |
 
 ### 1.4 Field Types
 
@@ -136,7 +148,7 @@ FieldType = "text" | "secret" | "number" | "dropdown" | "checkbox" | "switch" | 
 | `dropdown` | `--option VALUE` (type=Choice) | `<select>` | Static or dynamic options |
 | `checkbox` | `--flag / --no-flag` | `<input type="checkbox">` | Boolean toggle |
 | `switch` | `--flag / --no-flag` | `<Switch>` component | Same as checkbox, different visual |
-| `textarea` | N/A (UI only) | `<textarea>` | For longer text like JSON payloads |
+| `textarea` | N/A (UI only) | `<textarea>` | For longer text like JSON payloads. Supports `encode: "base64"` for safe transport of structured content. |
 
 ### 1.5 Validation Rules
 
@@ -226,82 +238,134 @@ The frontend does NOT call the resolver directly. The flow is:
 
 ---
 
-## Part 2: Where Manifests Live in the SDK
+## Part 2: Where Manifests Live
 
-### Proposed Directory Structure
+### Key Decision: Manifests Live in the Backend, Not the SDK
+
+The UI manifest definitions for each integration live in `paradime-backend`, **not** in this SDK repo. The SDK provides only the Pydantic schema models (the "vocabulary") and the registry infrastructure.
+
+**Why:**
+- The manifests are primarily consumed by the backend API and the frontend — they are UI/API artifacts, not SDK logic.
+- Help URLs, field ordering, encoding hints, and other UI-specific metadata change independently of the core Python functions.
+- The backend team can add or modify integration manifests without cutting a new SDK release.
+- Keeps the SDK focused on what it does well: core function implementations and the CLI.
+
+### SDK Directory Structure (this repo)
 
 ```
 paradime/
-├── integrations/              # NEW - unified integration definitions
-│   ├── __init__.py            # Registry: collects all manifests
-│   ├── _base.py               # Base classes / Pydantic models for manifest schema
-│   ├── fivetran/
-│   │   ├── __init__.py        # Exports the manifest
-│   │   ├── manifest.py        # The manifest definition (source of truth)
-│   │   ├── commands.py        # Core functions (moved from core/scripts/fivetran.py)
-│   │   └── cli.py             # CLI commands (auto-generated or thin wrapper)
-│   ├── tableau/
-│   │   ├── __init__.py
-│   │   ├── manifest.py
-│   │   ├── commands.py
-│   │   └── cli.py
-│   ├── hightouch/
-│   │   └── ...
-│   └── ...
+├── integrations/              # NEW - schema models + registry only
+│   ├── __init__.py            # Registry: register/lookup/serialize helpers
+│   └── _base.py               # Pydantic models for manifest schema
+├── cli/
+│   └── integrations/          # UNCHANGED - existing Click commands
+├── core/
+│   └── scripts/               # UNCHANGED - existing core functions
 ```
 
-### Why Co-locate
+### Backend Directory Structure (paradime-backend repo)
 
-- The manifest, the function it calls, and the CLI command it generates are all in the same directory. When you add a new integration, everything is in one place.
-- The manifest **is** the documentation for what the integration supports.
-- No drift between CLI options and UI fields because both are derived from the manifest.
+```
+paradime-backend/
+├── integrations/
+│   └── manifests/             # Per-integration manifest definitions
+│       ├── __init__.py        # Loads all manifests into registry at startup
+│       ├── fivetran.py        # Fivetran manifest instance
+│       ├── tableau.py         # Tableau manifest instance
+│       ├── hightouch.py       # Hightouch manifest instance
+│       ├── airbyte.py
+│       └── ...
+```
 
-### Migration Path
+Each backend manifest file imports the schema models from the SDK and instantiates them:
 
-This is a structural change but not a breaking one:
-1. Keep the existing `paradime/cli/integrations/` and `paradime/core/scripts/` working as-is.
-2. Build the new `paradime/integrations/` structure alongside them.
-3. Gradually migrate integrations one by one to the new structure.
-4. Once fully migrated, the old paths become thin re-exports for backward compatibility, then eventually get removed.
+```python
+# paradime-backend/integrations/manifests/fivetran.py
+from paradime.integrations._base import IntegrationManifest, Field, CommandManifest
+
+manifest = IntegrationManifest(
+    id="fivetran",
+    name="Fivetran",
+    help_url="https://docs.paradime.io/integrations/fivetran",
+    auth_fields=[
+        Field(
+            id="api_key",
+            label="API Key",
+            type="secret",
+            required=True,
+            help_url="https://fivetran.com/docs/rest-api/getting-started",
+            env_var="FIVETRAN_API_KEY",
+            description="Your Fivetran API key from account settings",
+        ),
+        ...
+    ],
+    commands=[...],
+)
+```
+
+### Separation of Concerns
+
+| Concern | Lives In | Why |
+|---|---|---|
+| Schema models (Pydantic) | SDK (`paradime/integrations/_base.py`) | Shared vocabulary: both SDK tests and backend import these |
+| Registry class | SDK (`paradime/integrations/__init__.py`) | Reusable register/lookup/serialize logic |
+| Core functions | SDK (`paradime/core/scripts/`) | Python implementation of integration actions |
+| CLI commands | SDK (`paradime/cli/integrations/`) | Click-based CLI interface |
+| **Manifest instances** | **Backend** (`integrations/manifests/`) | **UI-specific definitions, help URLs, field ordering, encoding hints** |
+| API endpoints | Backend | Serves manifests as JSON, resolves dynamic fields |
+| Form renderer | Frontend | Renders forms from manifest JSON |
 
 ---
 
 ## Part 3: The Registry
 
-The registry is the entry point that the backend uses to discover all available integrations and their manifests.
+The registry is a lightweight container defined in the SDK. The backend populates it at startup by registering manifest instances.
 
 ### Responsibilities
 
-1. **Discovery**: Collect all integration manifests at import time
+1. **Collection**: Accept manifest registrations from the backend
 2. **Lookup**: Get a specific integration or command manifest by ID
 3. **Serialization**: Export all manifests as JSON for the backend API to return
 
 ### API Surface
 
 ```
+registry.register(manifest: IntegrationManifest) -> None
 registry.list_integrations() -> list[IntegrationManifest]
 registry.get_integration(id: str) -> IntegrationManifest
 registry.get_command(integration_id: str, command_id: str) -> CommandManifest
-registry.to_json() -> str   # full JSON export of all manifests
+registry.to_dict() -> list[dict]   # JSON-serializable export of all manifests
 ```
 
 ### Registration Pattern
 
-Each integration registers itself with the registry on import:
+The **backend** registers manifests at startup (not the SDK):
 
-```
-# paradime/integrations/fivetran/__init__.py
+```python
+# paradime-backend/integrations/manifests/__init__.py
 from paradime.integrations import registry
-from .manifest import manifest
+from .fivetran import manifest as fivetran_manifest
+from .tableau import manifest as tableau_manifest
+from .hightouch import manifest as hightouch_manifest
 
-registry.register(manifest)
+def load_all_manifests():
+    """Called once at backend startup."""
+    registry.register(fivetran_manifest)
+    registry.register(tableau_manifest)
+    registry.register(hightouch_manifest)
+    # ... etc
 ```
+
+This means:
+- The SDK registry starts empty — it has no built-in integration knowledge.
+- The backend controls which integrations are available by choosing which manifests to register.
+- Different backend environments (staging, production) could register different sets of manifests if needed.
 
 ---
 
 ## Part 4: Backend Integration (paradime-backend)
 
-The backend consumes the SDK as a dependency and exposes integration manifests to the frontend via API.
+The backend consumes the SDK as a dependency, defines the per-integration manifest instances, loads them into the registry at startup, and exposes them to the frontend via API.
 
 ### 4.1 Endpoints
 
@@ -328,10 +392,17 @@ Executes a command with the provided field values.
 ```
 Frontend                    Backend                         SDK
    │                           │                              │
+   │                      (startup)                           │
+   │                           │  load_all_manifests()        │
+   │                           │  → registry.register(...)    │
+   │                           │─────────────────────────────>│
+   │                           │                              │
    │  GET /integrations        │                              │
    │ ─────────────────────────>│  registry.list_integrations()│
    │                           │─────────────────────────────>│
-   │   { integrations: [...] } │                              │
+   │   { integrations: [...],  │                              │
+   │     help_urls, encode     │                              │
+   │     hints included }      │                              │
    │ <─────────────────────────│                              │
    │                           │                              │
    │  User fills in api_key    │                              │
@@ -361,9 +432,17 @@ Frontend                    Backend                         SDK
 
 ### 4.3 Backend Caching Strategy
 
-- **Integration manifests**: Cache indefinitely (only change on SDK version bump)
+- **Integration manifests**: Cache indefinitely (only change on backend deploy since manifests live in the backend repo)
 - **Resolved dynamic options**: Cache with a short TTL (e.g., 60s) keyed by `(resolver, context_hash)`
 - Cache invalidation on explicit user request ("refresh" button in UI)
+
+### 4.4 Base64 Encoding Contract
+
+When the backend receives a field value whose manifest declares `encode: "base64"`:
+- The frontend has already base64-encoded the raw value before submission.
+- The backend **must base64-decode** the value before passing it to the SDK core function.
+- This ensures the SDK core functions always receive plain-text values regardless of the transport encoding.
+- The encoding is a frontend-to-backend transport concern only — it does not affect how values are stored or logged.
 
 ---
 
@@ -412,6 +491,33 @@ For fields with `repeatable: true`:
 3. Submitted as an array of values
 4. Minimum 1 entry if the field is required
 
+### 5.5 Help URLs
+
+Help URLs provide contextual documentation links at two levels:
+
+**Integration-level `help_url`:**
+- Rendered as a help icon or "Learn more" link in the integration header/card.
+- Links to setup documentation (e.g., how to configure Fivetran credentials).
+- Example: A small `(?)` icon next to "Fivetran" that opens the Paradime docs page for Fivetran setup.
+
+**Field-level `help_url`:**
+- Rendered as a small help icon next to the field label.
+- Links to documentation specific to that field (e.g., "Where to find your API key" in the provider's docs).
+- Example: A `(?)` icon next to the "API Key" label that opens `https://fivetran.com/docs/rest-api/getting-started`.
+
+Both are optional — if `help_url` is `null`, no help link is rendered.
+
+### 5.6 Base64 Encoding for Text Fields
+
+When a field has `encode: "base64"`:
+1. The field renders normally as a `<textarea>` or `<input type="text">` — the user types or pastes plain text.
+2. On form submission, the frontend base64-encodes the raw value using `btoa()` / `Buffer.from().toString('base64')` before including it in the request payload.
+3. This is transparent to the user — they never see the encoded value.
+4. Use cases:
+   - JSON payloads that would otherwise need escaping
+   - Multi-line configuration blocks
+   - Certificates or keys with special characters
+
 ---
 
 ## Part 6: CLI Generation from Manifest
@@ -445,7 +551,7 @@ The builder:
 
 ## Part 7: Concrete Example - Fivetran Manifest
 
-To illustrate how an existing integration would look under this system:
+To illustrate how an existing integration would look under this system. Note: this manifest instance lives in the **backend repo**, not the SDK. It imports the schema models from `paradime.integrations._base`.
 
 ```
 Integration:
@@ -454,6 +560,7 @@ Integration:
   description: ELT data pipeline platform
   icon: fivetran
   category: etl
+  help_url: "https://docs.paradime.io/integrations/fivetran"   # ← integration-level help
 
   auth_fields:
     - id: api_key
@@ -462,6 +569,7 @@ Integration:
       required: true
       env_var: FIVETRAN_API_KEY
       description: "Your Fivetran API key from account settings"
+      help_url: "https://fivetran.com/docs/rest-api/getting-started"  # ← field-level help
 
     - id: api_secret
       label: API Secret
@@ -469,6 +577,7 @@ Integration:
       required: true
       env_var: FIVETRAN_API_SECRET
       description: "Your Fivetran API secret from account settings"
+      help_url: "https://fivetran.com/docs/rest-api/getting-started"  # ← field-level help
 
   commands:
     - id: sync
@@ -535,6 +644,23 @@ Integration:
           order: 1
 ```
 
+### Example: Field with Base64 Encoding
+
+A hypothetical integration command that accepts a JSON configuration payload:
+
+```
+- id: config_json
+  label: Configuration (JSON)
+  type: textarea
+  required: true
+  description: "Paste the connector configuration as JSON"
+  encode: "base64"            # ← frontend base64-encodes before submit
+  help_url: "https://docs.example.com/connector-config-format"
+  order: 2
+```
+
+The user types raw JSON into the textarea. On submit, the frontend encodes it to base64. The backend decodes it back to the original JSON string before passing to the core function.
+
 ---
 
 ## Part 8: Repeatable Field Groups
@@ -569,43 +695,53 @@ Each manifest includes a `schema_version` field (semver). The backend and fronte
 - **Minor bump** (1.1 → 1.2): new optional fields added. Frontend ignores unknown fields gracefully.
 - **Major bump** (1 → 2): breaking changes. Frontend shows a "please update" message for unsupported versions.
 
-### SDK Version Coupling
+### SDK and Backend Version Coupling
 
-The backend pins a specific SDK version. When the SDK is updated:
-1. New integrations automatically appear (via registry)
-2. Changed manifests update the UI automatically
-3. No frontend deploy needed for new integrations (the renderer is generic)
+The backend pins a specific SDK version for the schema models and core functions. Since manifests live in the backend:
+1. **New/changed manifests** take effect on backend deploy — no SDK release needed.
+2. **New schema features** (e.g., adding a new field type) require an SDK release first, then the backend can use them.
+3. **No frontend deploy** needed for new integrations — the renderer is generic and interprets the manifest JSON dynamically.
 
 ---
 
 ## Part 10: Implementation Phases
 
-### Phase 1: Foundation
-- Define the manifest Pydantic models in `paradime/integrations/_base.py`
+### Phase 1: Foundation (SDK repo)
+- Define the manifest Pydantic models in `paradime/integrations/_base.py`, including `help_url` on `IntegrationManifest` and `Field`, and `encode` on `Field`
 - Build the registry in `paradime/integrations/__init__.py`
-- Add a `to_dict()` / `to_json()` serialization method on all manifest models
-- Write the manifest for 1-2 integrations (e.g., Fivetran, Hightouch) as a proof of concept
+- Add `to_dict()` serialization methods on all manifest models
+- Write unit tests for schema validation and registry operations
+- Release SDK version with the new schema
 
-### Phase 2: CLI Generation
+### Phase 2: Manifest Authoring (Backend repo)
+- Create `integrations/manifests/` directory in paradime-backend
+- Write the manifest for 1-2 integrations (e.g., Fivetran, Hightouch) as a proof of concept
+- Include `help_url` links for integration setup docs and key fields
+- Include `encode: "base64"` on any fields that need it (e.g., JSON config payloads)
+- Wire up manifest loading at backend startup
+
+### Phase 3: Backend API (Backend repo)
+- Add the `/integrations` endpoint — serves manifest JSON including `help_url` and `encode` metadata
+- Add the `/resolve-options` endpoint
+- Add the `/execute` endpoint with base64-decode logic for fields with `encode: "base64"`
+- Wire up caching for resolved options
+
+### Phase 4: CLI Generation (SDK repo)
 - Build the `build_click_command()` utility
 - Verify that generated CLI commands are functionally identical to hand-written ones
 - Add tests comparing generated CLI help output to existing
 
-### Phase 3: Backend API
-- Add the `/integrations` endpoint to paradime-backend
-- Add the `/resolve-options` endpoint
-- Add the `/execute` endpoint
-- Wire up caching for resolved options
-
-### Phase 4: Frontend Renderer
+### Phase 5: Frontend Renderer (Frontend repo)
 - Build the generic `ManifestFormRenderer` component
 - Implement all field type renderers
 - Implement conditional visibility
 - Implement dynamic dropdown resolution
 - Implement repeatable fields / groups
+- Implement `help_url` rendering (integration-level and field-level help icons/links)
+- Implement base64 encoding on submit for fields with `encode: "base64"`
 
-### Phase 5: Migration
-- Convert remaining integrations one by one to the manifest format
+### Phase 6: Migration
+- Convert remaining integrations one by one to the manifest format (in the backend repo)
 - Deprecate hand-written CLI commands
 - Remove old frontend hardcoded forms
 
@@ -616,7 +752,10 @@ The backend pins a specific SDK version. When the SDK is updated:
 | Decision | Chosen Approach | Rationale |
 |---|---|---|
 | Manifest format | Python (Pydantic models) | Type-safe, validated at import time, IDE autocompletion. JSON is generated from this, not the other way around. |
-| Manifest location | Co-located per integration | One directory = one integration. Easy to find, easy to review. |
+| Schema models location | SDK (`paradime/integrations/_base.py`) | Shared vocabulary used by both SDK tests and backend. Part of the SDK package. |
+| Manifest instances location | Backend repo (`integrations/manifests/`) | UI-specific definitions (help URLs, field ordering, encoding hints) change independently of core functions. No SDK release needed for manifest changes. |
+| Help URLs | Optional at integration and field level | Provides contextual documentation without cluttering the UI. Null = no link rendered. |
+| Base64 encoding | Frontend encodes, backend decodes | Safe transport for JSON payloads and structured text. Transparent to the user and to SDK core functions. |
 | Dynamic options | Backend-resolved, not frontend-direct | Frontend never has credentials. Backend caches and controls access. |
 | CLI generation | Auto-generated from manifest | Eliminates drift between CLI and UI definitions. |
 | Condition evaluation | Client-side for show/hide, server-side for validation | Responsive UI without round-trips. Server validates on submit as the authoritative check. |
