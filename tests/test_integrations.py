@@ -18,7 +18,6 @@ from paradime.integrations import (
     Validation,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -298,9 +297,7 @@ class TestIntegrationManifest:
             category="etl",
             help_url="https://docs.example.com",
             auth_fields=[
-                _make_field(
-                    id="api_key", label="API Key", type=FieldType.SECRET, required=True
-                )
+                _make_field(id="api_key", label="API Key", type=FieldType.SECRET, required=True)
             ],
             commands=[_make_command()],
         )
@@ -361,9 +358,7 @@ class TestManifestRegistry:
         assert cmd.name == "Command 2"
 
     def test_get_command_not_found(self):
-        self.registry.register(
-            _make_manifest(id="integ", commands=[_make_command(id="cmd1")])
-        )
+        self.registry.register(_make_manifest(id="integ", commands=[_make_command(id="cmd1")]))
         with pytest.raises(KeyError, match="Command 'missing' not found"):
             self.registry.get_command("integ", "missing")
 
@@ -498,7 +493,9 @@ class TestFivetranExample:
         assert d["id"] == "fivetran"
         assert d["help_url"] == "https://docs.paradime.io/integrations/fivetran"
         assert len(d["auth_fields"]) == 2
-        assert d["auth_fields"][0]["help_url"] == "https://fivetran.com/docs/rest-api/getting-started"
+        assert (
+            d["auth_fields"][0]["help_url"] == "https://fivetran.com/docs/rest-api/getting-started"
+        )
         assert len(d["commands"]) == 2
 
         sync_cmd = d["commands"][0]
@@ -512,7 +509,10 @@ class TestFivetranExample:
         assert timeout_field["validation"]["min_value"] == 1
 
         connector_field = sync_cmd["fields"][0]
-        assert connector_field["dynamic_options"]["resolver"] == "paradime.core.scripts.fivetran.list_fivetran_connectors"
+        assert (
+            connector_field["dynamic_options"]["resolver"]
+            == "paradime.core.scripts.fivetran.list_fivetran_connectors"
+        )
 
         # Registry roundtrip
         reg = ManifestRegistry()

@@ -40,9 +40,7 @@ class ManifestRegistry:
         for command in integration.commands:
             if command.id == command_id:
                 return command
-        raise KeyError(
-            f"Command '{command_id}' not found in integration '{integration_id}'"
-        )
+        raise KeyError(f"Command '{command_id}' not found in integration '{integration_id}'")
 
     def to_dict(self) -> List[dict]:
         return [m.to_dict() for m in self._integrations.values()]

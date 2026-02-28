@@ -3,7 +3,6 @@ from typing import Any, Dict, List, Optional, Union
 
 from paradime.tools.pydantic import BaseModel
 
-
 SCHEMA_VERSION = "1.0.0"
 
 
