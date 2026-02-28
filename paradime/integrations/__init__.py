@@ -2,6 +2,7 @@ from typing import Dict, List
 
 __all__ = [
     "SCHEMA_VERSION",
+    "CommandExecutionRequest",
     "CommandManifest",
     "CommandType",
     "Condition",
@@ -18,11 +19,13 @@ __all__ = [
     "ManifestRegistry",
     "RepeatableGroup",
     "Validation",
+    "build_cli_command",
     "registry",
 ]
 
 from paradime.integrations._base import (  # noqa: F401
     SCHEMA_VERSION,
+    CommandExecutionRequest,
     CommandManifest,
     CommandType,
     Condition,
@@ -38,6 +41,7 @@ from paradime.integrations._base import (  # noqa: F401
     IntegrationManifest,
     RepeatableGroup,
     Validation,
+    build_cli_command,
 )
 
 

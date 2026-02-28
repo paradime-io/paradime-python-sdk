@@ -1,7 +1,10 @@
+import base64
+
 import pytest
 
 from paradime.integrations import (
     SCHEMA_VERSION,
+    CommandExecutionRequest,
     CommandManifest,
     CommandType,
     Condition,
@@ -16,6 +19,7 @@ from paradime.integrations import (
     ManifestRegistry,
     RepeatableGroup,
     Validation,
+    build_cli_command,
 )
 
 # ---------------------------------------------------------------------------
@@ -39,6 +43,7 @@ def _make_command(**overrides):
         "name": "Test Command",
         "type": CommandType.ACTION,
         "core_function": "mod.func",
+        "cli_command": "test-cmd",
     }
     defaults.update(overrides)
     return CommandManifest(**defaults)
@@ -421,6 +426,7 @@ class TestFivetranExample:
                     description="Trigger sync for Fivetran connectors",
                     type=CommandType.ACTION,
                     core_function="paradime.core.scripts.fivetran.trigger_fivetran_sync",
+                    cli_command="fivetran-sync",
                     fields=[
                         Field(
                             id="connector_id",
@@ -475,6 +481,7 @@ class TestFivetranExample:
                     description="List all Fivetran connectors with status",
                     type=CommandType.LIST,
                     core_function="paradime.core.scripts.fivetran.list_fivetran_connectors",
+                    cli_command="fivetran-list-connectors",
                     fields=[
                         Field(
                             id="group_id",
@@ -524,3 +531,283 @@ class TestFivetranExample:
         serialized = reg.to_dict()
         assert len(serialized) == 1
         assert serialized[0]["id"] == "fivetran"
+
+
+# ---------------------------------------------------------------------------
+# CLI command builder tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildCliCommand:
+    def _fivetran_manifest(self):
+        return IntegrationManifest(
+            id="fivetran",
+            name="Fivetran",
+            auth_fields=[
+                Field(
+                    id="api_key",
+                    label="API Key",
+                    type=FieldType.SECRET,
+                    required=True,
+                    env_var="FIVETRAN_API_KEY",
+                ),
+                Field(
+                    id="api_secret",
+                    label="API Secret",
+                    type=FieldType.SECRET,
+                    required=True,
+                    env_var="FIVETRAN_API_SECRET",
+                ),
+            ],
+            commands=[
+                CommandManifest(
+                    id="sync",
+                    name="Trigger Sync",
+                    type=CommandType.ACTION,
+                    core_function="paradime.core.scripts.fivetran.trigger_fivetran_sync",
+                    cli_command="fivetran-sync",
+                    fields=[
+                        Field(
+                            id="connector_id",
+                            label="Connector(s)",
+                            type=FieldType.DROPDOWN,
+                            required=True,
+                            repeatable=True,
+                        ),
+                        Field(
+                            id="force",
+                            label="Force Restart",
+                            type=FieldType.SWITCH,
+                            default=False,
+                        ),
+                        Field(
+                            id="wait_for_completion",
+                            label="Wait for Completion",
+                            type=FieldType.SWITCH,
+                            default=True,
+                        ),
+                        Field(
+                            id="timeout_minutes",
+                            label="Timeout (minutes)",
+                            type=FieldType.NUMBER,
+                            default=1440,
+                        ),
+                    ],
+                ),
+            ],
+        )
+
+    def test_basic_fivetran_sync(self):
+        m = self._fivetran_manifest()
+        result = m.build_cli_command(
+            "sync",
+            {
+                "connector_id": ["abc123", "def456"],
+                "force": True,
+                "wait_for_completion": True,
+                "timeout_minutes": 60,
+            },
+        )
+        assert result == (
+            "paradime run fivetran-sync"
+            " --api-key $FIVETRAN_API_KEY"
+            " --api-secret $FIVETRAN_API_SECRET"
+            " --connector-id abc123 --connector-id def456"
+            " --force"
+            " --wait-for-completion"
+            " --timeout-minutes 60"
+        )
+
+    def test_boolean_false_omitted(self):
+        m = self._fivetran_manifest()
+        result = m.build_cli_command(
+            "sync",
+            {
+                "connector_id": ["abc123"],
+                "force": False,
+                "wait_for_completion": False,
+                "timeout_minutes": 60,
+            },
+        )
+        assert "--force" not in result
+        assert "--wait-for-completion" not in result
+        assert "--connector-id abc123" in result
+        assert "--timeout-minutes 60" in result
+
+    def test_none_values_omitted(self):
+        m = self._fivetran_manifest()
+        result = m.build_cli_command(
+            "sync",
+            {
+                "connector_id": ["abc123"],
+            },
+        )
+        assert "--force" not in result
+        assert "--timeout-minutes" not in result
+        assert "--connector-id abc123" in result
+
+    def test_auth_fields_use_env_vars(self):
+        m = self._fivetran_manifest()
+        result = m.build_cli_command("sync", {"connector_id": ["abc123"]})
+        assert "$FIVETRAN_API_KEY" in result
+        assert "$FIVETRAN_API_SECRET" in result
+
+    def test_secret_without_env_var_omitted(self):
+        m = IntegrationManifest(
+            id="test",
+            name="Test",
+            auth_fields=[
+                Field(
+                    id="token",
+                    label="Token",
+                    type=FieldType.SECRET,
+                    required=True,
+                    # No env_var — should be omitted from CLI
+                ),
+            ],
+            commands=[
+                _make_command(
+                    cli_command="test-cmd",
+                    fields=[
+                        _make_field(id="name", label="Name"),
+                    ],
+                ),
+            ],
+        )
+        result = m.build_cli_command("test_cmd", {"name": "hello"})
+        assert "--token" not in result
+        assert "--name hello" in result
+
+    def test_values_with_spaces_are_quoted(self):
+        m = IntegrationManifest(
+            id="test",
+            name="Test",
+            commands=[
+                _make_command(
+                    cli_command="test-cmd",
+                    fields=[
+                        _make_field(id="name", label="Name"),
+                    ],
+                ),
+            ],
+        )
+        result = m.build_cli_command("test_cmd", {"name": "hello world"})
+        assert "'hello world'" in result
+
+    def test_snake_case_to_kebab_case(self):
+        m = IntegrationManifest(
+            id="test",
+            name="Test",
+            commands=[
+                _make_command(
+                    cli_command="test-cmd",
+                    fields=[
+                        _make_field(id="my_long_option", label="My Option"),
+                    ],
+                ),
+            ],
+        )
+        result = m.build_cli_command("test_cmd", {"my_long_option": "val"})
+        assert "--my-long-option val" in result
+
+    def test_base64_encode_in_cli(self):
+        m = IntegrationManifest(
+            id="test",
+            name="Test",
+            commands=[
+                _make_command(
+                    cli_command="test-cmd",
+                    fields=[
+                        Field(
+                            id="config_json",
+                            label="Config",
+                            type=FieldType.TEXTAREA,
+                            encode="base64",
+                        ),
+                    ],
+                ),
+            ],
+        )
+        raw = '{"key": "value"}'
+        result = m.build_cli_command("test_cmd", {"config_json": raw})
+        encoded = base64.b64encode(raw.encode("utf-8")).decode("ascii")
+        assert encoded in result
+
+    def test_build_cli_command_standalone_function(self):
+        m = self._fivetran_manifest()
+        cmd = m.get_command("sync")
+        result = build_cli_command(
+            m,
+            cmd,
+            {
+                "connector_id": ["abc123"],
+                "force": True,
+            },
+        )
+        assert result.startswith("paradime run fivetran-sync")
+        assert "--force" in result
+
+    def test_command_to_dict_includes_cli_command(self):
+        cmd = _make_command(cli_command="my-cmd")
+        d = cmd.to_dict()
+        assert d["cli_command"] == "my-cmd"
+
+
+# ---------------------------------------------------------------------------
+# CommandExecutionRequest tests
+# ---------------------------------------------------------------------------
+
+
+class TestCommandExecutionRequest:
+    def test_decode_fields_base64(self):
+        cmd = _make_command(
+            cli_command="test-cmd",
+            fields=[
+                Field(
+                    id="config",
+                    label="Config",
+                    type=FieldType.TEXTAREA,
+                    encode="base64",
+                ),
+                Field(id="name", label="Name", type=FieldType.TEXT),
+            ],
+        )
+        raw = '{"key": "value"}'
+        encoded = base64.b64encode(raw.encode("utf-8")).decode("ascii")
+        req = CommandExecutionRequest(fields={"config": encoded, "name": "test"})
+        decoded = req.decode_fields(cmd)
+        assert decoded["config"] == raw
+        assert decoded["name"] == "test"
+
+    def test_decode_fields_no_encoding(self):
+        cmd = _make_command(
+            cli_command="test-cmd",
+            fields=[_make_field(id="name", label="Name")],
+        )
+        req = CommandExecutionRequest(fields={"name": "hello"})
+        decoded = req.decode_fields(cmd)
+        assert decoded["name"] == "hello"
+
+    def test_decode_fields_in_repeatable_group(self):
+        cmd = _make_command(
+            cli_command="test-cmd",
+            fields=[
+                RepeatableGroup(
+                    id="configs",
+                    label="Configs",
+                    fields=[
+                        Field(
+                            id="payload",
+                            label="Payload",
+                            type=FieldType.TEXTAREA,
+                            encode="base64",
+                        ),
+                    ],
+                ),
+            ],
+        )
+        raw = "test data"
+        encoded = base64.b64encode(raw.encode("utf-8")).decode("ascii")
+        req = CommandExecutionRequest(fields={"payload": encoded})
+        decoded = req.decode_fields(cmd)
+        assert decoded["payload"] == raw
