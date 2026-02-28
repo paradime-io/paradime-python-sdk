@@ -1,25 +1,25 @@
 from typing import Dict, List
 
-__all__ = [                                                                                                                                            
-      "SCHEMA_VERSION",                                                                                                                                
-      "CommandManifest",                                                                                                                                 
-      "CommandType",                                                                                                                                   
-      "Condition",
-      "ConditionEffect",
-      "ConditionGroup",
-      "ConditionOperator",
-      "DependsOn",
-      "DropdownOption",
-      "DynamicOptions",
-      "Field",
-      "FieldOrGroup",
-      "FieldType",
-      "IntegrationManifest",
-      "ManifestRegistry",
-      "RepeatableGroup",
-      "Validation",
-      "registry",
-  ]
+__all__ = [
+    "SCHEMA_VERSION",
+    "CommandManifest",
+    "CommandType",
+    "Condition",
+    "ConditionEffect",
+    "ConditionGroup",
+    "ConditionOperator",
+    "DependsOn",
+    "DropdownOption",
+    "DynamicOptions",
+    "Field",
+    "FieldOrGroup",
+    "FieldType",
+    "IntegrationManifest",
+    "ManifestRegistry",
+    "RepeatableGroup",
+    "Validation",
+    "registry",
+]
 
 from paradime.integrations._base import (  # noqa: F401
     SCHEMA_VERSION,
