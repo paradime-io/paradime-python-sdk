@@ -63,7 +63,7 @@ class MetadataClient:
 
         try:
             # Fetch all artifacts using the enhanced Bolt client
-            artifacts = self.bolt_client.get_all_latest_artifacts(schedule_name)
+            artifacts = self.bolt_client._get_all_latest_artifacts(schedule_name)
 
             # Parse artifacts
             parsed = self.parser.parse_artifacts(artifacts, schedule_name)
@@ -272,28 +272,28 @@ class MetadataClient:
         df = self.db.get_upstream_dependencies(model_name, schedule_name, max_depth)
 
         dependencies = []
-        for row in df.to_pandas().itertuples():
+        for row in df.iter_rows(named=True):
             # Determine health status
             health_status = None
-            if row.health_status:
-                health_status = HealthStatus(row.health_status)
-            elif row.status:
-                if row.status in ["error", "fail"]:
+            if row['health_status']:
+                health_status = HealthStatus(row['health_status'])
+            elif row['status']:
+                if row['status'] in ["error", "fail"]:
                     health_status = HealthStatus.CRITICAL
-                elif row.status == "warn":
+                elif row['status'] == "warn":
                     health_status = HealthStatus.WARNING
                 else:
                     health_status = HealthStatus.HEALTHY
 
             dependencies.append(
                 ModelDependency(
-                    unique_id=row.unique_id,
-                    name=row.name,
-                    level=row.level,
-                    resource_type=ResourceType(row.resource_type),
-                    status=row.status,
-                    execution_time=row.execution_time,
-                    executed_at=row.executed_at,
+                    unique_id=row['unique_id'],
+                    name=row['name'],
+                    level=row['level'],
+                    resource_type=ResourceType(row['resource_type']),
+                    status=row['status'],
+                    execution_time=row['execution_time'],
+                    executed_at=row['executed_at'],
                     health_status=health_status,
                 )
             )
@@ -317,7 +317,7 @@ class MetadataClient:
         self._ensure_metadata_loaded(schedule_name)
 
         df = self.db.get_downstream_impact(model_name, schedule_name, max_depth)
-        results = [tuple(row) for row in df.to_pandas().itertuples(index=False)]
+        results = [tuple(row.values()) for row in df.iter_rows(named=True)]
 
         return DependencyImpact.from_results(results, model_name)
 
@@ -509,42 +509,42 @@ class MetadataClient:
                 LIMIT ? OFFSET ?
             """
 
-            df = pl.from_pandas(self.db.conn.execute(sql, [schedule_name, batch_size, offset]).df())
+            df = self.db.conn.execute(sql, [schedule_name, batch_size, offset]).pl()
             if df.is_empty():
                 break
 
             # Convert to ModelHealth objects
             batch_models = []
-            for row in df.to_pandas().itertuples():
+            for row in df.iter_rows(named=True):
                 model_health = ModelHealth(
-                    unique_id=row.unique_id,
-                    name=row.name,
-                    resource_type=ResourceType(row.resource_type),
-                    status=row.status,
-                    execution_time=row.execution_time,
-                    executed_at=row.executed_at,
-                    health_status=HealthStatus(row.health_status),
-                    total_tests=row.total_tests,
-                    failed_tests=row.failed_tests,
-                    depends_on=row.depends_on or [],
-                    schema_name=row.schema_name,
-                    database_name=row.database_name,
-                    error_message=row.error_message,
-                    alias=row.alias,
-                    materialized_type=row.materialized_type,
-                    description=row.description,
-                    meta=row.meta if row.meta else {},
-                    tags=row.tags if row.tags else [],
-                    owner=row.owner,
-                    package_name=row.package_name,
-                    language=row.language,
-                    access=row.access,
-                    compiled_sql=row.compiled_sql,
-                    raw_sql=row.raw_sql,
-                    columns=row.columns if row.columns else {},
-                    children_l1=row.children_l1 if row.children_l1 else [],
-                    parents_models=row.parents_models if row.parents_models else [],
-                    parents_sources=row.parents_sources if row.parents_sources else [],
+                    unique_id=row['unique_id'],
+                    name=row['name'],
+                    resource_type=ResourceType(row['resource_type']),
+                    status=row['status'],
+                    execution_time=row['execution_time'],
+                    executed_at=row['executed_at'],
+                    health_status=HealthStatus(row['health_status']),
+                    total_tests=row['total_tests'],
+                    failed_tests=row['failed_tests'],
+                    depends_on=row['depends_on'] or [],
+                    schema_name=row['schema_name'],
+                    database_name=row['database_name'],
+                    error_message=row['error_message'],
+                    alias=row['alias'],
+                    materialized_type=row['materialized_type'],
+                    description=row['description'],
+                    meta=row['meta'] if row['meta'] else {},
+                    tags=row['tags'] if row['tags'] else [],
+                    owner=row['owner'],
+                    package_name=row['package_name'],
+                    language=row['language'],
+                    access=row['access'],
+                    compiled_sql=row['compiled_sql'],
+                    raw_sql=row['raw_sql'],
+                    columns=row['columns'] if row['columns'] else {},
+                    children_l1=row['children_l1'] if row['children_l1'] else [],
+                    parents_models=row['parents_models'] if row['parents_models'] else [],
+                    parents_sources=row['parents_sources'] if row['parents_sources'] else [],
                 )
                 batch_models.append(model_health)
 
@@ -572,14 +572,14 @@ class MetadataClient:
                 FROM model_metadata
                 WHERE schedule_name = ?
             """
-            df = pl.from_pandas(self.db.conn.execute(sql, [schedule_name]).df())
+            df = self.db.conn.execute(sql, [schedule_name]).pl()
 
             graph: dict[str, dict[str, Any]] = {}
-            for row in df.to_pandas().itertuples():
-                graph[str(row.unique_id)] = {
-                    "name": row.name,
-                    "parents": row.depends_on if row.depends_on else [],
-                    "children": row.children if row.children else [],
+            for row in df.iter_rows(named=True):
+                graph[str(row['unique_id'])] = {
+                    "name": row['name'],
+                    "parents": row['depends_on'] if row['depends_on'] else [],
+                    "children": row['children'] if row['children'] else [],
                 }
 
             self._dependency_cache[schedule_name] = graph

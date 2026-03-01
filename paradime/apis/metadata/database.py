@@ -1198,9 +1198,9 @@ class MetadataDatabase:
     def query_sql(self, sql: str, parameters: Optional[List[Any]] = None) -> pl.DataFrame:
         """Execute SQL query and return results as DataFrame"""
         if parameters:
-            return pl.from_pandas(self.conn.execute(sql, parameters).df())
+            return self.conn.execute(sql, parameters).pl()
         else:
-            return pl.from_pandas(self.conn.execute(sql).df())
+            return self.conn.execute(sql).pl()
 
     def get_model_health(self, schedule_name: str) -> List[ModelHealth]:
         """Get model health status for a schedule"""
@@ -1237,7 +1237,7 @@ class MetadataDatabase:
             ORDER BY executed_at DESC
         """
 
-        models_df = pl.from_pandas(self.conn.execute(models_sql, [schedule_name]).df())
+        models_df = self.conn.execute(models_sql, [schedule_name]).pl()
 
         # Get test counts for each model
         tests_sql = """
@@ -1250,7 +1250,7 @@ class MetadataDatabase:
             GROUP BY depends_on
         """
 
-        tests_df = pl.from_pandas(self.conn.execute(tests_sql, [schedule_name]).df())
+        tests_df = self.conn.execute(tests_sql, [schedule_name]).pl()
 
         # Create a mapping of model_id -> test counts
         test_counts = {}
@@ -1356,18 +1356,18 @@ class MetadataDatabase:
 
         sql += " ORDER BY executed_at DESC"
 
-        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
+        df = self.conn.execute(sql, [schedule_name]).pl()
 
         results = []
-        for row in df.to_pandas().itertuples():
+        for row in df.iter_rows(named=True):
             results.append(
                 TestResult(
-                    unique_id=row.unique_id,
-                    test_name=row.test_name,
-                    status=row.status,
-                    executed_at=row.executed_at,
-                    depends_on_nodes=row.depends_on if row.depends_on else [],
-                    error_message=row.error_message,
+                    unique_id=row['unique_id'],
+                    test_name=row['test_name'],
+                    status=row['status'],
+                    executed_at=row['executed_at'],
+                    depends_on_nodes=row['depends_on'] if row['depends_on'] else [],
+                    error_message=row['error_message'],
                 )
             )
 
@@ -1442,16 +1442,16 @@ class MetadataDatabase:
                 hours_since_load DESC
         """
 
-        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
+        df = self.conn.execute(sql, [schedule_name]).pl()
 
         results = []
-        for row in df.to_pandas().itertuples():
+        for row in df.iter_rows(named=True):
             # Calculate alert level for backwards compatibility
-            if hasattr(row, "alert_level") and row.alert_level:
-                alert_level = row.alert_level
-            elif row.freshness_status == "error":
+            if 'alert_level' in row and row['alert_level']:
+                alert_level = row['alert_level']
+            elif row['freshness_status'] == "error":
                 alert_level = "Critical - Data is stale"
-            elif row.freshness_status == "warn":
+            elif row['freshness_status'] == "warn":
                 alert_level = "Warning - Data aging"
             else:
                 alert_level = "Fresh"
@@ -1459,59 +1459,59 @@ class MetadataDatabase:
             results.append(
                 SourceFreshness(
                     # Core identification
-                    unique_id=row.unique_id,
-                    source_name=row.source_name,
-                    name=row.name,
-                    table_name=row.table_name,
+                    unique_id=row['unique_id'],
+                    source_name=row['source_name'],
+                    name=row['name'],
+                    table_name=row['table_name'],
                     # Freshness information
-                    freshness_status=row.freshness_status,
-                    freshness_checked=getattr(row, "freshness_checked", None),
-                    max_loaded_at=row.max_loaded_at,
-                    snapshotted_at=row.snapshotted_at,
-                    max_loaded_at_time_ago_in_s=getattr(row, "max_loaded_at_time_ago_in_s", None),
-                    hours_since_load=row.hours_since_load,
+                    freshness_status=row['freshness_status'],
+                    freshness_checked=row.get('freshness_checked', None),
+                    max_loaded_at=row['max_loaded_at'],
+                    snapshotted_at=row['snapshotted_at'],
+                    max_loaded_at_time_ago_in_s=row.get('max_loaded_at_time_ago_in_s', None),
+                    hours_since_load=row['hours_since_load'],
                     # Criteria and thresholds
-                    error_after_hours=row.error_after_hours,
-                    warn_after_hours=row.warn_after_hours,
+                    error_after_hours=row['error_after_hours'],
+                    warn_after_hours=row['warn_after_hours'],
                     criteria=(
-                        json.loads(row.criteria)
-                        if row.criteria and isinstance(row.criteria, str)
-                        else (row.criteria or {})
+                        json.loads(row['criteria'])
+                        if row['criteria'] and isinstance(row['criteria'], str)
+                        else (row['criteria'] or {})
                     ),
                     # Database location
-                    database=getattr(row, "database", None),
-                    schema_name=getattr(row, "schema_name", None),
-                    identifier=getattr(row, "identifier", None),
+                    database=row.get('database', None),
+                    schema_name=row.get('schema_name', None),
+                    identifier=row.get('identifier', None),
                     # Metadata and documentation
-                    description=getattr(row, "description", "") or "",
-                    source_description=getattr(row, "source_description", "") or "",
-                    comment=getattr(row, "comment", None),
+                    description=row.get('description', "") or "",
+                    source_description=row.get('source_description', "") or "",
+                    comment=row.get('comment', None),
                     meta=(
-                        json.loads(row.meta)
-                        if hasattr(row, "meta") and row.meta and isinstance(row.meta, str)
-                        else (getattr(row, "meta", {}) or {})
+                        json.loads(row['meta'])
+                        if 'meta' in row and row['meta'] and isinstance(row['meta'], str)
+                        else (row.get('meta', {}) or {})
                     ),
-                    tags=getattr(row, "tags", []) or [],
-                    owner=getattr(row, "owner", None),
-                    loader=getattr(row, "loader", None),
-                    type=getattr(row, "type", None),
+                    tags=row.get('tags', []) or [],
+                    owner=row.get('owner', None),
+                    loader=row.get('loader', None),
+                    type=row.get('type', None),
                     # Run information
-                    run_elapsed_time=getattr(row, "run_elapsed_time", None),
-                    run_generated_at=getattr(row, "run_generated_at", None),
+                    run_elapsed_time=row.get('run_elapsed_time', None),
+                    run_generated_at=row.get('run_generated_at', None),
                     # Lineage
-                    children_l1=getattr(row, "children_l1", []) or [],
+                    children_l1=row.get('children_l1', []) or [],
                     # Statistics and columns
                     columns=(
-                        json.loads(row.columns)
-                        if hasattr(row, "columns") and row.columns and isinstance(row.columns, str)
-                        else (getattr(row, "columns", None))
+                        json.loads(row['columns'])
+                        if 'columns' in row and row['columns'] and isinstance(row['columns'], str)
+                        else (row.get('columns', None))
                     ),
                     stats=(
-                        json.loads(row.stats)
-                        if hasattr(row, "stats") and row.stats and isinstance(row.stats, str)
-                        else (getattr(row, "stats", None))
+                        json.loads(row['stats'])
+                        if 'stats' in row and row['stats'] and isinstance(row['stats'], str)
+                        else (row.get('stats', None))
                     ),
-                    tests=getattr(row, "tests", []) or [],
+                    tests=row.get('tests', []) or [],
                     # Legacy fields
                     alert_level=alert_level,
                 )
@@ -1581,66 +1581,66 @@ class MetadataDatabase:
             ORDER BY name
         """
 
-        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
+        df = self.conn.execute(sql, [schedule_name]).pl()
 
         results = []
-        for row in df.to_pandas().itertuples():
+        for row in df.iter_rows(named=True):
             results.append(
                 SeedData(
                     # Core identification
-                    unique_id=row.unique_id,
-                    name=row.name,
-                    resource_type=row.resource_type,
+                    unique_id=row['unique_id'],
+                    name=row['name'],
+                    resource_type=row['resource_type'],
                     # Database location
-                    database=getattr(row, "database", None),
-                    schema_name=getattr(row, "schema_name", None),
-                    alias=getattr(row, "alias", None),
+                    database=row.get('database', None),
+                    schema_name=row.get('schema_name', None),
+                    alias=row.get('alias', None),
                     # Execution information
-                    status=getattr(row, "status", None),
-                    execution_time=getattr(row, "execution_time", None),
-                    run_elapsed_time=getattr(row, "run_elapsed_time", None),
+                    status=row.get('status', None),
+                    execution_time=row.get('execution_time', None),
+                    run_elapsed_time=row.get('run_elapsed_time', None),
                     # Timing information
-                    compile_started_at=getattr(row, "compile_started_at", None),
-                    compile_completed_at=getattr(row, "compile_completed_at", None),
-                    execute_started_at=getattr(row, "execute_started_at", None),
-                    execute_completed_at=getattr(row, "execute_completed_at", None),
-                    run_generated_at=getattr(row, "run_generated_at", None),
+                    compile_started_at=row.get('compile_started_at', None),
+                    compile_completed_at=row.get('compile_completed_at', None),
+                    execute_started_at=row.get('execute_started_at', None),
+                    execute_completed_at=row.get('execute_completed_at', None),
+                    run_generated_at=row.get('run_generated_at', None),
                     # Code and SQL
-                    compiled_code=getattr(row, "compiled_code", None),
-                    compiled_sql=getattr(row, "compiled_sql", None),
-                    raw_code=getattr(row, "raw_code", None),
-                    raw_sql=getattr(row, "raw_sql", None),
+                    compiled_code=row.get('compiled_code', None),
+                    compiled_sql=row.get('compiled_sql', None),
+                    raw_code=row.get('raw_code', None),
+                    raw_sql=row.get('raw_sql', None),
                     # Metadata and documentation
-                    description=getattr(row, "description", "") or "",
-                    comment=getattr(row, "comment", None),
+                    description=row.get('description', "") or "",
+                    comment=row.get('comment', None),
                     meta=(
-                        json.loads(row.meta)
-                        if hasattr(row, "meta") and row.meta and isinstance(row.meta, str)
-                        else (getattr(row, "meta", {}) or {})
+                        json.loads(row['meta'])
+                        if 'meta' in row and row['meta'] and isinstance(row['meta'], str)
+                        else (row.get('meta', {}) or {})
                     ),
-                    tags=getattr(row, "tags", []) or [],
-                    owner=getattr(row, "owner", None),
-                    package_name=getattr(row, "package_name", None),
+                    tags=row.get('tags', []) or [],
+                    owner=row.get('owner', None),
+                    package_name=row.get('package_name', None),
                     # Execution details
-                    error=getattr(row, "error", None),
-                    skip=getattr(row, "skip", False),
-                    thread_id=getattr(row, "thread_id", None),
-                    type=getattr(row, "type", None),
+                    error=row.get('error', None),
+                    skip=row.get('skip', False),
+                    thread_id=row.get('thread_id', None),
+                    type=row.get('type', None),
                     # Lineage
-                    children_l1=getattr(row, "children_l1", []) or [],
+                    children_l1=row.get('children_l1', []) or [],
                     # Statistics and columns
                     columns=(
-                        json.loads(row.columns)
-                        if hasattr(row, "columns") and row.columns and isinstance(row.columns, str)
-                        else (getattr(row, "columns", None))
+                        json.loads(row['columns'])
+                        if 'columns' in row and row['columns'] and isinstance(row['columns'], str)
+                        else (row.get('columns', None))
                     ),
                     stats=(
-                        json.loads(row.stats)
-                        if hasattr(row, "stats") and row.stats and isinstance(row.stats, str)
-                        else (getattr(row, "stats", None))
+                        json.loads(row['stats'])
+                        if 'stats' in row and row['stats'] and isinstance(row['stats'], str)
+                        else (row.get('stats', None))
                     ),
                     # Legacy/additional fields
-                    depends_on=getattr(row, "depends_on", []) or [],
+                    depends_on=row.get('depends_on', []) or [],
                 )
             )
 
@@ -1710,68 +1710,68 @@ class MetadataDatabase:
             ORDER BY name
         """
 
-        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
+        df = self.conn.execute(sql, [schedule_name]).pl()
 
         results = []
-        for row in df.to_pandas().itertuples():
+        for row in df.iter_rows(named=True):
             results.append(
                 SnapshotData(
                     # Core identification
-                    unique_id=row.unique_id,
-                    name=row.name,
-                    resource_type=row.resource_type,
+                    unique_id=row['unique_id'],
+                    name=row['name'],
+                    resource_type=row['resource_type'],
                     # Database location
-                    database=getattr(row, "database", None),
-                    schema_name=getattr(row, "schema_name", None),
-                    alias=getattr(row, "alias", None),
+                    database=row.get('database', None),
+                    schema_name=row.get('schema_name', None),
+                    alias=row.get('alias', None),
                     # Execution information
-                    status=getattr(row, "status", None),
-                    execution_time=getattr(row, "execution_time", None),
-                    run_elapsed_time=getattr(row, "run_elapsed_time", None),
+                    status=row.get('status', None),
+                    execution_time=row.get('execution_time', None),
+                    run_elapsed_time=row.get('run_elapsed_time', None),
                     # Timing information
-                    compile_started_at=getattr(row, "compile_started_at", None),
-                    compile_completed_at=getattr(row, "compile_completed_at", None),
-                    execute_started_at=getattr(row, "execute_started_at", None),
-                    execute_completed_at=getattr(row, "execute_completed_at", None),
-                    run_generated_at=getattr(row, "run_generated_at", None),
+                    compile_started_at=row.get('compile_started_at', None),
+                    compile_completed_at=row.get('compile_completed_at', None),
+                    execute_started_at=row.get('execute_started_at', None),
+                    execute_completed_at=row.get('execute_completed_at', None),
+                    run_generated_at=row.get('run_generated_at', None),
                     # Code and SQL
-                    compiled_code=getattr(row, "compiled_code", None),
-                    compiled_sql=getattr(row, "compiled_sql", None),
-                    raw_code=getattr(row, "raw_code", None),
-                    raw_sql=getattr(row, "raw_sql", None),
+                    compiled_code=row.get('compiled_code', None),
+                    compiled_sql=row.get('compiled_sql', None),
+                    raw_code=row.get('raw_code', None),
+                    raw_sql=row.get('raw_sql', None),
                     # Metadata and documentation
-                    description=getattr(row, "description", "") or "",
-                    comment=getattr(row, "comment", None),
+                    description=row.get('description', "") or "",
+                    comment=row.get('comment', None),
                     meta=(
-                        json.loads(row.meta)
-                        if hasattr(row, "meta") and row.meta and isinstance(row.meta, str)
-                        else (getattr(row, "meta", {}) or {})
+                        json.loads(row['meta'])
+                        if 'meta' in row and row['meta'] and isinstance(row['meta'], str)
+                        else (row.get('meta', {}) or {})
                     ),
-                    tags=getattr(row, "tags", []) or [],
-                    owner=getattr(row, "owner", None),
-                    package_name=getattr(row, "package_name", None),
+                    tags=row.get('tags', []) or [],
+                    owner=row.get('owner', None),
+                    package_name=row.get('package_name', None),
                     # Execution details
-                    error=getattr(row, "error", None),
-                    skip=getattr(row, "skip", False),
-                    thread_id=getattr(row, "thread_id", None),
-                    type=getattr(row, "type", None),
+                    error=row.get('error', None),
+                    skip=row.get('skip', False),
+                    thread_id=row.get('thread_id', None),
+                    type=row.get('type', None),
                     # Lineage
-                    children_l1=getattr(row, "children_l1", []) or [],
-                    parents_models=getattr(row, "parents_models", []) or [],
-                    parents_sources=getattr(row, "parents_sources", []) or [],
+                    children_l1=row.get('children_l1', []) or [],
+                    parents_models=row.get('parents_models', []) or [],
+                    parents_sources=row.get('parents_sources', []) or [],
                     # Statistics and columns
                     columns=(
-                        json.loads(row.columns)
-                        if hasattr(row, "columns") and row.columns and isinstance(row.columns, str)
-                        else (getattr(row, "columns", None))
+                        json.loads(row['columns'])
+                        if 'columns' in row and row['columns'] and isinstance(row['columns'], str)
+                        else (row.get('columns', None))
                     ),
                     stats=(
-                        json.loads(row.stats)
-                        if hasattr(row, "stats") and row.stats and isinstance(row.stats, str)
-                        else (getattr(row, "stats", None))
+                        json.loads(row['stats'])
+                        if 'stats' in row and row['stats'] and isinstance(row['stats'], str)
+                        else (row.get('stats', None))
                     ),
                     # Legacy/additional fields
-                    depends_on=getattr(row, "depends_on", []) or [],
+                    depends_on=row.get('depends_on', []) or [],
                 )
             )
 
@@ -1835,70 +1835,70 @@ class MetadataDatabase:
             ORDER BY name
         """
 
-        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
+        df = self.conn.execute(sql, [schedule_name]).pl()
 
         results = []
-        for row in df.to_pandas().itertuples():
+        for row in df.iter_rows(named=True):
             results.append(
                 TestData(
                     # Core identification
-                    unique_id=row.unique_id,
-                    name=getattr(row, "name", None),
-                    resource_type=getattr(row, "resource_type", "test"),
+                    unique_id=row['unique_id'],
+                    name=row.get('name', None),
+                    resource_type=row.get('resource_type', "test"),
                     # Run identification
                     run_id=(
-                        int(row.run_id)  # type: ignore
-                        if hasattr(row, "run_id")
-                        and row.run_id is not None
-                        and row.run_id is not None
+                        int(row['run_id'])  # type: ignore
+                        if 'run_id' in row
+                        and row['run_id'] is not None
+                        and row['run_id'] is not None
                         else None
                     ),
-                    invocation_id=getattr(row, "invocation_id", None),
+                    invocation_id=row.get('invocation_id', None),
                     # Test-specific information
-                    column_name=getattr(row, "column_name", None),
-                    state=getattr(row, "state", None),
-                    status=getattr(row, "status", None),
-                    fail=bool(row.fail) if hasattr(row, "fail") and row.fail is not None else None,
-                    warn=bool(row.warn) if hasattr(row, "warn") and row.warn is not None else None,
-                    skip=bool(row.skip) if hasattr(row, "skip") and row.skip is not None else None,
+                    column_name=row.get('column_name', None),
+                    state=row.get('state', None),
+                    status=row.get('status', None),
+                    fail=bool(row['fail']) if 'fail' in row and row['fail'] is not None else None,
+                    warn=bool(row['warn']) if 'warn' in row and row['warn'] is not None else None,
+                    skip=bool(row['skip']) if 'skip' in row and row['skip'] is not None else None,
                     # Execution information
-                    execution_time=getattr(row, "execution_time", None),
-                    run_elapsed_time=getattr(row, "run_elapsed_time", None),
+                    execution_time=row.get('execution_time', None),
+                    run_elapsed_time=row.get('run_elapsed_time', None),
                     # Timing information
-                    compile_started_at=getattr(row, "compile_started_at", None),
-                    compile_completed_at=getattr(row, "compile_completed_at", None),
-                    execute_started_at=getattr(row, "execute_started_at", None),
-                    execute_completed_at=getattr(row, "execute_completed_at", None),
-                    run_generated_at=getattr(row, "run_generated_at", None),
+                    compile_started_at=row.get('compile_started_at', None),
+                    compile_completed_at=row.get('compile_completed_at', None),
+                    execute_started_at=row.get('execute_started_at', None),
+                    execute_completed_at=row.get('execute_completed_at', None),
+                    run_generated_at=row.get('run_generated_at', None),
                     # Code and SQL
-                    compiled_code=getattr(row, "compiled_code", None),
-                    compiled_sql=getattr(row, "compiled_sql", None),
-                    raw_code=getattr(row, "raw_code", None),
-                    raw_sql=getattr(row, "raw_sql", None),
+                    compiled_code=row.get('compiled_code', None),
+                    compiled_sql=row.get('compiled_sql', None),
+                    raw_code=row.get('raw_code', None),
+                    raw_sql=row.get('raw_sql', None),
                     # Metadata and documentation
-                    description=getattr(row, "description", None),
+                    description=row.get('description', None),
                     meta=(
-                        json.loads(row.meta)
-                        if hasattr(row, "meta") and row.meta and isinstance(row.meta, str)
-                        else (getattr(row, "meta", {}) or {})
+                        json.loads(row['meta'])
+                        if 'meta' in row and row['meta'] and isinstance(row['meta'], str)
+                        else (row.get('meta', {}) or {})
                     ),
                     tags=(
-                        json.loads(row.tags)
-                        if hasattr(row, "tags") and row.tags and isinstance(row.tags, str)
-                        else (getattr(row, "tags", []) or [])
+                        json.loads(row['tags'])
+                        if 'tags' in row and row['tags'] and isinstance(row['tags'], str)
+                        else (row.get('tags', []) or [])
                     ),
                     # Technical details
-                    language=getattr(row, "language", None),
-                    dbt_version=getattr(row, "dbt_version", None),
-                    thread_id=getattr(row, "thread_id", None),
-                    error=getattr(row, "error", None),
+                    language=row.get('language', None),
+                    dbt_version=row.get('dbt_version', None),
+                    thread_id=row.get('thread_id', None),
+                    error=row.get('error', None),
                     # Dependencies
                     depends_on=(
-                        json.loads(row.depends_on)
-                        if hasattr(row, "depends_on")
-                        and row.depends_on
-                        and isinstance(row.depends_on, str)
-                        else (getattr(row, "depends_on", []) or [])
+                        json.loads(row['depends_on'])
+                        if 'depends_on' in row
+                        and row['depends_on']
+                        and isinstance(row['depends_on'], str)
+                        else (row.get('depends_on', []) or [])
                     ),
                 )
             )
@@ -1957,81 +1957,81 @@ class MetadataDatabase:
             ORDER BY name
         """
 
-        df = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
+        df = self.conn.execute(sql, [schedule_name]).pl()
 
         results = []
-        for row in df.to_pandas().itertuples():
+        for row in df.iter_rows(named=True):
             results.append(
                 ExposureData(
                     # Core identification
-                    unique_id=row.unique_id,
-                    name=getattr(row, "name", None),
-                    resource_type=getattr(row, "resource_type", "exposure"),
+                    unique_id=row['unique_id'],
+                    name=row.get('name', None),
+                    resource_type=row.get('resource_type', "exposure"),
                     # Run identification
                     run_id=(
-                        int(row.run_id)  # type: ignore
-                        if hasattr(row, "run_id")
-                        and row.run_id is not None
-                        and row.run_id is not None
+                        int(row['run_id'])  # type: ignore
+                        if 'run_id' in row
+                        and row['run_id'] is not None
+                        and row['run_id'] is not None
                         else None
                     ),
                     # Exposure-specific information
-                    exposure_type=getattr(row, "exposure_type", None),
-                    maturity=getattr(row, "maturity", None),
-                    owner_name=getattr(row, "owner_name", None),
-                    owner_email=getattr(row, "owner_email", None),
-                    url=getattr(row, "url", None),
-                    package_name=getattr(row, "package_name", None),
+                    exposure_type=row.get('exposure_type', None),
+                    maturity=row.get('maturity', None),
+                    owner_name=row.get('owner_name', None),
+                    owner_email=row.get('owner_email', None),
+                    url=row.get('url', None),
+                    package_name=row.get('package_name', None),
                     # Execution information
-                    status=getattr(row, "status", None),
-                    execution_time=getattr(row, "execution_time", None),
-                    thread_id=getattr(row, "thread_id", None),
+                    status=row.get('status', None),
+                    execution_time=row.get('execution_time', None),
+                    thread_id=row.get('thread_id', None),
                     # Timing information
-                    compile_started_at=getattr(row, "compile_started_at", None),
-                    compile_completed_at=getattr(row, "compile_completed_at", None),
-                    execute_started_at=getattr(row, "execute_started_at", None),
-                    execute_completed_at=getattr(row, "execute_completed_at", None),
-                    manifest_generated_at=getattr(row, "manifest_generated_at", None),
+                    compile_started_at=row.get('compile_started_at', None),
+                    compile_completed_at=row.get('compile_completed_at', None),
+                    execute_started_at=row.get('execute_started_at', None),
+                    execute_completed_at=row.get('execute_completed_at', None),
+                    manifest_generated_at=row.get('manifest_generated_at', None),
                     # Metadata and documentation
-                    description=getattr(row, "description", None),
+                    description=row.get('description', None),
                     meta=(
-                        json.loads(row.meta)
-                        if hasattr(row, "meta") and row.meta and isinstance(row.meta, str)
-                        else (getattr(row, "meta", {}) or {})
+                        json.loads(row['meta'])
+                        if 'meta' in row and row['meta'] and isinstance(row['meta'], str)
+                        else (row.get('meta', {}) or {})
                     ),
                     tags=(
-                        json.loads(row.tags)
-                        if hasattr(row, "tags") and row.tags and isinstance(row.tags, str)
-                        else (getattr(row, "tags", []) or [])
+                        json.loads(row['tags'])
+                        if 'tags' in row and row['tags'] and isinstance(row['tags'], str)
+                        else (row.get('tags', []) or [])
                     ),
                     # Technical details
-                    dbt_version=getattr(row, "dbt_version", None),
+                    dbt_version=row.get('dbt_version', None),
                     # Dependencies and lineage
                     depends_on=(
-                        json.loads(row.depends_on)
-                        if hasattr(row, "depends_on")
-                        and row.depends_on
-                        and isinstance(row.depends_on, str)
-                        else (getattr(row, "depends_on", []) or [])
+                        json.loads(row['depends_on'])
+                        if 'depends_on' in row
+                        and row['depends_on']
+                        and isinstance(row['depends_on'], str)
+                        else (row.get('depends_on', []) or [])
                     ),
                     parents=(
-                        json.loads(row.parents)
-                        if hasattr(row, "parents") and row.parents and isinstance(row.parents, str)
-                        else (getattr(row, "parents", []) or [])
+                        json.loads(row['parents'])
+                        if 'parents' in row and row['parents'] and isinstance(row['parents'], str)
+                        else (row.get('parents', []) or [])
                     ),
                     parents_models=(
-                        json.loads(row.parents_models)
-                        if hasattr(row, "parents_models")
-                        and row.parents_models
-                        and isinstance(row.parents_models, str)
-                        else (getattr(row, "parents_models", []) or [])
+                        json.loads(row['parents_models'])
+                        if 'parents_models' in row
+                        and row['parents_models']
+                        and isinstance(row['parents_models'], str)
+                        else (row.get('parents_models', []) or [])
                     ),
                     parents_sources=(
-                        json.loads(row.parents_sources)
-                        if hasattr(row, "parents_sources")
-                        and row.parents_sources
-                        and isinstance(row.parents_sources, str)
-                        else (getattr(row, "parents_sources", []) or [])
+                        json.loads(row['parents_sources'])
+                        if 'parents_sources' in row
+                        and row['parents_sources']
+                        and isinstance(row['parents_sources'], str)
+                        else (row.get('parents_sources', []) or [])
                     ),
                 )
             )
@@ -2052,9 +2052,7 @@ class MetadataDatabase:
             WHERE name = ? AND schedule_name = ?
         """
 
-        model_result = pl.from_pandas(
-            self.conn.execute(model_sql, [model_name, schedule_name]).df()
-        )
+        model_result = self.conn.execute(model_sql, [model_name, schedule_name]).pl()
         if model_result.is_empty():
             return pl.DataFrame(
                 {
@@ -2106,7 +2104,7 @@ class MetadataDatabase:
         """
 
         params = [schedule_name] + depends_on + [schedule_name]
-        return pl.from_pandas(self.conn.execute(sql, params).df())
+        return self.conn.execute(sql, params).pl()
 
     def get_downstream_impact(
         self, model_name: str, schedule_name: str, max_depth: int = 10
@@ -2119,9 +2117,7 @@ class MetadataDatabase:
             WHERE name = ? AND schedule_name = ?
         """
 
-        target_result = pl.from_pandas(
-            self.conn.execute(target_sql, [model_name, schedule_name]).df()
-        )
+        target_result = self.conn.execute(target_sql, [model_name, schedule_name]).pl()
         if target_result.is_empty():
             return pl.DataFrame(
                 {
@@ -2152,9 +2148,7 @@ class MetadataDatabase:
             ORDER BY m.name
         """
 
-        return pl.from_pandas(
-            self.conn.execute(sql, [schedule_name, target_id, schedule_name]).df()
-        )
+        return self.conn.execute(sql, [schedule_name, target_id, schedule_name]).pl()
 
     def get_dashboard_metrics_optimized(self, schedule_name: str) -> Dict[str, Any]:
         """Get dashboard metrics using optimized SQL aggregations"""
@@ -2172,7 +2166,7 @@ class MetadataDatabase:
             WHERE schedule_name = ?
         """
 
-        result = pl.from_pandas(self.conn.execute(sql, [schedule_name]).df())
+        result = self.conn.execute(sql, [schedule_name]).pl()
         if result.is_empty():
             return {
                 "total_models": 0,
