@@ -708,7 +708,6 @@ class BoltClient:
 
         return merge_sources(all_sources)
 
-
     def _get_all_latest_artifacts(self, schedule_name: str, max_runs: int = 1) -> dict:
         """
         Retrieves all available artifacts (manifest, run_results, sources) for a given schedule.
