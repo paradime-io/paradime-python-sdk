@@ -3,6 +3,7 @@ from paradime.apis.bolt.client import BoltClient
 from paradime.apis.catalog.client import CatalogClient
 from paradime.apis.custom_integration.client import CustomIntegrationClient
 from paradime.apis.lineage_diff.client import LineageDiffClient
+from paradime.apis.metadata.client import MetadataClient
 from paradime.apis.users.client import UsersClient
 from paradime.apis.workspaces.client import WorkspacesClient
 from paradime.client.api_client import APIClient
@@ -18,6 +19,7 @@ class Paradime(APIClient):
         catalog (CatalogClient): The catalog API client.
         custom_integration (CustomIntegrationClient): The custom integration API client.
         lineage_diff (LineageDiffClient): The lineage diff API client.
+        metadata (MetadataClient): The metadata API client.
         users (UsersClient): The users API client.
         workspaces (WorkspacesClient): The workspaces API client.
 
@@ -32,6 +34,7 @@ class Paradime(APIClient):
     catalog: CatalogClient
     custom_integration: CustomIntegrationClient
     lineage_diff: LineageDiffClient
+    metadata: MetadataClient
     users: UsersClient
     workspaces: WorkspacesClient
 
@@ -43,5 +46,6 @@ class Paradime(APIClient):
         self.catalog = CatalogClient(client=self)
         self.custom_integration = CustomIntegrationClient(client=self)
         self.lineage_diff = LineageDiffClient(client=self)
+        self.metadata = MetadataClient(bolt_client=self.bolt)
         self.users = UsersClient(client=self)
         self.workspaces = WorkspacesClient(client=self)

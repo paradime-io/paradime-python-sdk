@@ -559,3 +559,235 @@ class BoltClient:
         )
 
         return requests.get(manifest_url).json()
+
+    def _get_latest_run_results_json(
+        self, schedule_name: str, command_index: Optional[int] = None, merge: bool = False
+    ) -> dict:
+        """
+        Retrieves the latest run_results JSON for a given schedule.
+        By default returns the first run_results.json found, consistent with other get_latest_* functions.
+        When merge=True, collects run_results.json from multiple commands and merges them.
+
+        Args:
+            schedule_name (str): The name of the schedule.
+            command_index (Optional[int]): The index of a specific command. If provided, only gets results from that command.
+            merge (bool): If True, merge run_results from multiple commands. If False, return first found. Defaults to False.
+
+        Returns:
+            dict: The content of the latest run_results JSON file(s).
+        """
+        if command_index is not None:
+            # Get run results from specific command
+            run_results_url = self.get_latest_artifact_url(
+                schedule_name=schedule_name,
+                artifact_path="target/run_results.json",
+                command_index=command_index,
+                max_runs=1,
+            )
+            return requests.get(run_results_url).json()
+
+        # Get the latest runs for the schedule
+        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=1).runs
+
+        if not latest_runs:
+            raise BoltScheduleLatestRunNotFoundException(
+                f"No runs found for schedule {schedule_name!r}."
+            )
+
+        all_run_results = []
+
+        # Search through runs until we find run_results.json files
+        for run in latest_runs:
+            # Get all commands for this run
+            all_commands = self.list_run_commands(run.id)
+
+            # Check each command for run_results.json (newest first)
+            for command in reversed(all_commands):
+                # Skip commands that did not complete successfully
+                if command.return_code != 0:
+                    continue
+
+                # Skip commands that can't produce run_results.json
+                if not self._is_relevant_dbt_command(command.command):
+                    continue
+
+                # Find run_results.json in this command
+                artifacts = self.list_command_artifacts(command.id)
+                for artifact in artifacts:
+                    if artifact.path == "target/run_results.json":
+                        artifact_url = self.get_artifact_url(artifact.id)
+                        run_results = requests.get(artifact_url).json()
+                        all_run_results.append(run_results)
+                        if not merge:
+                            # Return first found when merge=False (consistent behavior)
+                            return run_results
+                        break
+
+            # If we found at least one run_results.json and not merging, we're done
+            if all_run_results and not merge:
+                break
+
+        if not all_run_results:
+            raise BoltScheduleArtifactNotFoundException(
+                f"No run_results.json found for schedule {schedule_name!r} in the latest run."
+            )
+
+        # If only one run_results.json or merge=False, return it as-is
+        if len(all_run_results) == 1 or not merge:
+            return all_run_results[0]
+
+        # Merge multiple run_results.json files when merge=True
+        from paradime.apis.metadata.utils import merge_run_results
+
+        return merge_run_results(all_run_results)
+
+    def _get_latest_sources_json(
+        self, schedule_name: str, command_index: Optional[int] = None, merge: bool = False
+    ) -> dict:
+        """
+        Retrieves the latest sources JSON for a given schedule.
+
+        Args:
+            schedule_name (str): The name of the schedule.
+            command_index (Optional[int]): The index of a specific command. If provided, only gets results from that command.
+            merge (bool): If True, merge sources from multiple commands. If False, return first found. Defaults to False.
+
+        Returns:
+            dict: The content of the latest sources JSON.
+        """
+        if command_index is not None:
+            sources_url = self.get_latest_artifact_url(
+                schedule_name=schedule_name,
+                artifact_path="target/sources.json",
+                command_index=command_index,
+                max_runs=1,
+            )
+            return requests.get(sources_url).json()
+
+        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=1).runs
+
+        if not latest_runs:
+            raise BoltScheduleLatestRunNotFoundException(
+                f"No runs found for schedule {schedule_name!r}."
+            )
+
+        all_sources = []
+
+        for run in latest_runs:
+            all_commands = self.list_run_commands(run.id)
+
+            for command in reversed(all_commands):
+                if command.return_code != 0:
+                    continue
+
+                if not self._is_relevant_dbt_command(command.command):
+                    continue
+
+                artifacts = self.list_command_artifacts(command.id)
+                for artifact in artifacts:
+                    if artifact.path == "target/sources.json":
+                        artifact_url = self.get_artifact_url(artifact.id)
+                        sources = requests.get(artifact_url).json()
+                        all_sources.append(sources)
+                        if not merge:
+                            return sources
+                        break
+
+            if all_sources and not merge:
+                break
+
+        if not all_sources:
+            raise BoltScheduleArtifactNotFoundException(
+                f"No sources.json found for schedule {schedule_name!r} in the latest run."
+            )
+
+        if len(all_sources) == 1 or not merge:
+            return all_sources[0]
+
+        from paradime.apis.metadata.utils import merge_sources
+
+        return merge_sources(all_sources)
+
+    def _get_all_latest_artifacts(self, schedule_name: str, max_runs: int = 1) -> dict:
+        """
+        Retrieves all available artifacts (manifest, run_results, sources) for a given schedule.
+
+        Args:
+            schedule_name (str): The name of the schedule.
+            max_runs (int): The maximum number of latest runs to search through. Defaults to 1.
+
+        Returns:
+            dict: Dictionary containing all available artifacts with keys: 'manifest', 'run_results', 'sources'.
+        """
+        artifacts = {}
+
+        try:
+            artifacts["manifest"] = self.get_latest_manifest_json(schedule_name, max_runs=max_runs)
+        except BoltScheduleArtifactNotFoundException:
+            pass
+
+        try:
+            artifacts["run_results"] = self._get_latest_run_results_json(schedule_name, merge=True)
+        except BoltScheduleArtifactNotFoundException:
+            pass
+
+        try:
+            artifacts["sources"] = self._get_latest_sources_json(schedule_name, merge=True)
+        except BoltScheduleArtifactNotFoundException:
+            pass
+
+        if not artifacts:
+            raise BoltScheduleArtifactNotFoundException(
+                f"No artifacts found for schedule {schedule_name!r}."
+            )
+
+        return artifacts
+
+    def _is_relevant_dbt_command(self, command: str) -> bool:
+        """
+        Check if a command is a relevant dbt command that produces artifacts we care about.
+
+        Args:
+            command: The command string to check
+
+        Returns:
+            bool: True if the command is a relevant dbt command
+        """
+        command_lower = command.lower().strip()
+
+        # Commands to include - these produce useful artifacts
+        relevant_patterns = [
+            "dbt run",  # Model execution
+            "dbt test",  # Test execution
+            "dbt build",  # Combined run + test
+            "dbt source",  # Source freshness
+            "dbt snapshot",  # Snapshot execution
+            "dbt compile",  # Compilation (produces manifest)
+            "dbt parse",  # Parsing (produces manifest)
+        ]
+
+        # Commands to exclude - these don't produce useful metadata
+        exclude_patterns = [
+            "git clone",  # Git operations
+            "git checkout",
+            "git pull",
+            "dbt deps",  # Dependency installation
+            "dbt clean",  # Cleanup operations
+            "dbt debug",  # Debug info
+            "pip install",  # Package installation
+            "poetry install",
+            "npm install",
+        ]
+
+        # Check exclusions first
+        for exclude_pattern in exclude_patterns:
+            if exclude_pattern in command_lower:
+                return False
+
+        # Check if it's a relevant dbt command
+        for relevant_pattern in relevant_patterns:
+            if relevant_pattern in command_lower:
+                return True
+
+        # Default to False for unknown commands
+        return False
