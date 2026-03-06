@@ -380,7 +380,8 @@ def list_fivetran_connectors(
     api_key: str,
     api_secret: str,
     group_id: Optional[str] = None,
-) -> None:
+    json: bool = False,
+) -> Optional[list[dict]]:
     """
     List all Fivetran connectors with their IDs and status.
 
@@ -388,6 +389,7 @@ def list_fivetran_connectors(
         api_key: Fivetran API key
         api_secret: Fivetran API secret
         group_id: Optional group ID to filter connectors
+        json: If True, return structured data instead of printing
     """
     base_url = "https://api.fivetran.com/v1"
     auth = (api_key, api_secret)
@@ -395,10 +397,12 @@ def list_fivetran_connectors(
     # Build URL based on whether group_id is provided
     if group_id:
         url = f"{base_url}/groups/{group_id}/connectors"
-        print(f"\n🔍 Listing connectors for group: {group_id}")
+        if not json:
+            print(f"\n🔍 Listing connectors for group: {group_id}")
     else:
         url = f"{base_url}/connectors"
-        print("\n🔍 Listing all connectors")
+        if not json:
+            print("\n🔍 Listing all connectors")
 
     connectors_response = requests.get(
         url,
@@ -411,11 +415,40 @@ def list_fivetran_connectors(
     connectors_data = connectors_response.json()
 
     if "data" not in connectors_data or "items" not in connectors_data["data"]:
+        if json:
+            return []
         print("No connectors found.")
-        return
+        return None
 
     connectors = connectors_data["data"]["items"]
 
+    # Build structured result
+    result = []
+    for connector in connectors:
+        connector_id = connector.get("id", "Unknown")
+        service = connector.get("service", "Unknown")
+        schema = connector.get("schema", "Unknown")
+        status = connector.get("status", {})
+        sync_state = status.get("sync_state", "Unknown")
+        setup_state = status.get("setup_state", "Unknown")
+        succeeded_at = connector.get("succeeded_at", "Never")
+        failed_at = connector.get("failed_at", "Never")
+
+        result.append({
+            "connector_id": connector_id,
+            "name": f"{service} ({schema})",
+            "service": service,
+            "schema": schema,
+            "sync_state": sync_state,
+            "setup_state": setup_state,
+            "succeeded_at": succeeded_at,
+            "failed_at": failed_at,
+        })
+
+    if json:
+        return result
+
+    # Print formatted output
     print(f"\n{'='*80}")
     print(f"📋 FOUND {len(connectors)} CONNECTOR(S)")
     print(f"{'='*80}")
@@ -462,3 +495,4 @@ def list_fivetran_connectors(
         print(f"   🔗 Dashboard: {dashboard_url}")
 
     print(f"\n{'='*80}\n")
+    return None
