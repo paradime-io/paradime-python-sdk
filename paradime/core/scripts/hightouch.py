@@ -1,7 +1,7 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
+from typing import List, Optional
 
 import requests
 
@@ -633,16 +633,18 @@ def _wait_for_sync_sequence_completion(
             continue
 
 
-def list_hightouch_syncs(*, api_token: str) -> None:
+def list_hightouch_syncs(*, api_token: str, json: bool = False) -> Optional[list[dict]]:
     """
     List all Hightouch syncs with their IDs and status.
 
     Args:
         api_token: Hightouch API token.
+        json: If True, return structured data instead of printing.
     """
     auth_headers = _get_auth_headers(api_token)
 
-    print("\n🔍 Listing all Hightouch syncs")
+    if not json:
+        print("\n🔍 Listing all Hightouch syncs")
 
     syncs_response = requests.get(
         f"{HIGHTOUCH_BASE_URL}/syncs",
@@ -659,13 +661,50 @@ def list_hightouch_syncs(*, api_token: str) -> None:
     elif isinstance(syncs_data, dict) and "data" in syncs_data:
         syncs = syncs_data["data"]
     else:
+        if json:
+            return []
         print("No syncs found.")
-        return
+        return None
 
     if not syncs:
+        if json:
+            return []
         print("No syncs found.")
-        return
+        return None
 
+    # Build structured result
+    result = []
+    for sync in syncs:
+        sync_id = sync.get("id", "Unknown")
+        slug = sync.get("slug", "N/A")
+        name = sync.get("name", "Unknown")
+        status = sync.get("status", "Unknown")
+        schedule_type = (
+            sync.get("schedule", {}).get("type", "Unknown")
+            if isinstance(sync.get("schedule"), dict)
+            else "Unknown"
+        )
+        model_id = sync.get("modelId", "Unknown")
+        destination_id = sync.get("destinationId", "Unknown")
+        last_run_at = sync.get("lastRunAt", "Never")
+
+        result.append(
+            {
+                "id": str(sync_id),
+                "name": name,
+                "slug": slug,
+                "status": status,
+                "schedule_type": schedule_type,
+                "model_id": str(model_id),
+                "destination_id": str(destination_id),
+                "last_run_at": last_run_at,
+            }
+        )
+
+    if json:
+        return result
+
+    # Print formatted output
     print(f"\n{'='*80}")
     print(f"📋 FOUND {len(syncs)} SYNC(S)")
     print(f"{'='*80}")
@@ -703,18 +742,21 @@ def list_hightouch_syncs(*, api_token: str) -> None:
             print(f"   Last Run: {last_run_at}")
 
     print(f"\n{'='*80}\n")
+    return None
 
 
-def list_hightouch_sync_sequences(*, api_token: str) -> None:
+def list_hightouch_sync_sequences(*, api_token: str, json: bool = False) -> Optional[list[dict]]:
     """
     List all Hightouch sync sequences with their IDs and status.
 
     Args:
         api_token: Hightouch API token.
+        json: If True, return structured data instead of printing.
     """
     auth_headers = _get_auth_headers(api_token)
 
-    print("\n🔍 Listing all Hightouch sync sequences")
+    if not json:
+        print("\n🔍 Listing all Hightouch sync sequences")
 
     sequences_response = requests.get(
         f"{HIGHTOUCH_BASE_URL}/sync-sequences",
@@ -731,13 +773,47 @@ def list_hightouch_sync_sequences(*, api_token: str) -> None:
     elif isinstance(sequences_data, dict) and "data" in sequences_data:
         sequences = sequences_data["data"]
     else:
+        if json:
+            return []
         print("No sync sequences found.")
-        return
+        return None
 
     if not sequences:
+        if json:
+            return []
         print("No sync sequences found.")
-        return
+        return None
 
+    # Build structured result
+    result = []
+    for sequence in sequences:
+        sequence_id = sequence.get("id", "Unknown")
+        name = sequence.get("name", "Unknown")
+        status = sequence.get("status", "Unknown")
+        schedule_type = (
+            sequence.get("schedule", {}).get("type", "Unknown")
+            if isinstance(sequence.get("schedule"), dict)
+            else "Unknown"
+        )
+        last_run_at = sequence.get("lastRunAt", "Never")
+        syncs_in_sequence = sequence.get("syncs", [])
+        sync_count = len(syncs_in_sequence) if isinstance(syncs_in_sequence, list) else 0
+
+        result.append(
+            {
+                "id": str(sequence_id),
+                "name": name,
+                "status": status,
+                "schedule_type": schedule_type,
+                "sync_count": sync_count,
+                "last_run_at": last_run_at,
+            }
+        )
+
+    if json:
+        return result
+
+    # Print formatted output
     print(f"\n{'='*80}")
     print(f"📋 FOUND {len(sequences)} SYNC SEQUENCE(S)")
     print(f"{'='*80}")
@@ -774,3 +850,4 @@ def list_hightouch_sync_sequences(*, api_token: str) -> None:
             print(f"   Last Run: {last_run_at}")
 
     print(f"\n{'='*80}\n")
+    return None
