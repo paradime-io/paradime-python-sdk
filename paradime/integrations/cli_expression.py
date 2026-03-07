@@ -8,12 +8,7 @@ Auth fields are excluded since they come from environment variables.
 
 from typing import Any
 
-from paradime.integrations._base import (
-    Field,
-    FieldType,
-    IntegrationManifest,
-    RepeatableGroup,
-)
+from paradime.integrations._base import Field, FieldType, IntegrationManifest, RepeatableGroup
 
 
 def generate_cli_expression(

@@ -38,9 +38,7 @@ def _resolve_auth_from_env(auth_fields: List[Field]) -> dict[str, str]:
         else:
             missing.append(f"{field.label} (no env_var configured)")
     if missing:
-        raise click.ClickException(
-            f"Missing required environment variables: {', '.join(missing)}"
-        )
+        raise click.ClickException(f"Missing required environment variables: {', '.join(missing)}")
     return result
 
 
@@ -142,7 +140,11 @@ def build_click_command(
                 if result is not None and cmd_manifest.type.value == "action":
                     # Check if any results indicate failure
                     if isinstance(result, list):
-                        failed = [r for r in result if isinstance(r, str) and ("FAILED" in r or "PAUSED" in r)]
+                        failed = [
+                            r
+                            for r in result
+                            if isinstance(r, str) and ("FAILED" in r or "PAUSED" in r)
+                        ]
                         if failed:
                             sys.exit(1)
             except Exception as e:

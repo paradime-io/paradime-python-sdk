@@ -688,16 +688,18 @@ def list_hightouch_syncs(*, api_token: str, json: bool = False) -> Optional[list
         destination_id = sync.get("destinationId", "Unknown")
         last_run_at = sync.get("lastRunAt", "Never")
 
-        result.append({
-            "id": str(sync_id),
-            "name": name,
-            "slug": slug,
-            "status": status,
-            "schedule_type": schedule_type,
-            "model_id": str(model_id),
-            "destination_id": str(destination_id),
-            "last_run_at": last_run_at,
-        })
+        result.append(
+            {
+                "id": str(sync_id),
+                "name": name,
+                "slug": slug,
+                "status": status,
+                "schedule_type": schedule_type,
+                "model_id": str(model_id),
+                "destination_id": str(destination_id),
+                "last_run_at": last_run_at,
+            }
+        )
 
     if json:
         return result
@@ -797,14 +799,16 @@ def list_hightouch_sync_sequences(*, api_token: str, json: bool = False) -> Opti
         syncs_in_sequence = sequence.get("syncs", [])
         sync_count = len(syncs_in_sequence) if isinstance(syncs_in_sequence, list) else 0
 
-        result.append({
-            "id": str(sequence_id),
-            "name": name,
-            "status": status,
-            "schedule_type": schedule_type,
-            "sync_count": sync_count,
-            "last_run_at": last_run_at,
-        })
+        result.append(
+            {
+                "id": str(sequence_id),
+                "name": name,
+                "status": status,
+                "schedule_type": schedule_type,
+                "sync_count": sync_count,
+                "last_run_at": last_run_at,
+            }
+        )
 
     if json:
         return result

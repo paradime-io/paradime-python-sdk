@@ -434,16 +434,18 @@ def list_fivetran_connectors(
         succeeded_at = connector.get("succeeded_at", "Never")
         failed_at = connector.get("failed_at", "Never")
 
-        result.append({
-            "connector_id": connector_id,
-            "name": f"{service} ({schema})",
-            "service": service,
-            "schema": schema,
-            "sync_state": sync_state,
-            "setup_state": setup_state,
-            "succeeded_at": succeeded_at,
-            "failed_at": failed_at,
-        })
+        result.append(
+            {
+                "connector_id": connector_id,
+                "name": f"{service} ({schema})",
+                "service": service,
+                "schema": schema,
+                "sync_state": sync_state,
+                "setup_state": setup_state,
+                "succeeded_at": succeeded_at,
+                "failed_at": failed_at,
+            }
+        )
 
     if json:
         return result

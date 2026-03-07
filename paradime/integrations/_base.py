@@ -9,8 +9,7 @@ the frontend UI to auto-generate forms and commands.
 from enum import Enum
 from typing import Any, List, Optional, Union
 
-from pydantic import BaseModel, Field as PydanticField
-
+from paradime.tools.pydantic import BaseModel, Field as PydanticField
 
 # ---------------------------------------------------------------------------
 # Enums

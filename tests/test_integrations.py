@@ -7,10 +7,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from paradime.integrations import (
-    ManifestRegistry,
-    registry,
-)
+from paradime.integrations import ManifestRegistry
 from paradime.integrations._base import (
     CommandManifest,
     CommandType,
@@ -27,7 +24,6 @@ from paradime.integrations._base import (
 )
 from paradime.integrations.cli_builder import build_click_command, build_integration_commands
 from paradime.integrations.cli_expression import generate_cli_expression
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -193,7 +189,9 @@ class TestSchemaValidation:
             assert field.type.value == ft
 
     def test_validation_rules(self):
-        v = Validation(min_value=1, max_value=100, pattern=r"^\d+$", pattern_message="Must be numeric")
+        v = Validation(
+            min_value=1, max_value=100, pattern=r"^\d+$", pattern_message="Must be numeric"
+        )
         assert v.min_value == 1
         assert v.max_value == 100
 
@@ -316,6 +314,7 @@ class TestRegistry:
         assert data[0]["id"] == "fivetran"
         # Verify JSON-serializable (no pydantic objects)
         import json
+
         json.dumps(data)
 
     def test_clear(self, clean_registry, sample_manifest):
@@ -421,8 +420,14 @@ class TestCLIBuilder:
 class TestCLIExpression:
     def test_basic_expression(self, sample_manifest):
         expr = generate_cli_expression(
-            sample_manifest, "sync",
-            {"connector_id": ["abc123"], "force": True, "wait_for_completion": True, "timeout_minutes": 60},
+            sample_manifest,
+            "sync",
+            {
+                "connector_id": ["abc123"],
+                "force": True,
+                "wait_for_completion": True,
+                "timeout_minutes": 60,
+            },
         )
         assert "paradime run fivetran-sync" in expr
         assert "--connector-id abc123" in expr
@@ -431,21 +436,24 @@ class TestCLIExpression:
 
     def test_repeatable_fields(self, sample_manifest):
         expr = generate_cli_expression(
-            sample_manifest, "sync",
+            sample_manifest,
+            "sync",
             {"connector_id": ["abc", "def", "ghi"]},
         )
         assert expr.count("--connector-id") == 3
 
     def test_boolean_false(self, sample_manifest):
         expr = generate_cli_expression(
-            sample_manifest, "sync",
+            sample_manifest,
+            "sync",
             {"connector_id": ["abc"], "force": False},
         )
         assert "--no-force" in expr
 
     def test_no_auth_in_expression(self, sample_manifest):
         expr = generate_cli_expression(
-            sample_manifest, "sync",
+            sample_manifest,
+            "sync",
             {"connector_id": ["abc"], "api_key": "secret", "api_secret": "secret2"},
         )
         # Auth fields are not in the command fields, so they should not appear
@@ -458,7 +466,8 @@ class TestCLIExpression:
 
     def test_text_field(self, sample_manifest):
         expr = generate_cli_expression(
-            sample_manifest, "list_connectors",
+            sample_manifest,
+            "list_connectors",
             {"group_id": "my-group"},
         )
         assert "paradime run fivetran-list-connectors" in expr
@@ -466,7 +475,8 @@ class TestCLIExpression:
 
     def test_value_with_spaces(self, sample_manifest):
         expr = generate_cli_expression(
-            sample_manifest, "list_connectors",
+            sample_manifest,
+            "list_connectors",
             {"group_id": "my group"},
         )
         assert "'my group'" in expr
