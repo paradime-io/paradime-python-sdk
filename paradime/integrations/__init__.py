@@ -51,7 +51,7 @@ class ManifestRegistry:
 
     def to_dict(self) -> list[dict]:
         """Export all manifests as JSON-serializable dicts."""
-        return [m.model_dump(mode="json") for m in self._integrations.values()]
+        return [m.dict() for m in self._integrations.values()]
 
     def clear(self) -> None:
         """Clear all registered manifests."""
