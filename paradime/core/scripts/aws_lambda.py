@@ -1,4 +1,3 @@
-import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
@@ -6,8 +5,7 @@ from typing import Any, Dict, List, Optional
 import boto3  # type: ignore[import-untyped]
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
+from paradime.cli import console
 
 
 def trigger_lambda_functions(
@@ -42,16 +40,8 @@ def trigger_lambda_functions(
     futures = []
     results = []
 
-    # Add visual separator and header
-    print(f"\n{'='*60}")
-    print("🚀 TRIGGERING AWS LAMBDA FUNCTIONS")
-    print(f"{'='*60}")
-
     with ThreadPoolExecutor() as executor:
         for i, function_name in enumerate(set(function_names), 1):
-            print(f"\n[{i}/{len(set(function_names))}] ⚡ {function_name}")
-            print(f"{'-'*40}")
-
             futures.append(
                 (
                     function_name,
@@ -70,11 +60,6 @@ def trigger_lambda_functions(
                 )
             )
 
-        # Add separator for live progress section
-        print(f"\n{'='*60}")
-        print("⚡ LIVE PROGRESS")
-        print(f"{'='*60}")
-
         # Wait for completion and collect results
         function_results = []
         for function_name, future in futures:
@@ -84,27 +69,21 @@ def trigger_lambda_functions(
             function_results.append((function_name, response_txt))
             results.append(response_txt)
 
-        # Display results as simple table
-        print(f"\n{'='*80}")
-        print("📊 INVOCATION RESULTS")
-        print(f"{'='*80}")
-        print(f"{'FUNCTION NAME':<40} {'STATUS':<15}")
-        print(f"{'-'*40} {'-'*15}")
-
-        for function_name, response_txt in function_results:
-            # Format result with emoji
+        def _status_text(response_txt: str) -> str:
             if "SUCCESS" in response_txt:
-                status = "✅ SUCCESS"
+                return "SUCCESS"
             elif "FAILED" in response_txt or "ERROR" in response_txt:
-                status = "❌ FAILED"
+                return "FAILED"
             elif "THROTTLED" in response_txt:
-                status = "⚠️ THROTTLED"
+                return "THROTTLED"
             else:
-                status = "ℹ️ COMPLETED"
+                return "COMPLETED"
 
-            print(f"{function_name:<40} {status:<15}")
-
-        print(f"{'='*80}\n")
+        console.table(
+            columns=["Function Name", "Status"],
+            rows=[(fn, _status_text(response_txt)) for fn, response_txt in function_results],
+            title="Invocation Results",
+        )
 
     return results
 
@@ -138,10 +117,7 @@ def trigger_lambda_function(
     Returns:
         Status message indicating invocation result
     """
-    import datetime
     import json
-
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
 
     # Create Lambda client
     session_kwargs = {}
@@ -159,8 +135,8 @@ def trigger_lambda_function(
     # Prepare payload
     payload_bytes = json.dumps(payload or {}).encode("utf-8")
 
-    print(f"{timestamp} 🚀 [{function_name}] Invoking Lambda function...")
-    print(f"{timestamp} 📝 [{function_name}] Invocation type: {invocation_type}")
+    console.debug(f"[{function_name}] Invoking Lambda function...")
+    console.debug(f"[{function_name}] Invocation type: {invocation_type}")
 
     try:
         # Invoke the Lambda function
@@ -181,23 +157,23 @@ def trigger_lambda_function(
             response_data = {}
 
         if function_error:
-            print(f"{timestamp} ❌ [{function_name}] Function error: {function_error}")
+            console.error(f"[{function_name}] Function error: {function_error}")
             error_message = response_data.get("errorMessage", "Unknown error")
-            print(f"{timestamp} 📄 [{function_name}] Error details: {error_message}")
+            console.debug(f"[{function_name}] Error details: {error_message}")
             return f"FAILED (Function error: {function_error})"
 
         if status_code == 200:
-            print(f"{timestamp} ✅ [{function_name}] Invocation successful")
+            console.debug(f"[{function_name}] Invocation successful")
         elif status_code == 202:
-            print(f"{timestamp} ✅ [{function_name}] Async invocation accepted")
+            console.debug(f"[{function_name}] Async invocation accepted")
         elif status_code == 204:
-            print(f"{timestamp} ✅ [{function_name}] DryRun successful")
+            console.debug(f"[{function_name}] DryRun successful")
         else:
-            print(f"{timestamp} ⚠️  [{function_name}] Unexpected status code: {status_code}")
+            console.debug(f"[{function_name}] Unexpected status code: {status_code}")
 
         # For async invocations with wait_for_completion
         if invocation_type == "Event" and wait_for_completion:
-            print(f"{timestamp} ⏳ [{function_name}] Monitoring async execution...")
+            console.debug(f"[{function_name}] Monitoring async execution...")
             # Note: AWS Lambda doesn't provide built-in async invocation tracking
             # We use CloudWatch Logs to monitor execution
             execution_status = _monitor_lambda_execution(
@@ -213,8 +189,8 @@ def trigger_lambda_function(
         error_code = e.response.get("Error", {}).get("Code", "Unknown")
         error_message = e.response.get("Error", {}).get("Message", str(e))
 
-        print(f"{timestamp} ❌ [{function_name}] AWS Error: {error_code}")
-        print(f"{timestamp} 📄 [{function_name}] Error message: {error_message}")
+        console.error(f"[{function_name}] AWS Error: {error_code}")
+        console.debug(f"[{function_name}] Error message: {error_message}")
 
         if error_code == "TooManyRequestsException":
             return f"THROTTLED ({error_message})"
@@ -222,7 +198,7 @@ def trigger_lambda_function(
             return f"ERROR ({error_code}: {error_message})"
 
     except Exception as e:
-        print(f"{timestamp} ❌ [{function_name}] Unexpected error: {str(e)}")
+        console.error(f"[{function_name}] Unexpected error: {str(e)}")
         return f"ERROR ({str(e)[:100]})"
 
 
@@ -246,15 +222,12 @@ def _monitor_lambda_execution(
     Returns:
         Execution status
     """
-    import datetime
-
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     start_time = time.time()
     timeout_seconds = timeout_minutes * 60
     sleep_interval = 10
 
-    print(
-        f"{timestamp} ℹ️  [{function_name}] Note: Async Lambda monitoring is limited. Waiting {timeout_minutes} minutes..."
+    console.debug(
+        f"[{function_name}] Note: Async Lambda monitoring is limited. Waiting {timeout_minutes} minutes..."
     )
 
     # Wait for the specified timeout period
@@ -262,13 +235,13 @@ def _monitor_lambda_execution(
     while True:
         elapsed = time.time() - start_time
         if elapsed > timeout_seconds:
-            print(
-                f"{timestamp} ⏰ [{function_name}] Monitoring timeout reached after {timeout_minutes} minutes"
+            console.debug(
+                f"[{function_name}] Monitoring timeout reached after {timeout_minutes} minutes"
             )
             return "TIMEOUT (monitoring period exceeded)"
 
         if elapsed > 30:  # After 30 seconds, assume success if no errors detected
-            print(f"{timestamp} ✅ [{function_name}] No errors detected during monitoring period")
+            console.debug(f"[{function_name}] No errors detected during monitoring period")
             return "SUCCESS (no errors detected)"
 
         time.sleep(sleep_interval)
@@ -303,7 +276,7 @@ def list_lambda_functions(
 
     lambda_client = boto3.client("lambda", **session_kwargs)
 
-    print(f"\n🔍 Listing Lambda functions in region: {lambda_client.meta.region_name}")
+    console.info(f"Listing Lambda functions in region: {lambda_client.meta.region_name}")
 
     try:
         # List all functions (with pagination support)
@@ -313,35 +286,33 @@ def list_lambda_functions(
         for page in paginator.paginate():
             functions.extend(page["Functions"])
 
-        print(f"\n{'='*80}")
-        print(f"📋 FOUND {len(functions)} LAMBDA FUNCTION(S)")
-        print(f"{'='*80}")
-
-        for i, function in enumerate(functions, 1):
+        rows = []
+        for function in functions:
             function_name = function.get("FunctionName", "Unknown")
-            function_arn = function.get("FunctionArn", "Unknown")
             runtime = function.get("Runtime", "Unknown")
             last_modified = function.get("LastModified", "Unknown")
             memory_size = function.get("MemorySize", "Unknown")
             timeout = function.get("Timeout", "Unknown")
             state = function.get("State", "Unknown")
+            rows.append(
+                (function_name, state, runtime, str(memory_size), str(timeout), last_modified)
+            )
 
-            # Format state with emoji
-            state_emoji = "✅" if state == "Active" else "⚠️" if state == "Pending" else "❌"
-
-            print(f"\n[{i}/{len(functions)}] ⚡ {function_name}")
-            print(f"{'-'*50}")
-            print(f"   ARN: {function_arn}")
-            print(f"   {state_emoji} State: {state}")
-            print(f"   Runtime: {runtime}")
-            print(f"   Memory: {memory_size} MB")
-            print(f"   Timeout: {timeout} seconds")
-            print(f"   Last Modified: {last_modified}")
-
-        print(f"\n{'='*80}\n")
+        console.table(
+            columns=[
+                "Function Name",
+                "State",
+                "Runtime",
+                "Memory (MB)",
+                "Timeout (s)",
+                "Last Modified",
+            ],
+            rows=rows,
+            title="Lambda Functions",
+        )
 
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "Unknown")
         error_message = e.response.get("Error", {}).get("Message", str(e))
-        print(f"❌ Error listing Lambda functions: {error_code} - {error_message}")
+        console.error(f"Error listing Lambda functions: {error_code} - {error_message}")
         raise

@@ -1,11 +1,9 @@
-import logging
 import os
 import subprocess
 from pathlib import Path
 from typing import Final, Optional, Tuple
 
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
+from paradime.cli import console
 
 PARADIME_RESOURCES_DIRECTORY_ENV_VAR: Final = "PARADIME_RESOURCE_DIRECTORY"
 PARADIME_SCHEDULE_NAME_ENV_VAR: Final = "PARADIME_SCHEDULE_NAME"
@@ -41,7 +39,7 @@ def search_for_files_to_upload_to_montecarlo(
                     logs_path=logs_path if logs_path.is_file() else None,
                 )
             except Exception as e:
-                logger.error(f"Error running montecarlo import: {e!r}")
+                console.error(f"Error running montecarlo import: {e!r}")
                 success = False
 
     return success, found_files
@@ -76,8 +74,8 @@ def _run_montecarlo_import(
         command += ["--logs", str(logs_path)]
 
     try:
-        logger.info(f"Running montecarlo import command: {command!r}")
+        console.debug(f"Running montecarlo import command: {command!r}")
         result = subprocess.run(command, check=True, capture_output=True, text=True, env=os.environ)
-        logger.info(f"Montecarlo import command result: {result.stdout} {result.stderr}")
+        console.debug(f"Montecarlo import command result: {result.stdout} {result.stderr}")
     except subprocess.CalledProcessError as e:
         raise Exception(f"Error running montecarlo import: {e.stdout!r} {e.stderr!r}")

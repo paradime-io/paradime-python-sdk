@@ -1,14 +1,11 @@
-import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
 import requests
 
+from paradime.cli import console
 from paradime.core.scripts.utils import handle_http_error
-
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 def trigger_fivetran_sync(
@@ -37,16 +34,8 @@ def trigger_fivetran_sync(
     futures = []
     results = []
 
-    # Add visual separator and header
-    print(f"\n{'='*60}")
-    print("🚀 TRIGGERING FIVETRAN CONNECTORS")
-    print(f"{'='*60}")
-
     with ThreadPoolExecutor() as executor:
         for i, connector_id in enumerate(set(connector_ids), 1):
-            print(f"\n[{i}/{len(set(connector_ids))}] 🔌 {connector_id}")
-            print(f"{'-'*40}")
-
             futures.append(
                 (
                     connector_id,
@@ -62,11 +51,6 @@ def trigger_fivetran_sync(
                 )
             )
 
-        # Add separator for live progress section
-        print(f"\n{'='*60}")
-        print("⚡ LIVE PROGRESS")
-        print(f"{'='*60}")
-
         # Wait for completion and collect results
         connector_results = []
         for connector_id, future in futures:
@@ -76,30 +60,30 @@ def trigger_fivetran_sync(
             connector_results.append((connector_id, response_txt))
             results.append(response_txt)
 
-        # Display results as simple table
-        print(f"\n{'='*80}")
-        print("📊 SYNC RESULTS")
-        print(f"{'='*80}")
-        print(f"{'CONNECTOR':<25} {'STATUS':<10} {'DASHBOARD'}")
-        print(f"{'-'*25} {'-'*10} {'-'*45}")
-
-        for connector_id, response_txt in connector_results:
-            # Format result with emoji
+        def _status_text(response_txt: str) -> str:
             if "SUCCESS" in response_txt:
-                status = "✅ SUCCESS"
+                return "SUCCESS"
             elif "FAILED" in response_txt:
-                status = "❌ FAILED"
+                return "FAILED"
             elif "PAUSED" in response_txt:
-                status = "⚠️ PAUSED"
+                return "PAUSED"
             elif "RESCHEDULED" in response_txt:
-                status = "⏳ RESCHEDULED"
+                return "RESCHEDULED"
             else:
-                status = "ℹ️ COMPLETED"
+                return "COMPLETED"
 
-            dashboard_url = f"https://fivetran.com/dashboard/connections/{connector_id}"
-            print(f"{connector_id:<25} {status:<10} {dashboard_url}")
-
-        print(f"{'='*80}\n")
+        console.table(
+            columns=["Connector", "Status", "Dashboard"],
+            rows=[
+                (
+                    cid,
+                    _status_text(response_txt),
+                    f"https://fivetran.com/dashboard/connections/{cid}",
+                )
+                for cid, response_txt in connector_results
+            ],
+            title="Sync Results",
+        )
 
     return results
 
@@ -130,12 +114,8 @@ def trigger_connector_sync(
     base_url = "https://api.fivetran.com/v1"
     auth = (api_key, api_secret)
 
-    import datetime
-
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-
     # Check connector status before attempting sync
-    print(f"{timestamp} 🔍 [{connector_id}] Checking connector status...")
+    console.debug(f"[{connector_id}] Checking connector status...")
     try:
         status_response = requests.get(
             f"{base_url}/connectors/{connector_id}",
@@ -148,35 +128,31 @@ def trigger_connector_sync(
             current_sync_state = status_data.get("status", {}).get("sync_state", "unknown")
             current_setup_state = status_data.get("status", {}).get("setup_state", "unknown")
 
-            print(
-                f"{timestamp} 📊 [{connector_id}] State: {current_sync_state} | Setup: {current_setup_state}"
+            console.debug(
+                f"[{connector_id}] State: {current_sync_state} | Setup: {current_setup_state}"
             )
 
             # Handle paused connectors
             if current_sync_state == "paused":
                 if not force:
-                    print(
-                        f"{timestamp} ⚠️  [{connector_id}] Connector is paused - use --force to override"
-                    )
+                    console.debug(f"[{connector_id}] Connector is paused - use --force to override")
                     return "PAUSED (connector is paused - use --force to attempt override)"
                 else:
-                    print(f"{timestamp} 🔄 [{connector_id}] Forcing sync on paused connector...")
+                    console.debug(f"[{connector_id}] Forcing sync on paused connector...")
 
             # Handle broken setup state
             if current_setup_state == "broken":
-                print(
-                    f"{timestamp} ⚠️  [{connector_id}] Warning: Broken setup detected - sync may fail"
-                )
+                console.debug(f"[{connector_id}] Warning: Broken setup detected - sync may fail")
 
     except Exception as e:
-        print(
-            f"{timestamp} ⚠️  [{connector_id}] Could not check status: {str(e)[:50]}... Proceeding anyway."
+        console.debug(
+            f"[{connector_id}] Could not check status: {str(e)[:50]}... Proceeding anyway."
         )
 
     # Trigger the sync
     sync_payload = {"force": force} if force else {}
 
-    print(f"{timestamp} 🚀 [{connector_id}] Triggering sync...")
+    console.debug(f"[{connector_id}] Triggering sync...")
     sync_response = requests.post(
         f"{base_url}/connectors/{connector_id}/sync",
         json=sync_payload,
@@ -191,12 +167,12 @@ def trigger_connector_sync(
 
     # Show dashboard link immediately after successful trigger
     dashboard_url = f"https://fivetran.com/dashboard/connections/{connector_id}"
-    print(f"{timestamp} 🔗 [{connector_id}] Dashboard: {dashboard_url}")
+    console.debug(f"[{connector_id}] Dashboard: {dashboard_url}")
 
     if not wait_for_completion:
         return sync_response.text
 
-    print(f"{timestamp} ⏳ [{connector_id}] Monitoring sync progress...")
+    console.debug(f"[{connector_id}] Monitoring sync progress...")
 
     # Wait for sync completion
     sync_status = _wait_for_sync_completion(
@@ -251,8 +227,8 @@ def _wait_for_sync_completion(
             initial_succeeded_at = initial_data.get("succeeded_at")
             initial_failed_at = initial_data.get("failed_at")
     except Exception as e:
-        print(
-            f"    ⚠️ [{connector_id}] Could not get initial state: {str(e)[:50]}... Proceeding anyway."
+        console.debug(
+            f"[{connector_id}] Could not get initial state: {str(e)[:50]}... Proceeding anyway."
         )
 
     while True:
@@ -289,25 +265,21 @@ def _wait_for_sync_completion(
             # Track if sync has actually started
             if sync_state == "syncing" and not sync_started:
                 sync_started = True
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"{timestamp} 🔄 [{connector_id}] Sync started")
+                console.debug(f"[{connector_id}] Sync started")
 
             # Log progress every 6 checks (1 minute)
             if counter == 0 or counter % 6 == 0:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
                 if sync_state == "syncing":
-                    print(
-                        f"{timestamp} 🔄 [{connector_id}] Syncing... ({elapsed_min}m {elapsed_sec}s elapsed)"
+                    console.debug(
+                        f"[{connector_id}] Syncing... ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
                 elif not sync_started:
-                    print(
-                        f"{timestamp} ⏳ [{connector_id}] Waiting to start... ({elapsed_min}m {elapsed_sec}s elapsed)"
+                    console.debug(
+                        f"[{connector_id}] Waiting to start... ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
 
             # Check if sync is complete - but only if we've seen it start or timestamps changed
@@ -322,30 +294,26 @@ def _wait_for_sync_completion(
                 )
 
                 if sync_completed:
-                    import datetime
 
-                    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                     elapsed_min = int(elapsed // 60)
                     elapsed_sec = int(elapsed % 60)
 
                     # Check if we had a recent success or failure
                     if succeeded_at and succeeded_at != initial_succeeded_at:
-                        print(
-                            f"{timestamp} ✅ [{connector_id}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
+                        console.debug(
+                            f"[{connector_id}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
                         )
                         return f"SUCCESS (completed at {succeeded_at})"
                     elif failed_at and failed_at != initial_failed_at:
-                        print(f"{timestamp} ❌ [{connector_id}] Sync failed")
+                        console.error(f"[{connector_id}] Sync failed")
                         return f"FAILED (failed at {failed_at})"
                     elif sync_state == "rescheduled":
-                        print(
-                            f"{timestamp} ⏳ [{connector_id}] Rescheduled ({elapsed_min}m {elapsed_sec}s)"
+                        console.debug(
+                            f"[{connector_id}] Rescheduled ({elapsed_min}m {elapsed_sec}s)"
                         )
                         return "RESCHEDULED (sync will resume automatically)"
                     else:
-                        print(
-                            f"{timestamp} ✅ [{connector_id}] Completed ({elapsed_min}m {elapsed_sec}s)"
-                        )
+                        console.debug(f"[{connector_id}] Completed ({elapsed_min}m {elapsed_sec}s)")
                         return f"COMPLETED (sync state: {sync_state})"
 
             elif sync_state == "syncing":
@@ -353,10 +321,8 @@ def _wait_for_sync_completion(
                 pass
 
             elif sync_state == "paused":
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"{timestamp} ⚠️  [{connector_id}] Sync is paused")
+                console.debug(f"[{connector_id}] Sync is paused")
                 return f"PAUSED (sync state: {sync_state})"
 
             else:
@@ -367,10 +333,8 @@ def _wait_for_sync_completion(
             time.sleep(sleep_interval)
 
         except requests.exceptions.RequestException as e:
-            import datetime
 
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(f"{timestamp} ⚠️  [{connector_id}] Network error: {str(e)[:50]}... Retrying.")
+            console.debug(f"[{connector_id}] Network error: {str(e)[:50]}... Retrying.")
             time.sleep(sleep_interval)
             continue
 
@@ -395,10 +359,10 @@ def list_fivetran_connectors(
     # Build URL based on whether group_id is provided
     if group_id:
         url = f"{base_url}/groups/{group_id}/connectors"
-        print(f"\n🔍 Listing connectors for group: {group_id}")
+        console.info(f"Listing connectors for group: {group_id}")
     else:
         url = f"{base_url}/connectors"
-        print("\n🔍 Listing all connectors")
+        console.info("Listing all connectors")
 
     connectors_response = requests.get(
         url,
@@ -411,16 +375,13 @@ def list_fivetran_connectors(
     connectors_data = connectors_response.json()
 
     if "data" not in connectors_data or "items" not in connectors_data["data"]:
-        print("No connectors found.")
+        console.info("No connectors found.")
         return
 
     connectors = connectors_data["data"]["items"]
 
-    print(f"\n{'='*80}")
-    print(f"📋 FOUND {len(connectors)} CONNECTOR(S)")
-    print(f"{'='*80}")
-
-    for i, connector in enumerate(connectors, 1):
+    rows = []
+    for connector in connectors:
         connector_id = connector.get("id", "Unknown")
         service = connector.get("service", "Unknown")
         schema = connector.get("schema", "Unknown")
@@ -432,33 +393,31 @@ def list_fivetran_connectors(
         succeeded_at = connector.get("succeeded_at", "Never")
         failed_at = connector.get("failed_at", "Never")
 
-        # Format sync state with emoji
-        sync_emoji = (
-            "🔄"
-            if sync_state == "syncing"
-            else (
-                "✅"
-                if sync_state in ["scheduled", "rescheduled"]
-                else "⏸️" if sync_state == "paused" else "❓"
+        dashboard_url = f"https://fivetran.com/dashboard/connections/{connector_id}"
+        rows.append(
+            (
+                connector_id,
+                service,
+                schema,
+                sync_state,
+                setup_state,
+                str(succeeded_at),
+                str(failed_at),
+                dashboard_url,
             )
         )
-        setup_emoji = (
-            "✅" if setup_state == "connected" else "❌" if setup_state == "broken" else "⚠️"
-        )
 
-        # Create dashboard deep link
-        dashboard_url = f"https://fivetran.com/dashboard/connections/{connector_id}"
-
-        print(f"\n[{i}/{len(connectors)}] 🔌 {connector_id}")
-        print(f"{'-'*50}")
-        print(f"   Service: {service}")
-        print(f"   Schema: {schema}")
-        print(f"   {sync_emoji} Sync State: {sync_state}")
-        print(f"   {setup_emoji} Setup State: {setup_state}")
-        if succeeded_at != "Never":
-            print(f"   ✅ Last Success: {succeeded_at}")
-        if failed_at != "Never":
-            print(f"   ❌ Last Failure: {failed_at}")
-        print(f"   🔗 Dashboard: {dashboard_url}")
-
-    print(f"\n{'='*80}\n")
+    console.table(
+        columns=[
+            "Connector ID",
+            "Service",
+            "Schema",
+            "Sync State",
+            "Setup State",
+            "Last Success",
+            "Last Failure",
+            "Dashboard",
+        ],
+        rows=rows,
+        title="Fivetran Connectors",
+    )

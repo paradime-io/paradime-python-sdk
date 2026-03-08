@@ -1,14 +1,11 @@
-import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import requests
 
+from paradime.cli import console
 from paradime.core.scripts.utils import handle_http_error
-
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 HIGHTOUCH_BASE_URL = "https://api.hightouch.com/api/v1"
 
@@ -54,15 +51,8 @@ def trigger_hightouch_syncs(
     futures = []
     results = []
 
-    print(f"\n{'='*60}")
-    print("🚀 TRIGGERING HIGHTOUCH SYNCS")
-    print(f"{'='*60}")
-
     with ThreadPoolExecutor() as executor:
         for i, sync_id in enumerate(set(sync_ids), 1):
-            print(f"\n[{i}/{len(set(sync_ids))}] 🔌 Sync {sync_id}")
-            print(f"{'-'*40}")
-
             futures.append(
                 (
                     sync_id,
@@ -77,10 +67,6 @@ def trigger_hightouch_syncs(
                 )
             )
 
-        print(f"\n{'='*60}")
-        print("⚡ LIVE PROGRESS")
-        print(f"{'='*60}")
-
         sync_results = []
         for sync_id, future in futures:
             future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
@@ -88,31 +74,27 @@ def trigger_hightouch_syncs(
             sync_results.append((sync_id, response_txt))
             results.append(response_txt)
 
-        print(f"\n{'='*80}")
-        print("📊 SYNC RESULTS")
-        print(f"{'='*80}")
-        print(f"{'SYNC ID':<25} {'STATUS':<15}")
-        print(f"{'-'*25} {'-'*15}")
-
-        for sync_id, response_txt in sync_results:
+        def _status_text(response_txt: str) -> str:
             if "SUCCESS" in response_txt:
-                status = "✅ SUCCESS"
+                return "SUCCESS"
             elif "FAILED" in response_txt:
-                status = "❌ FAILED"
+                return "FAILED"
             elif "CANCELLED" in response_txt:
-                status = "🚫 CANCELLED"
+                return "CANCELLED"
             elif "WARNING" in response_txt:
-                status = "⚠️ WARNING"
+                return "WARNING"
             elif "INTERRUPTED" in response_txt:
-                status = "⚠️ INTERRUPTED"
+                return "INTERRUPTED"
             elif "ABORTED" in response_txt:
-                status = "🚫 ABORTED"
+                return "ABORTED"
             else:
-                status = "ℹ️ COMPLETED"
+                return "COMPLETED"
 
-            print(f"{sync_id:<25} {status:<15}")
-
-        print(f"{'='*80}\n")
+        console.table(
+            columns=["Sync ID", "Status"],
+            rows=[(sid, _status_text(response_txt)) for sid, response_txt in sync_results],
+            title="Sync Results",
+        )
 
     return results
 
@@ -138,11 +120,8 @@ def trigger_single_sync(
     Returns:
         Status message indicating sync result.
     """
-    import datetime
 
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-
-    print(f"{timestamp} 🚀 [{sync_id}] Triggering sync (full_resync={full_resync})...", flush=True)
+    console.debug(f"[{sync_id}] Triggering sync (full_resync={full_resync})...")
 
     trigger_payload = {"fullResync": full_resync}
 
@@ -160,15 +139,12 @@ def trigger_single_sync(
     trigger_data = trigger_response.json()
     sync_request_id = trigger_data.get("id")
 
-    print(
-        f"{timestamp} ✅ [{sync_id}] Sync triggered successfully (request ID: {sync_request_id})",
-        flush=True,
-    )
+    console.debug(f"[{sync_id}] Sync triggered successfully (request ID: {sync_request_id})")
 
     if not wait_for_completion:
         return f"Sync triggered (request ID: {sync_request_id})"
 
-    print(f"{timestamp} ⏳ [{sync_id}] Monitoring sync progress...", flush=True)
+    console.debug(f"[{sync_id}] Monitoring sync progress...")
 
     sync_status = _wait_for_sync_completion(
         auth_headers=auth_headers,
@@ -225,13 +201,9 @@ def _wait_for_sync_completion(
                         f"Last HTTP status: {runs_response.status_code}"
                     )
 
-                import datetime
-
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(
-                    f"{timestamp} ⚠️  [{sync_id}] HTTP {runs_response.status_code} error. "
-                    f"Retrying... ({consecutive_failures}/{max_consecutive_failures})",
-                    flush=True,
+                console.debug(
+                    f"[{sync_id}] HTTP {runs_response.status_code} error. "
+                    f"Retrying... ({consecutive_failures}/{max_consecutive_failures})"
                 )
                 time.sleep(sleep_interval * min(consecutive_failures, 3))
                 continue
@@ -258,17 +230,14 @@ def _wait_for_sync_completion(
             consecutive_failures = 0
 
             if counter == 0 or counter % 6 == 0:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if run_status in ["processing", "queued"]:
-                    print(
-                        f"{timestamp} 🔄 [{sync_id}] Status: {run_status}... "
-                        f"({elapsed_min}m {elapsed_sec}s elapsed)",
-                        flush=True,
+                    console.debug(
+                        f"[{sync_id}] Status: {run_status}... "
+                        f"({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
 
             if run_status in [
@@ -279,37 +248,33 @@ def _wait_for_sync_completion(
                 "interrupted",
                 "aborted",
             ]:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if run_status == "success":
-                    print(
-                        f"{timestamp} ✅ [{sync_id}] Sync completed successfully "
-                        f"({elapsed_min}m {elapsed_sec}s)",
-                        flush=True,
+                    console.debug(
+                        f"[{sync_id}] Sync completed successfully "
+                        f"({elapsed_min}m {elapsed_sec}s)"
                     )
                     return "SUCCESS"
                 elif run_status == "warning":
-                    print(
-                        f"{timestamp} ⚠️  [{sync_id}] Sync completed with warnings "
-                        f"({elapsed_min}m {elapsed_sec}s)",
-                        flush=True,
+                    console.debug(
+                        f"[{sync_id}] Sync completed with warnings "
+                        f"({elapsed_min}m {elapsed_sec}s)"
                     )
                     return "WARNING"
                 elif run_status == "failed":
-                    print(f"{timestamp} ❌ [{sync_id}] Sync failed", flush=True)
+                    console.error(f"[{sync_id}] Sync failed")
                     return "FAILED"
                 elif run_status == "cancelled":
-                    print(f"{timestamp} 🚫 [{sync_id}] Sync cancelled", flush=True)
+                    console.debug(f"[{sync_id}] Sync cancelled")
                     return "CANCELLED"
                 elif run_status == "interrupted":
-                    print(f"{timestamp} ⚠️  [{sync_id}] Sync interrupted", flush=True)
+                    console.debug(f"[{sync_id}] Sync interrupted")
                     return "INTERRUPTED"
                 elif run_status == "aborted":
-                    print(f"{timestamp} 🚫 [{sync_id}] Sync aborted", flush=True)
+                    console.debug(f"[{sync_id}] Sync aborted")
                     return "ABORTED"
 
             counter += 1
@@ -323,13 +288,9 @@ def _wait_for_sync_completion(
                     f"Last error: {str(e)[:100]}"
                 )
 
-            import datetime
-
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(
-                f"{timestamp} ⚠️  [{sync_id}] Network error: {str(e)[:50]}... "
-                f"Retrying... ({consecutive_failures}/{max_consecutive_failures})",
-                flush=True,
+            console.debug(
+                f"[{sync_id}] Network error: {str(e)[:50]}... "
+                f"Retrying... ({consecutive_failures}/{max_consecutive_failures})"
             )
             time.sleep(sleep_interval * min(consecutive_failures, 3))
             continue
@@ -358,15 +319,8 @@ def trigger_hightouch_sync_sequences(
     futures = []
     results = []
 
-    print(f"\n{'='*60}")
-    print("🚀 TRIGGERING HIGHTOUCH SYNC SEQUENCES")
-    print(f"{'='*60}")
-
     with ThreadPoolExecutor() as executor:
         for i, sequence_id in enumerate(set(sync_sequence_ids), 1):
-            print(f"\n[{i}/{len(set(sync_sequence_ids))}] 🔌 Sequence {sequence_id}")
-            print(f"{'-'*40}")
-
             futures.append(
                 (
                     sequence_id,
@@ -380,10 +334,6 @@ def trigger_hightouch_sync_sequences(
                 )
             )
 
-        print(f"\n{'='*60}")
-        print("⚡ LIVE PROGRESS")
-        print(f"{'='*60}")
-
         sequence_results = []
         for sequence_id, future in futures:
             future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
@@ -391,31 +341,27 @@ def trigger_hightouch_sync_sequences(
             sequence_results.append((sequence_id, response_txt))
             results.append(response_txt)
 
-        print(f"\n{'='*80}")
-        print("📊 SEQUENCE RESULTS")
-        print(f"{'='*80}")
-        print(f"{'SEQUENCE ID':<25} {'STATUS':<15}")
-        print(f"{'-'*25} {'-'*15}")
-
-        for sequence_id, response_txt in sequence_results:
+        def _status_text(response_txt: str) -> str:
             if "SUCCESS" in response_txt:
-                status = "✅ SUCCESS"
+                return "SUCCESS"
             elif "FAILED" in response_txt:
-                status = "❌ FAILED"
+                return "FAILED"
             elif "CANCELLED" in response_txt:
-                status = "🚫 CANCELLED"
+                return "CANCELLED"
             elif "WARNING" in response_txt:
-                status = "⚠️ WARNING"
+                return "WARNING"
             elif "INTERRUPTED" in response_txt:
-                status = "⚠️ INTERRUPTED"
+                return "INTERRUPTED"
             elif "ABORTED" in response_txt:
-                status = "🚫 ABORTED"
+                return "ABORTED"
             else:
-                status = "ℹ️ COMPLETED"
+                return "COMPLETED"
 
-            print(f"{sequence_id:<25} {status:<15}")
-
-        print(f"{'='*80}\n")
+        console.table(
+            columns=["Sequence ID", "Status"],
+            rows=[(sid, _status_text(response_txt)) for sid, response_txt in sequence_results],
+            title="Sequence Results",
+        )
 
     return results
 
@@ -439,11 +385,8 @@ def trigger_single_sync_sequence(
     Returns:
         Status message indicating sequence result.
     """
-    import datetime
 
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-
-    print(f"{timestamp} 🚀 [{sync_sequence_id}] Triggering sync sequence...", flush=True)
+    console.debug(f"[{sync_sequence_id}] Triggering sync sequence...")
 
     trigger_response = requests.post(
         f"{HIGHTOUCH_BASE_URL}/sync-sequences/{sync_sequence_id}/trigger",
@@ -458,16 +401,14 @@ def trigger_single_sync_sequence(
     trigger_data = trigger_response.json()
     sequence_run_id = trigger_data.get("id")
 
-    print(
-        f"{timestamp} ✅ [{sync_sequence_id}] Sync sequence triggered successfully "
-        f"(run ID: {sequence_run_id})",
-        flush=True,
+    console.debug(
+        f"[{sync_sequence_id}] Sync sequence triggered successfully " f"(run ID: {sequence_run_id})"
     )
 
     if not wait_for_completion:
         return f"Sync sequence triggered (run ID: {sequence_run_id})"
 
-    print(f"{timestamp} ⏳ [{sync_sequence_id}] Monitoring sequence progress...", flush=True)
+    console.debug(f"[{sync_sequence_id}] Monitoring sequence progress...")
 
     sequence_status = _wait_for_sync_sequence_completion(
         auth_headers=auth_headers,
@@ -525,11 +466,8 @@ def _wait_for_sync_sequence_completion(
                         f"Last HTTP status: {runs_response.status_code}"
                     )
 
-                import datetime
-
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(
-                    f"{timestamp} ⚠️  [{sync_sequence_id}] HTTP {runs_response.status_code} error. "
+                console.debug(
+                    f"[{sync_sequence_id}] HTTP {runs_response.status_code} error. "
                     f"Retrying... ({consecutive_failures}/{max_consecutive_failures})"
                 )
                 time.sleep(sleep_interval * min(consecutive_failures, 3))
@@ -556,17 +494,14 @@ def _wait_for_sync_sequence_completion(
             consecutive_failures = 0
 
             if counter == 0 or counter % 6 == 0:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if run_status in ["processing", "queued", "running"]:
-                    print(
-                        f"{timestamp} 🔄 [{sync_sequence_id}] Status: {run_status}... "
-                        f"({elapsed_min}m {elapsed_sec}s elapsed)",
-                        flush=True,
+                    console.debug(
+                        f"[{sync_sequence_id}] Status: {run_status}... "
+                        f"({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
 
             if run_status in [
@@ -577,37 +512,33 @@ def _wait_for_sync_sequence_completion(
                 "interrupted",
                 "aborted",
             ]:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if run_status == "success":
-                    print(
-                        f"{timestamp} ✅ [{sync_sequence_id}] Sequence completed successfully "
-                        f"({elapsed_min}m {elapsed_sec}s)",
-                        flush=True,
+                    console.debug(
+                        f"[{sync_sequence_id}] Sequence completed successfully "
+                        f"({elapsed_min}m {elapsed_sec}s)"
                     )
                     return "SUCCESS"
                 elif run_status == "warning":
-                    print(
-                        f"{timestamp} ⚠️  [{sync_sequence_id}] Sequence completed with warnings "
-                        f"({elapsed_min}m {elapsed_sec}s)",
-                        flush=True,
+                    console.debug(
+                        f"[{sync_sequence_id}] Sequence completed with warnings "
+                        f"({elapsed_min}m {elapsed_sec}s)"
                     )
                     return "WARNING"
                 elif run_status == "failed":
-                    print(f"{timestamp} ❌ [{sync_sequence_id}] Sequence failed", flush=True)
+                    console.error(f"[{sync_sequence_id}] Sequence failed")
                     return "FAILED"
                 elif run_status == "cancelled":
-                    print(f"{timestamp} 🚫 [{sync_sequence_id}] Sequence cancelled", flush=True)
+                    console.debug(f"[{sync_sequence_id}] Sequence cancelled")
                     return "CANCELLED"
                 elif run_status == "interrupted":
-                    print(f"{timestamp} ⚠️  [{sync_sequence_id}] Sequence interrupted", flush=True)
+                    console.debug(f"[{sync_sequence_id}] Sequence interrupted")
                     return "INTERRUPTED"
                 elif run_status == "aborted":
-                    print(f"{timestamp} 🚫 [{sync_sequence_id}] Sequence aborted", flush=True)
+                    console.debug(f"[{sync_sequence_id}] Sequence aborted")
                     return "ABORTED"
 
             counter += 1
@@ -621,13 +552,9 @@ def _wait_for_sync_sequence_completion(
                     f"Last error: {str(e)[:100]}"
                 )
 
-            import datetime
-
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(
-                f"{timestamp} ⚠️  [{sync_sequence_id}] Network error: {str(e)[:50]}... "
-                f"Retrying... ({consecutive_failures}/{max_consecutive_failures})",
-                flush=True,
+            console.debug(
+                f"[{sync_sequence_id}] Network error: {str(e)[:50]}... "
+                f"Retrying... ({consecutive_failures}/{max_consecutive_failures})"
             )
             time.sleep(sleep_interval * min(consecutive_failures, 3))
             continue
@@ -642,7 +569,7 @@ def list_hightouch_syncs(*, api_token: str) -> None:
     """
     auth_headers = _get_auth_headers(api_token)
 
-    print("\n🔍 Listing all Hightouch syncs")
+    console.info("Listing all Hightouch syncs")
 
     syncs_response = requests.get(
         f"{HIGHTOUCH_BASE_URL}/syncs",
@@ -659,18 +586,15 @@ def list_hightouch_syncs(*, api_token: str) -> None:
     elif isinstance(syncs_data, dict) and "data" in syncs_data:
         syncs = syncs_data["data"]
     else:
-        print("No syncs found.")
+        console.info("No syncs found.")
         return
 
     if not syncs:
-        print("No syncs found.")
+        console.info("No syncs found.")
         return
 
-    print(f"\n{'='*80}")
-    print(f"📋 FOUND {len(syncs)} SYNC(S)")
-    print(f"{'='*80}")
-
-    for i, sync in enumerate(syncs, 1):
+    rows = []
+    for sync in syncs:
         sync_id = sync.get("id", "Unknown")
         slug = sync.get("slug", "N/A")
         name = sync.get("name", "Unknown")
@@ -683,26 +607,33 @@ def list_hightouch_syncs(*, api_token: str) -> None:
         model_id = sync.get("modelId", "Unknown")
         destination_id = sync.get("destinationId", "Unknown")
         last_run_at = sync.get("lastRunAt", "Never")
-
-        # Format status with emoji
-        status_emoji = (
-            "✅"
-            if status in ["success", "active"]
-            else "❌" if status == "failed" else "⚠️" if status == "warning" else "❓"
+        rows.append(
+            (
+                str(sync_id),
+                name,
+                slug,
+                status,
+                schedule_type,
+                str(model_id),
+                str(destination_id),
+                str(last_run_at),
+            )
         )
 
-        print(f"\n[{i}/{len(syncs)}] 🔌 {sync_id}")
-        print(f"{'-'*50}")
-        print(f"   Name: {name}")
-        print(f"   Slug: {slug}")
-        print(f"   {status_emoji} Status: {status}")
-        print(f"   Schedule: {schedule_type}")
-        print(f"   Model ID: {model_id}")
-        print(f"   Destination ID: {destination_id}")
-        if last_run_at != "Never":
-            print(f"   Last Run: {last_run_at}")
-
-    print(f"\n{'='*80}\n")
+    console.table(
+        columns=[
+            "Sync ID",
+            "Name",
+            "Slug",
+            "Status",
+            "Schedule",
+            "Model ID",
+            "Destination ID",
+            "Last Run",
+        ],
+        rows=rows,
+        title="Hightouch Syncs",
+    )
 
 
 def list_hightouch_sync_sequences(*, api_token: str) -> None:
@@ -714,7 +645,7 @@ def list_hightouch_sync_sequences(*, api_token: str) -> None:
     """
     auth_headers = _get_auth_headers(api_token)
 
-    print("\n🔍 Listing all Hightouch sync sequences")
+    console.info("Listing all Hightouch sync sequences")
 
     sequences_response = requests.get(
         f"{HIGHTOUCH_BASE_URL}/sync-sequences",
@@ -731,18 +662,15 @@ def list_hightouch_sync_sequences(*, api_token: str) -> None:
     elif isinstance(sequences_data, dict) and "data" in sequences_data:
         sequences = sequences_data["data"]
     else:
-        print("No sync sequences found.")
+        console.info("No sync sequences found.")
         return
 
     if not sequences:
-        print("No sync sequences found.")
+        console.info("No sync sequences found.")
         return
 
-    print(f"\n{'='*80}")
-    print(f"📋 FOUND {len(sequences)} SYNC SEQUENCE(S)")
-    print(f"{'='*80}")
-
-    for i, sequence in enumerate(sequences, 1):
+    rows = []
+    for sequence in sequences:
         sequence_id = sequence.get("id", "Unknown")
         name = sequence.get("name", "Unknown")
         status = sequence.get("status", "Unknown")
@@ -757,20 +685,12 @@ def list_hightouch_sync_sequences(*, api_token: str) -> None:
         syncs_in_sequence = sequence.get("syncs", [])
         sync_count = len(syncs_in_sequence) if isinstance(syncs_in_sequence, list) else 0
 
-        # Format status with emoji
-        status_emoji = (
-            "✅"
-            if status in ["success", "active"]
-            else "❌" if status == "failed" else "⚠️" if status == "warning" else "❓"
+        rows.append(
+            (str(sequence_id), name, status, schedule_type, str(sync_count), str(last_run_at))
         )
 
-        print(f"\n[{i}/{len(sequences)}] 🔗 {sequence_id}")
-        print(f"{'-'*50}")
-        print(f"   Name: {name}")
-        print(f"   {status_emoji} Status: {status}")
-        print(f"   Schedule: {schedule_type}")
-        print(f"   Syncs in Sequence: {sync_count}")
-        if last_run_at != "Never":
-            print(f"   Last Run: {last_run_at}")
-
-    print(f"\n{'='*80}\n")
+    console.table(
+        columns=["Sequence ID", "Name", "Status", "Schedule", "Syncs", "Last Run"],
+        rows=rows,
+        title="Hightouch Sync Sequences",
+    )
