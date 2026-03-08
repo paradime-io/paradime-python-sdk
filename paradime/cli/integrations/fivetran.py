@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fivetran_sync
 
@@ -53,7 +54,7 @@ def fivetran_sync(
     """
     Trigger sync for Fivetran connectors.
     """
-    click.echo(f"Starting sync for {len(connector_id)} Fivetran connector(s)...")
+    console.header("Fivetran — Trigger Connector Syncs")
 
     try:
         results = trigger_fivetran_sync(
@@ -72,11 +73,11 @@ def fivetran_sync(
             if "FAILED" in result or "PAUSED" in result or "RESCHEDULED" in result
         ]
         if failed_syncs:
+            console.error(f"{len(failed_syncs)} connector sync(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Fivetran sync failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Fivetran sync failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -104,9 +105,9 @@ def fivetran_list_connectors(
     List all available Fivetran connectors with their status.
     """
     if group_id:
-        click.echo(f"Listing Fivetran connectors for group {group_id}...")
+        console.info(f"Listing Fivetran connectors for group {group_id}…")
     else:
-        click.echo("Listing all Fivetran connectors...")
+        console.info("Listing all Fivetran connectors…")
 
     list_fivetran_connectors(
         api_key=api_key,

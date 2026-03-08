@@ -3,6 +3,7 @@ from typing import Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.aws_stepfunctions import (
     list_stepfunctions_state_machines,
@@ -83,7 +84,7 @@ def aws_stepfunctions_trigger(
     """
     import json
 
-    click.echo(f"Starting {len(state_machine_arns)} Step Functions execution(s)...")
+    console.header("AWS Step Functions — Trigger Executions")
 
     # Parse input data if provided
     input_dict = None
@@ -91,8 +92,7 @@ def aws_stepfunctions_trigger(
         try:
             input_dict = json.loads(input_data)
         except json.JSONDecodeError as e:
-            click.echo(f"❌ Invalid JSON input data: {str(e)}")
-            raise click.Abort()
+            console.error(f"Invalid JSON input data: {e}", exit_code=1)
 
     try:
         results = trigger_stepfunctions_executions(
@@ -111,11 +111,11 @@ def aws_stepfunctions_trigger(
             result for result in results if "FAILED" in result or "ERROR" in result
         ]
         if failed_executions:
+            console.error(f"{len(failed_executions)} execution(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Step Functions execution failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Step Functions execution failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -161,7 +161,7 @@ def aws_stepfunctions_list(
     Example:
         paradime run aws-stepfunctions-list
     """
-    click.echo("Listing Step Functions state machines...")
+    console.info("Listing Step Functions state machines…")
 
     try:
         list_stepfunctions_state_machines(
@@ -171,5 +171,4 @@ def aws_stepfunctions_list(
             aws_session_token=aws_session_token,
         )
     except Exception as e:
-        click.echo(f"❌ Failed to list Step Functions state machines: {str(e)}")
-        raise click.Abort()
+        console.error(f"Failed to list Step Functions state machines: {e}", exit_code=1)

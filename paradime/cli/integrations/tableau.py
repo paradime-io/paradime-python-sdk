@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.tableau import (
     list_tableau_datasources,
@@ -83,7 +84,7 @@ def tableau_refresh(
         )
 
     if workbook_name:
-        click.echo(f"Tableau workbook refresh started on site {site_name}...")
+        console.header(f"Tableau — Refresh Workbooks (site: {site_name or 'default'})")
         results = trigger_tableau_refresh(
             host=host,
             personal_access_token_name=personal_access_token_name,
@@ -100,10 +101,11 @@ def tableau_refresh(
             result for result in results if "FAILED" in result or "CANCELED" in result
         ]
         if failed_refreshes:
+            console.error(f"{len(failed_refreshes)} workbook refresh(es) failed.")
             sys.exit(1)
 
     if datasource_name:
-        click.echo(f"Tableau data source refresh started on site {site_name}...")
+        console.header(f"Tableau — Refresh Data Sources (site: {site_name or 'default'})")
         results = trigger_tableau_datasource_refresh(
             host=host,
             personal_access_token_name=personal_access_token_name,
@@ -120,6 +122,7 @@ def tableau_refresh(
             result for result in results if "FAILED" in result or "CANCELED" in result
         ]
         if failed_refreshes:
+            console.error(f"{len(failed_refreshes)} data source refresh(es) failed.")
             sys.exit(1)
 
 
@@ -155,7 +158,7 @@ def tableau_list_workbooks(
     """
     List all Tableau workbooks with their names and UUIDs.
     """
-    click.echo(f"Listing Tableau workbooks on site {site_name}...")
+    console.info(f"Listing Tableau workbooks on site {site_name or 'default'}…")
 
     list_tableau_workbooks(
         host=host,
@@ -198,7 +201,7 @@ def tableau_list_datasources(
     """
     List all Tableau data sources with their names and UUIDs.
     """
-    click.echo(f"Listing Tableau data sources on site {site_name}...")
+    console.info(f"Listing Tableau data sources on site {site_name or 'default'}…")
 
     list_tableau_datasources(
         host=host,

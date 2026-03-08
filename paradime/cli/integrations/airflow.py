@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dags
 
@@ -85,7 +86,7 @@ def airflow_trigger(
     """
     Trigger one or more Airflow DAG runs.
     """
-    click.echo(f"Starting {len(dag_ids)} Airflow DAG run(s)...")
+    console.header("Airflow — Trigger DAG Runs")
 
     # Parse dag_run_conf if provided
     import json
@@ -95,17 +96,16 @@ def airflow_trigger(
         try:
             parsed_dag_run_conf = json.loads(dag_run_conf)
         except json.JSONDecodeError as e:
-            click.echo(f"❌ Invalid JSON in --dag-run-conf: {str(e)}")
-            sys.exit(1)
+            console.error(f"Invalid JSON in --dag-run-conf: {e}", exit_code=1)
 
     # Validate authentication parameters
     if not use_gcp_auth and not bearer_token:
         if not username or not password:
-            click.echo(
-                "❌ Error: username and password are required for basic authentication. "
-                "Use --use-gcp-auth for GCP Cloud Composer or provide --bearer-token for token-based auth."
+            console.error(
+                "username and password are required for basic authentication. "
+                "Use --use-gcp-auth for GCP Cloud Composer or provide --bearer-token for token-based auth.",
+                exit_code=1,
             )
-            sys.exit(1)
 
     try:
         results = trigger_airflow_dags(
@@ -125,11 +125,11 @@ def airflow_trigger(
         # Check if any DAG runs failed
         failed_dags = [result for result in results if "FAILED" in result]
         if failed_dags:
+            console.error(f"{len(failed_dags)} DAG run(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Airflow DAG trigger failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Airflow DAG trigger failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -180,18 +180,18 @@ def airflow_list_dags(
     List all available Airflow DAGs with their status.
     """
     if only_active:
-        click.echo("Listing active Airflow DAGs...")
+        console.info("Listing active Airflow DAGs…")
     else:
-        click.echo("Listing all Airflow DAGs...")
+        console.info("Listing all Airflow DAGs…")
 
     # Validate authentication parameters
     if not use_gcp_auth and not bearer_token:
         if not username or not password:
-            click.echo(
-                "❌ Error: username and password are required for basic authentication. "
-                "Use --use-gcp-auth for GCP Cloud Composer or provide --bearer-token for token-based auth."
+            console.error(
+                "username and password are required for basic authentication. "
+                "Use --use-gcp-auth for GCP Cloud Composer or provide --bearer-token for token-based auth.",
+                exit_code=1,
             )
-            sys.exit(1)
 
     try:
         list_airflow_dags(
@@ -203,5 +203,4 @@ def airflow_list_dags(
             bearer_token=bearer_token,
         )
     except Exception as e:
-        click.echo(f"❌ Failed to list Airflow DAGs: {str(e)}")
-        raise click.Abort()
+        console.error(f"Failed to list Airflow DAGs: {e}", exit_code=1)

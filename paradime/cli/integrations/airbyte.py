@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.airbyte import list_airbyte_connections, trigger_airbyte_jobs
 
@@ -73,7 +74,7 @@ def airbyte_sync(
     """
     Trigger sync or reset jobs for Airbyte connections.
     """
-    click.echo(f"Starting {job_type} jobs for {len(connection_id)} Airbyte connection(s)...")
+    console.header(f"Airbyte — {job_type.capitalize()} Jobs")
 
     try:
         results = trigger_airbyte_jobs(
@@ -95,11 +96,11 @@ def airbyte_sync(
             if "FAILED" in result or "CANCELLED" in result or "INCOMPLETE" in result
         ]
         if failed_jobs:
+            console.error(f"{len(failed_jobs)} job(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Airbyte {job_type} failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Airbyte {job_type} failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -141,9 +142,9 @@ def airbyte_list_connections(
     List all available Airbyte connections with their status.
     """
     if workspace_id:
-        click.echo(f"Listing Airbyte connections for workspace {workspace_id}...")
+        console.info(f"Listing Airbyte connections for workspace {workspace_id}…")
     else:
-        click.echo("Listing all Airbyte connections...")
+        console.info("Listing all Airbyte connections…")
 
     list_airbyte_connections(
         client_id=client_id,

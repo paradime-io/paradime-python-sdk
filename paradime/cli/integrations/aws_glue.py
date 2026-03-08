@@ -3,6 +3,7 @@ from typing import Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.aws_glue import (
     list_glue_jobs,
@@ -79,7 +80,7 @@ def aws_glue_trigger_workflows(
     # boto3 will pick them up automatically from the environment
     # We accept the parameters here to satisfy Click's parameter passing, but don't use them directly
 
-    click.echo(f"Starting {len(workflow_names)} AWS Glue workflow(s)...")
+    console.header("AWS Glue — Trigger Workflows")
 
     try:
         results = trigger_glue_workflows(
@@ -92,11 +93,11 @@ def aws_glue_trigger_workflows(
         # Check if any workflow runs failed
         failed_workflows = [result for result in results if "FAILED" in result or "ERROR" in result]
         if failed_workflows:
+            console.error(f"{len(failed_workflows)} workflow(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ AWS Glue workflow trigger failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"AWS Glue workflow trigger failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -146,13 +147,12 @@ def aws_glue_list_workflows(
     # boto3 will pick them up automatically from the environment
     # We accept the parameters here to satisfy Click's parameter passing, but don't use them directly
 
-    click.echo("Listing AWS Glue workflows...")
+    console.info("Listing AWS Glue workflows…")
 
     try:
         list_glue_workflows(region_name=aws_region)
     except Exception as e:
-        click.echo(f"❌ Failed to list AWS Glue workflows: {str(e)}")
-        raise click.Abort()
+        console.error(f"Failed to list AWS Glue workflows: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -222,7 +222,7 @@ def aws_glue_trigger_jobs(
     # boto3 will pick them up automatically from the environment
     # We accept the parameters here to satisfy Click's parameter passing, but don't use them directly
 
-    click.echo(f"Starting {len(job_names)} AWS Glue job(s)...")
+    console.header("AWS Glue — Trigger Jobs")
 
     try:
         results = trigger_glue_jobs(
@@ -235,11 +235,11 @@ def aws_glue_trigger_jobs(
         # Check if any job runs failed
         failed_jobs = [result for result in results if "FAILED" in result or "ERROR" in result]
         if failed_jobs:
+            console.error(f"{len(failed_jobs)} job(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ AWS Glue job trigger failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"AWS Glue job trigger failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -289,10 +289,9 @@ def aws_glue_list_jobs(
     # boto3 will pick them up automatically from the environment
     # We accept the parameters here to satisfy Click's parameter passing, but don't use them directly
 
-    click.echo("Listing AWS Glue jobs...")
+    console.info("Listing AWS Glue jobs…")
 
     try:
         list_glue_jobs(region_name=aws_region)
     except Exception as e:
-        click.echo(f"❌ Failed to list AWS Glue jobs: {str(e)}")
-        raise click.Abort()
+        console.error(f"Failed to list AWS Glue jobs: {e}", exit_code=1)

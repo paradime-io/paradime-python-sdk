@@ -3,6 +3,7 @@ from typing import List
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.azure_data_factory import list_adf_pipelines, trigger_adf_pipeline_runs
 
@@ -69,10 +70,7 @@ def adf_pipelines(
     """
     Trigger runs for Azure Data Factory pipelines.
     """
-    click.echo(
-        f"Starting runs for {len(pipeline_names)} Azure Data Factory pipeline(s) "
-        f"in factory {factory_name}..."
-    )
+    console.header(f"Azure Data Factory — {factory_name}")
 
     try:
         results = trigger_adf_pipeline_runs(
@@ -94,11 +92,11 @@ def adf_pipelines(
             if "FAILED" in result or "CANCELLED" in result or "CANCELLING" in result
         ]
         if failed_runs:
+            console.error(f"{len(failed_runs)} pipeline run(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Azure Data Factory pipeline run failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Azure Data Factory pipeline run failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -143,7 +141,7 @@ def adf_list_pipelines(
     """
     List all available pipelines in an Azure Data Factory.
     """
-    click.echo(f"Listing pipelines in Azure Data Factory {factory_name}...")
+    console.info(f"Listing pipelines in Azure Data Factory {factory_name}…")
 
     list_adf_pipelines(
         tenant_id=tenant_id,

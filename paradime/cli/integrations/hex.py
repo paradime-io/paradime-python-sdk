@@ -3,6 +3,7 @@ from typing import List
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.hex import list_hex_projects, trigger_hex_runs
 
@@ -58,15 +59,16 @@ def hex_trigger(
     """
     Trigger runs for Hex projects.
     """
-    click.echo(f"Starting runs for {len(project_id)} Hex project(s)...")
+    console.header("Hex — Trigger Project Runs")
 
     # Parse input parameters
     input_params = {}
     if input_param:
         for param in input_param:
             if "=" not in param:
-                click.echo(f"❌ Invalid input parameter format: {param}. Expected key=value")
-                sys.exit(1)
+                console.error(
+                    f"Invalid input parameter format: {param}. Expected key=value", exit_code=1
+                )
             key, value = param.split("=", 1)
             input_params[key] = value
 
@@ -88,11 +90,11 @@ def hex_trigger(
             if "ERRORED" in result or "KILLED" in result or "UNABLE_TO_ALLOCATE_KERNEL" in result
         ]
         if failed_runs:
+            console.error(f"{len(failed_runs)} project run(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Hex project run failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Hex project run failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -133,7 +135,7 @@ def hex_list_projects(
     """
     List all available Hex projects in the workspace.
     """
-    click.echo("Listing Hex projects...")
+    console.info("Listing Hex projects…")
 
     list_hex_projects(
         api_token=api_token,

@@ -3,6 +3,7 @@ from typing import Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.aws_lambda import list_lambda_functions, trigger_lambda_functions
 
@@ -87,7 +88,7 @@ def aws_lambda_trigger(
     """
     import json
 
-    click.echo(f"Invoking {len(function_names)} Lambda function(s)...")
+    console.header("AWS Lambda — Invoke Functions")
 
     # Parse payload if provided
     payload_dict = None
@@ -95,8 +96,7 @@ def aws_lambda_trigger(
         try:
             payload_dict = json.loads(payload)
         except json.JSONDecodeError as e:
-            click.echo(f"❌ Invalid JSON payload: {str(e)}")
-            raise click.Abort()
+            console.error(f"Invalid JSON payload: {e}", exit_code=1)
 
     try:
         results = trigger_lambda_functions(
@@ -114,11 +114,11 @@ def aws_lambda_trigger(
         # Check if any invocations failed
         failed_functions = [result for result in results if "FAILED" in result or "ERROR" in result]
         if failed_functions:
+            console.error(f"{len(failed_functions)} function invocation(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Lambda invocation failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Lambda invocation failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -164,7 +164,7 @@ def aws_lambda_list(
     Example:
         paradime run aws-lambda-list
     """
-    click.echo("Listing Lambda functions...")
+    console.info("Listing Lambda functions…")
 
     try:
         list_lambda_functions(
@@ -174,5 +174,4 @@ def aws_lambda_list(
             aws_session_token=aws_session_token,
         )
     except Exception as e:
-        click.echo(f"❌ Failed to list Lambda functions: {str(e)}")
-        raise click.Abort()
+        console.error(f"Failed to list Lambda functions: {e}", exit_code=1)

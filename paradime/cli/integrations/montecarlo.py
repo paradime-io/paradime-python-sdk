@@ -3,6 +3,7 @@ from typing import Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.montecarlo import search_for_files_to_upload_to_montecarlo
 
@@ -48,6 +49,6 @@ def montecarlo_artifacts_import(
         sys.exit(1)
 
     if not found_files:
-        click.echo(
+        console.warning(
             f"No files found in {paradime_resources_directory or 'current directory'} to upload to Montecarlo."
         )

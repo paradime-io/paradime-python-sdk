@@ -3,6 +3,7 @@ from typing import List
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.census import list_census_syncs, trigger_census_syncs
 
@@ -46,7 +47,7 @@ def census_sync(
     """
     Trigger syncs for Census.
     """
-    click.echo(f"Starting syncs for {len(sync_ids)} Census sync(s)...")
+    console.header("Census — Trigger Syncs")
 
     try:
         results = trigger_census_syncs(
@@ -60,11 +61,11 @@ def census_sync(
         # Check if any syncs failed or were cancelled
         failed_syncs = [result for result in results if "FAILED" in result or "CANCELLED" in result]
         if failed_syncs:
+            console.error(f"{len(failed_syncs)} sync(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Census sync failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Census sync failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -79,7 +80,7 @@ def census_list_syncs(
     """
     List all available Census syncs with their status.
     """
-    click.echo("Listing all Census syncs...")
+    console.info("Listing all Census syncs…")
 
     list_census_syncs(
         api_token=api_token,

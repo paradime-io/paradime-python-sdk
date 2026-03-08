@@ -3,6 +3,7 @@ from typing import List
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.hightouch import (
     list_hightouch_sync_sequences,
@@ -51,7 +52,7 @@ def hightouch_sync(
     """
     Trigger syncs for Hightouch.
     """
-    click.echo(f"Starting syncs for {len(sync_ids)} Hightouch sync(s)...")
+    console.header("Hightouch — Trigger Syncs")
 
     try:
         results = trigger_hightouch_syncs(
@@ -72,11 +73,11 @@ def hightouch_sync(
             or "ABORTED" in result
         ]
         if failed_syncs:
+            console.error(f"{len(failed_syncs)} sync(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Hightouch sync failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Hightouch sync failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -111,7 +112,7 @@ def hightouch_sync_sequence(
     """
     Trigger sync sequences for Hightouch.
     """
-    click.echo(f"Starting {len(sync_sequence_ids)} Hightouch sync sequence(s)...")
+    console.header("Hightouch — Trigger Sync Sequences")
 
     try:
         results = trigger_hightouch_sync_sequences(
@@ -131,11 +132,11 @@ def hightouch_sync_sequence(
             or "ABORTED" in result
         ]
         if failed_sequences:
+            console.error(f"{len(failed_sequences)} sync sequence(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Hightouch sync sequence failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"Hightouch sync sequence failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -148,7 +149,7 @@ def hightouch_list_syncs(api_token: str) -> None:
     """
     List all available Hightouch syncs with their status.
     """
-    click.echo("Listing all Hightouch syncs...")
+    console.info("Listing all Hightouch syncs…")
 
     list_hightouch_syncs(api_token=api_token)
 
@@ -163,6 +164,6 @@ def hightouch_list_sync_sequences(api_token: str) -> None:
     """
     List all available Hightouch sync sequences with their status.
     """
-    click.echo("Listing all Hightouch sync sequences...")
+    console.info("Listing all Hightouch sync sequences…")
 
     list_hightouch_sync_sequences(api_token=api_token)

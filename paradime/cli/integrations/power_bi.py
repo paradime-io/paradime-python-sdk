@@ -2,6 +2,7 @@ from typing import List, Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.power_bi import (
     get_access_token,
@@ -54,7 +55,7 @@ def power_bi_refresh(
     """
     Trigger a Power BI refresh for a specific dataset.
     """
-    click.echo(f"Power BI refresh started in group {group_id}...")
+    console.header(f"Power BI — Refresh Datasets (group {group_id})")
 
     trigger_power_bi_refreshes(
         client_id=client_id,
@@ -102,4 +103,4 @@ def power_bi_list_datasets(
         group_id=group_id,
     )
     for dataset in datasets.values():
-        click.echo(f"{dataset.name}:{dataset.id}")
+        console.kv(dataset.name, dataset.id)

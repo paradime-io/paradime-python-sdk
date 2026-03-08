@@ -3,6 +3,7 @@ from typing import Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.aws_sagemaker import (
     list_sagemaker_pipelines,
@@ -73,7 +74,7 @@ def aws_sagemaker_trigger(
     Example:
         paradime run aws-sagemaker-trigger --pipeline-names my-pipeline --pipeline-names another-pipeline
     """
-    click.echo(f"Starting {len(pipeline_names)} SageMaker Pipeline(s)...")
+    console.header("AWS SageMaker — Trigger Pipelines")
 
     try:
         results = trigger_sagemaker_pipelines(
@@ -89,11 +90,11 @@ def aws_sagemaker_trigger(
         # Check if any pipeline executions failed
         failed_pipelines = [result for result in results if "FAILED" in result or "ERROR" in result]
         if failed_pipelines:
+            console.error(f"{len(failed_pipelines)} pipeline execution(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ SageMaker Pipeline trigger failed: {str(e)}")
-        raise click.Abort()
+        console.error(f"SageMaker Pipeline trigger failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -139,7 +140,7 @@ def aws_sagemaker_list(
     Example:
         paradime run aws-sagemaker-list
     """
-    click.echo("Listing SageMaker Pipelines...")
+    console.info("Listing SageMaker Pipelines…")
 
     try:
         list_sagemaker_pipelines(
@@ -149,5 +150,4 @@ def aws_sagemaker_list(
             aws_session_token=aws_session_token,
         )
     except Exception as e:
-        click.echo(f"❌ Failed to list SageMaker Pipelines: {str(e)}")
-        raise click.Abort()
+        console.error(f"Failed to list SageMaker Pipelines: {e}", exit_code=1)
