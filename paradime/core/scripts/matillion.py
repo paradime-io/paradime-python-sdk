@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
@@ -410,7 +412,8 @@ def list_matillion_projects(
     base_url: str,
     client_id: str,
     client_secret: str,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Matillion projects.
 
@@ -418,6 +421,7 @@ def list_matillion_projects(
         base_url: Matillion DPC API base URL (e.g., https://us1.api.matillion.com)
         client_id: OAuth client ID
         client_secret: OAuth client secret
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     base_url = base_url.rstrip("/")
 
@@ -427,26 +431,40 @@ def list_matillion_projects(
         client_secret=client_secret,
     )
 
-    console.info("Listing all projects")
+    if not json_output:
+        console.info("Listing all projects")
 
     all_projects = _fetch_all_projects(base_url=base_url, access_token=access_token)
 
     if not all_projects:
-        console.info("No projects found.")
-        return
+        if not json_output:
+            console.info("No projects found.")
+        return [] if json_output else None
 
     rows = []
+    data = []
     for project in all_projects:
         project_id = project.get("id", "Unknown")
         project_name = project.get("name", "Unknown")
         description = project.get("description", "")
         rows.append((project_name, project_id, description))
+        data.append(
+            {
+                "project_name": project_name,
+                "project_id": project_id,
+                "description": description,
+            }
+        )
+
+    if json_output:
+        return data
 
     console.table(
         columns=["Project Name", "Project ID", "Description"],
         rows=rows,
         title="Matillion Projects",
     )
+    return None
 
 
 def list_matillion_pipelines(
@@ -456,7 +474,8 @@ def list_matillion_pipelines(
     client_secret: str,
     project_name: str,
     environment: str,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Matillion pipelines (published pipelines) with their status.
 
@@ -466,6 +485,7 @@ def list_matillion_pipelines(
         client_secret: OAuth client secret
         project_name: Matillion project name (will be resolved to project ID)
         environment: Matillion environment name to filter pipelines
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     base_url = base_url.rstrip("/")
 
@@ -490,7 +510,8 @@ def list_matillion_pipelines(
 
     url = f"{base_url}/dpc/v1/projects/{project_id}/published-pipelines"
 
-    console.info(f"Listing pipelines for environment: {environment}")
+    if not json_output:
+        console.info(f"Listing pipelines for environment: {environment}")
 
     pipelines_response = requests.get(
         url,
@@ -504,17 +525,29 @@ def list_matillion_pipelines(
     pipelines = pipelines_data.get("results", [])
 
     if not pipelines:
-        console.info("No pipelines found.")
-        return
+        if not json_output:
+            console.info("No pipelines found.")
+        return [] if json_output else None
 
     rows = []
+    data = []
     for pipeline in pipelines:
         pipeline_name = pipeline.get("name", "Unknown")
         published_time = pipeline.get("publishedTime", "N/A")
         rows.append((pipeline_name, published_time))
+        data.append(
+            {
+                "pipeline_name": pipeline_name,
+                "published_time": published_time,
+            }
+        )
+
+    if json_output:
+        return data
 
     console.table(
         columns=["Pipeline Name", "Published Time"],
         rows=rows,
         title=f"Matillion Pipelines ({project_name} / {environment})",
     )
+    return None

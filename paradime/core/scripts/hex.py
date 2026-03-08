@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
@@ -280,7 +282,8 @@ def list_hex_projects(
     limit: int = 100,
     include_archived: bool = False,
     include_trashed: bool = False,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Hex projects in the workspace.
 
@@ -290,6 +293,7 @@ def list_hex_projects(
         limit: Number of projects to fetch
         include_archived: Whether to include archived projects
         include_trashed: Whether to include trashed projects
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -303,7 +307,8 @@ def list_hex_projects(
         "includeTrashed": str(include_trashed).lower(),
     }
 
-    console.info("Listing Hex projects")
+    if not json_output:
+        console.info("Listing Hex projects")
 
     projects_response = requests.get(
         api_url,
@@ -318,10 +323,12 @@ def list_hex_projects(
     projects = response_data.get("values", [])
 
     if not projects:
-        console.info("No projects found.")
-        return
+        if not json_output:
+            console.info("No projects found.")
+        return [] if json_output else None
 
     rows = []
+    data = []
     for project in projects:
         project_id = project.get("id", "Unknown")
         name = project.get("title", "Unnamed")
@@ -345,9 +352,22 @@ def list_hex_projects(
 
         project_url = f"{base_url}/hex/{project_id}/app"
         rows.append((project_id, name, owner, display_status, project_url))
+        data.append(
+            {
+                "project_id": project_id,
+                "name": name,
+                "owner": owner,
+                "status": display_status,
+                "url": project_url,
+            }
+        )
+
+    if json_output:
+        return data
 
     console.table(
         columns=["Project ID", "Name", "Owner", "Status", "URL"],
         rows=rows,
         title="Hex Projects",
     )
+    return None

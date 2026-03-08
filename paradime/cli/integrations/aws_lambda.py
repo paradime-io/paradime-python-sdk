@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from typing import Optional
 
@@ -52,16 +54,17 @@ from paradime.core.scripts.aws_lambda import list_lambda_functions, trigger_lamb
     default="RequestResponse",
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for async invocations to complete before returning (only applies to Event invocation type)",
     default=True,
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
     default=15,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def aws_lambda_trigger(
     aws_access_key_id: Optional[str],
     aws_secret_access_key: Optional[str],
@@ -70,8 +73,9 @@ def aws_lambda_trigger(
     function_names: tuple,
     payload: Optional[str],
     invocation_type: str,
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
+    json_output: bool,
 ) -> None:
     """
     Trigger one or more AWS Lambda functions.
@@ -88,7 +92,8 @@ def aws_lambda_trigger(
     """
     import json
 
-    console.header("AWS Lambda — Invoke Functions")
+    if not json_output:
+        console.header("AWS Lambda — Invoke Functions")
 
     # Parse payload if provided
     payload_dict = None
@@ -107,9 +112,18 @@ def aws_lambda_trigger(
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             aws_session_token=aws_session_token,
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
+            wait_for_completion=wait,
+            timeout_minutes=timeout,
         )
+
+        if json_output:
+            failed = [r for r in results if "FAILED" in r or "ERROR" in r]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any invocations failed
         failed_functions = [result for result in results if "FAILED" in result or "ERROR" in result]
@@ -118,6 +132,9 @@ def aws_lambda_trigger(
             sys.exit(1)
 
     except Exception as e:
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
         console.error(f"Lambda invocation failed: {e}", exit_code=1)
 
 
@@ -146,11 +163,13 @@ def aws_lambda_trigger(
     help="AWS region name (e.g., us-east-1, us-west-2). Defaults to default region from AWS config.",
     required=False,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def aws_lambda_list(
     aws_access_key_id: Optional[str],
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
     aws_region: Optional[str],
+    json_output: bool,
 ) -> None:
     """
     List all AWS Lambda functions with their status.
@@ -164,14 +183,18 @@ def aws_lambda_list(
     Example:
         paradime run aws-lambda-list
     """
-    console.info("Listing Lambda functions…")
+    if not json_output:
+        console.info("Listing Lambda functions…")
 
     try:
-        list_lambda_functions(
+        result = list_lambda_functions(
             region_name=aws_region,
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             aws_session_token=aws_session_token,
+            json_output=json_output,
         )
+        if json_output and result is not None:
+            console.json_out(result)
     except Exception as e:
         console.error(f"Failed to list Lambda functions: {e}", exit_code=1)

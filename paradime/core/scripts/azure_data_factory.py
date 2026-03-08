@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
@@ -371,7 +373,8 @@ def list_adf_pipelines(
     subscription_id: str,
     resource_group: str,
     factory_name: str,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all pipelines in an Azure Data Factory.
 
@@ -382,6 +385,7 @@ def list_adf_pipelines(
         subscription_id: Azure subscription ID
         resource_group: Azure resource group name
         factory_name: Azure Data Factory name
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Get authentication token
     access_token = _get_access_token(tenant_id, client_id, client_secret)
@@ -400,7 +404,8 @@ def list_adf_pipelines(
         f"/pipelines?api-version={api_version}"
     )
 
-    console.info(f"Listing pipelines for factory: {factory_name}")
+    if not json_output:
+        console.info(f"Listing pipelines for factory: {factory_name}")
 
     pipelines_response = requests.get(pipelines_url, headers=headers)
 
@@ -409,12 +414,14 @@ def list_adf_pipelines(
     pipelines_data = pipelines_response.json()
 
     if "value" not in pipelines_data or not pipelines_data["value"]:
-        console.info("No pipelines found.")
-        return
+        if not json_output:
+            console.info("No pipelines found.")
+        return [] if json_output else None
 
     pipelines = pipelines_data["value"]
 
     rows = []
+    data = []
     for pipeline in pipelines:
         name = pipeline.get("name", "Unknown")
         pipeline_type = pipeline.get("type", "Unknown")
@@ -423,9 +430,22 @@ def list_adf_pipelines(
         pipeline_parameters = pipeline.get("properties", {}).get("parameters", {})
         param_names = ", ".join(pipeline_parameters.keys()) if pipeline_parameters else ""
         rows.append((name, pipeline_type, str(len(activities)), param_names, description))
+        data.append(
+            {
+                "name": name,
+                "type": pipeline_type,
+                "activities": len(activities),
+                "parameters": param_names,
+                "description": description,
+            }
+        )
+
+    if json_output:
+        return data
 
     console.table(
         columns=["Name", "Type", "Activities", "Parameters", "Description"],
         rows=rows,
         title=f"ADF Pipelines ({factory_name})",
     )
+    return None

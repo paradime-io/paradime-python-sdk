@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
@@ -344,7 +346,8 @@ def list_fivetran_connectors(
     api_key: str,
     api_secret: str,
     group_id: Optional[str] = None,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Fivetran connectors with their IDs and status.
 
@@ -352,6 +355,7 @@ def list_fivetran_connectors(
         api_key: Fivetran API key
         api_secret: Fivetran API secret
         group_id: Optional group ID to filter connectors
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     base_url = "https://api.fivetran.com/v1"
     auth = (api_key, api_secret)
@@ -359,10 +363,12 @@ def list_fivetran_connectors(
     # Build URL based on whether group_id is provided
     if group_id:
         url = f"{base_url}/groups/{group_id}/connectors"
-        console.info(f"Listing connectors for group: {group_id}")
+        if not json_output:
+            console.info(f"Listing connectors for group: {group_id}")
     else:
         url = f"{base_url}/connectors"
-        console.info("Listing all connectors")
+        if not json_output:
+            console.info("Listing all connectors")
 
     connectors_response = requests.get(
         url,
@@ -375,12 +381,14 @@ def list_fivetran_connectors(
     connectors_data = connectors_response.json()
 
     if "data" not in connectors_data or "items" not in connectors_data["data"]:
-        console.info("No connectors found.")
-        return
+        if not json_output:
+            console.info("No connectors found.")
+        return [] if json_output else None
 
     connectors = connectors_data["data"]["items"]
 
     rows = []
+    data = []
     for connector in connectors:
         connector_id = connector.get("id", "Unknown")
         service = connector.get("service", "Unknown")
@@ -406,6 +414,21 @@ def list_fivetran_connectors(
                 dashboard_url,
             )
         )
+        data.append(
+            {
+                "connector_id": connector_id,
+                "service": service,
+                "schema": schema,
+                "sync_state": sync_state,
+                "setup_state": setup_state,
+                "last_success": str(succeeded_at),
+                "last_failure": str(failed_at),
+                "dashboard": dashboard_url,
+            }
+        )
+
+    if json_output:
+        return data
 
     console.table(
         columns=[
@@ -421,3 +444,4 @@ def list_fivetran_connectors(
         rows=rows,
         title="Fivetran Connectors",
     )
+    return None

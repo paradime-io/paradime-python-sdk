@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from typing import Optional
 
@@ -30,21 +32,36 @@ from paradime.core.scripts.montecarlo import search_for_files_to_upload_to_monte
     "PARADIME_SCHEDULE_NAME",
     help="The name of the paradime schedule.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def montecarlo_artifacts_import(
     paradime_resources_directory: Optional[str],
     paradime_schedule_name: str,
     project_name: str,
     connection_id: str,
+    json_output: bool,
 ) -> None:
     """
     Upload Bolt artifacts to Montecarlo
     """
-    success, found_files = search_for_files_to_upload_to_montecarlo(
-        paradime_resources_directory=paradime_resources_directory or ".",
-        paradime_schedule_name=paradime_schedule_name,
-        project_name=project_name,
-        connection_id=connection_id,
-    )
+    try:
+        success, found_files = search_for_files_to_upload_to_montecarlo(
+            paradime_resources_directory=paradime_resources_directory or ".",
+            paradime_schedule_name=paradime_schedule_name,
+            project_name=project_name,
+            connection_id=connection_id,
+        )
+    except Exception as e:
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
+        raise
+
+    if json_output:
+        console.json_out({"success": success, "found_files": found_files})
+        if not success:
+            sys.exit(1)
+        return
+
     if not success:
         sys.exit(1)
 

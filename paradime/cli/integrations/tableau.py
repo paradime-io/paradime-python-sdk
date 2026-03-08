@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from typing import List, Optional
 
@@ -51,17 +53,18 @@ from paradime.core.scripts.tableau import (
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     default=True,
     help="Wait for the refresh job to complete before returning. Shows progress and final status.",
 )
 @env_click_option(
-    "timeout-minutes",
+    "timeout",
     "TABLEAU_REFRESH_TIMEOUT_MINUTES",
     type=int,
     default=30,
-    help="Maximum time to wait for refresh completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def tableau_refresh(
     site_name: str,
     workbook_name: Optional[List[str]],
@@ -69,8 +72,9 @@ def tableau_refresh(
     host: str,
     personal_access_token_secret: str,
     personal_access_token_name: str,
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
+    json_output: bool,
 ) -> None:
     """
     Trigger a Tableau refresh for workbooks or data sources.
@@ -84,17 +88,33 @@ def tableau_refresh(
         )
 
     if workbook_name:
-        console.header(f"Tableau — Refresh Workbooks (site: {site_name or 'default'})")
-        results = trigger_tableau_refresh(
-            host=host,
-            personal_access_token_name=personal_access_token_name,
-            personal_access_token_secret=personal_access_token_secret,
-            site_name=site_name or "",
-            workbook_names=workbook_name,
-            api_version="3.4",
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
-        )
+        if not json_output:
+            console.header(f"Tableau — Refresh Workbooks (site: {site_name or 'default'})")
+        try:
+            results = trigger_tableau_refresh(
+                host=host,
+                personal_access_token_name=personal_access_token_name,
+                personal_access_token_secret=personal_access_token_secret,
+                site_name=site_name or "",
+                workbook_names=workbook_name,
+                api_version="3.4",
+                wait_for_completion=wait,
+                timeout_minutes=timeout,
+            )
+        except Exception as e:
+            if json_output:
+                console.json_out({"error": str(e), "success": False})
+                sys.exit(1)
+            raise
+
+        if json_output:
+            failed = [r for r in results if "FAILED" in r or "CANCELED" in r]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any refreshes failed
         failed_refreshes = [
@@ -105,17 +125,33 @@ def tableau_refresh(
             sys.exit(1)
 
     if datasource_name:
-        console.header(f"Tableau — Refresh Data Sources (site: {site_name or 'default'})")
-        results = trigger_tableau_datasource_refresh(
-            host=host,
-            personal_access_token_name=personal_access_token_name,
-            personal_access_token_secret=personal_access_token_secret,
-            site_name=site_name or "",
-            datasource_names=datasource_name,
-            api_version="3.4",
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
-        )
+        if not json_output:
+            console.header(f"Tableau — Refresh Data Sources (site: {site_name or 'default'})")
+        try:
+            results = trigger_tableau_datasource_refresh(
+                host=host,
+                personal_access_token_name=personal_access_token_name,
+                personal_access_token_secret=personal_access_token_secret,
+                site_name=site_name or "",
+                datasource_names=datasource_name,
+                api_version="3.4",
+                wait_for_completion=wait,
+                timeout_minutes=timeout,
+            )
+        except Exception as e:
+            if json_output:
+                console.json_out({"error": str(e), "success": False})
+                sys.exit(1)
+            raise
+
+        if json_output:
+            failed = [r for r in results if "FAILED" in r or "CANCELED" in r]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any refreshes failed
         failed_refreshes = [
@@ -149,24 +185,30 @@ def tableau_refresh(
     "TABLEAU_PERSONAL_ACCESS_TOKEN_NAME",
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def tableau_list_workbooks(
     site_name: str,
     host: str,
     personal_access_token_secret: str,
     personal_access_token_name: str,
+    json_output: bool,
 ) -> None:
     """
     List all Tableau workbooks with their names and UUIDs.
     """
-    console.info(f"Listing Tableau workbooks on site {site_name or 'default'}…")
+    if not json_output:
+        console.info(f"Listing Tableau workbooks on site {site_name or 'default'}…")
 
-    list_tableau_workbooks(
+    result = list_tableau_workbooks(
         host=host,
         personal_access_token_name=personal_access_token_name,
         personal_access_token_secret=personal_access_token_secret,
         site_name=site_name or "",
         api_version="3.4",
+        json_output=json_output,
     )
+    if json_output and result is not None:
+        console.json_out(result)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -192,21 +234,27 @@ def tableau_list_workbooks(
     "TABLEAU_PERSONAL_ACCESS_TOKEN_NAME",
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def tableau_list_datasources(
     site_name: str,
     host: str,
     personal_access_token_secret: str,
     personal_access_token_name: str,
+    json_output: bool,
 ) -> None:
     """
     List all Tableau data sources with their names and UUIDs.
     """
-    console.info(f"Listing Tableau data sources on site {site_name or 'default'}…")
+    if not json_output:
+        console.info(f"Listing Tableau data sources on site {site_name or 'default'}…")
 
-    list_tableau_datasources(
+    result = list_tableau_datasources(
         host=host,
         personal_access_token_name=personal_access_token_name,
         personal_access_token_secret=personal_access_token_secret,
         site_name=site_name or "",
         api_version="3.4",
+        json_output=json_output,
     )
+    if json_output and result is not None:
+        console.json_out(result)

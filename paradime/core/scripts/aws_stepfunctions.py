@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
@@ -295,7 +297,8 @@ def list_stepfunctions_state_machines(
     aws_access_key_id: Optional[str] = None,
     aws_secret_access_key: Optional[str] = None,
     aws_session_token: Optional[str] = None,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Step Functions state machines in the account.
 
@@ -304,6 +307,7 @@ def list_stepfunctions_state_machines(
         aws_access_key_id: AWS access key ID (defaults to AWS_ACCESS_KEY_ID env var)
         aws_secret_access_key: AWS secret access key (defaults to AWS_SECRET_ACCESS_KEY env var)
         aws_session_token: AWS session token for temporary credentials (optional)
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Create Step Functions client
     session_kwargs = {}
@@ -318,7 +322,10 @@ def list_stepfunctions_state_machines(
 
     sfn_client = boto3.client("stepfunctions", **session_kwargs)
 
-    console.info(f"Listing Step Functions state machines in region: {sfn_client.meta.region_name}")
+    if not json_output:
+        console.info(
+            f"Listing Step Functions state machines in region: {sfn_client.meta.region_name}"
+        )
 
     try:
         # List all state machines (with pagination support)
@@ -329,18 +336,31 @@ def list_stepfunctions_state_machines(
             state_machines.extend(page["stateMachines"])
 
         rows = []
+        data = []
         for state_machine in state_machines:
             state_machine_name = state_machine.get("name", "Unknown")
             state_machine_arn = state_machine.get("stateMachineArn", "Unknown")
             machine_type = state_machine.get("type", "Unknown")
             creation_date = str(state_machine.get("creationDate", "Unknown"))
             rows.append((state_machine_name, machine_type, creation_date, state_machine_arn))
+            data.append(
+                {
+                    "name": state_machine_name,
+                    "type": machine_type,
+                    "created": creation_date,
+                    "arn": state_machine_arn,
+                }
+            )
+
+        if json_output:
+            return data
 
         console.table(
             columns=["Name", "Type", "Created", "ARN"],
             rows=rows,
             title="Step Functions State Machines",
         )
+        return None
 
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "Unknown")

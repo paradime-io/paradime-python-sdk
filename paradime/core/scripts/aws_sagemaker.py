@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, List, Optional
@@ -263,7 +265,8 @@ def list_sagemaker_pipelines(
     aws_access_key_id: Optional[str] = None,
     aws_secret_access_key: Optional[str] = None,
     aws_session_token: Optional[str] = None,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all SageMaker Pipelines in the account.
 
@@ -272,6 +275,7 @@ def list_sagemaker_pipelines(
         aws_access_key_id: AWS access key ID (defaults to AWS_ACCESS_KEY_ID env var)
         aws_secret_access_key: AWS secret access key (defaults to AWS_SECRET_ACCESS_KEY env var)
         aws_session_token: AWS session token for temporary credentials (optional)
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Create SageMaker client
     session_kwargs = {}
@@ -286,7 +290,8 @@ def list_sagemaker_pipelines(
 
     sagemaker_client = boto3.client("sagemaker", **session_kwargs)
 
-    console.info(f"Listing SageMaker Pipelines in region: {sagemaker_client.meta.region_name}")
+    if not json_output:
+        console.info(f"Listing SageMaker Pipelines in region: {sagemaker_client.meta.region_name}")
 
     try:
         # List all pipelines (with pagination support)
@@ -297,18 +302,31 @@ def list_sagemaker_pipelines(
             pipelines.extend(page["PipelineSummaries"])
 
         rows = []
+        data = []
         for pipeline in pipelines:
             pipeline_name = pipeline.get("PipelineName", "Unknown")
             pipeline_display_name = pipeline.get("PipelineDisplayName", pipeline_name)
             creation_time = str(pipeline.get("CreationTime", "Unknown"))
             last_modified_time = str(pipeline.get("LastModifiedTime", "Unknown"))
             rows.append((pipeline_name, pipeline_display_name, creation_time, last_modified_time))
+            data.append(
+                {
+                    "pipeline_name": pipeline_name,
+                    "display_name": pipeline_display_name,
+                    "created": creation_time,
+                    "last_modified": last_modified_time,
+                }
+            )
+
+        if json_output:
+            return data
 
         console.table(
             columns=["Pipeline Name", "Display Name", "Created", "Last Modified"],
             rows=rows,
             title="SageMaker Pipelines",
         )
+        return None
 
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "Unknown")

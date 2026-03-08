@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -598,12 +600,14 @@ def _wait_for_job_completion(
 def list_glue_jobs(
     *,
     region_name: Optional[str] = None,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all AWS Glue jobs with their status.
 
     Args:
         region_name: AWS region name (defaults to AWS_REGION env var or default region)
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Initialize Glue client
     try:
@@ -614,7 +618,8 @@ def list_glue_jobs(
         console.error(error_msg)
         raise Exception(error_msg)
 
-    console.info(f"Listing AWS Glue jobs in region: {region or 'default'}")
+    if not json_output:
+        console.info(f"Listing AWS Glue jobs in region: {region or 'default'}")
 
     try:
         # List all jobs
@@ -627,10 +632,12 @@ def list_glue_jobs(
             jobs.extend(jobs_response.get("Jobs", []))
 
         if not jobs:
-            console.info("No jobs found.")
-            return
+            if not json_output:
+                console.info("No jobs found.")
+            return [] if json_output else None
 
         rows = []
+        data = []
         for job in jobs:
             job_name = job.get("Name", "Unknown")
 
@@ -650,15 +657,35 @@ def list_glue_jobs(
                 region_str = region_name or os.environ.get("AWS_REGION", "us-east-1")
                 console_url = f"https://console.aws.amazon.com/glue/home?region={region_str}#/v2/etl-configuration/jobs/{job_name}"
                 rows.append((job_name, run_state, started_on, console_url))
+                data.append(
+                    {
+                        "job_name": job_name,
+                        "last_run_status": run_state,
+                        "started_on": started_on,
+                        "console_url": console_url,
+                    }
+                )
 
             except ClientError as e:
                 rows.append((job_name, "Error", str(e)[:50], ""))
+                data.append(
+                    {
+                        "job_name": job_name,
+                        "last_run_status": "Error",
+                        "started_on": str(e)[:50],
+                        "console_url": "",
+                    }
+                )
+
+        if json_output:
+            return data
 
         console.table(
             columns=["Job Name", "Last Run Status", "Started On", "Console URL"],
             rows=rows,
             title="AWS Glue Jobs",
         )
+        return None
 
     except ClientError as e:
         error_message = e.response.get("Error", {}).get("Message", str(e))
@@ -669,12 +696,14 @@ def list_glue_jobs(
 def list_glue_workflows(
     *,
     region_name: Optional[str] = None,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all AWS Glue workflows with their status.
 
     Args:
         region_name: AWS region name (defaults to AWS_REGION env var or default region)
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Initialize Glue client
     try:
@@ -685,7 +714,8 @@ def list_glue_workflows(
         console.error(error_msg)
         raise Exception(error_msg)
 
-    console.info(f"Listing AWS Glue workflows in region: {region or 'default'}")
+    if not json_output:
+        console.info(f"Listing AWS Glue workflows in region: {region or 'default'}")
 
     try:
         # List all workflows
@@ -700,10 +730,12 @@ def list_glue_workflows(
             workflow_names.extend(workflows_response.get("Workflows", []))
 
         if not workflow_names:
-            console.info("No workflows found.")
-            return
+            if not json_output:
+                console.info("No workflows found.")
+            return [] if json_output else None
 
         rows = []
+        data = []
         for workflow_name in workflow_names:
             try:
                 workflow_response = glue_client.get_workflow(Name=workflow_name)
@@ -725,19 +757,44 @@ def list_glue_workflows(
                     run_status = "Never Run"
                     started_on = "Never"
                     actions_summary = "N/A"
+                    total_actions = 0
+                    succeeded_actions = 0
+                    failed_actions = 0
 
                 region_str = region_name or os.environ.get("AWS_REGION", "us-east-1")
                 console_url = f"https://console.aws.amazon.com/glue/home?region={region_str}#/v2/etl-configuration/workflows/{workflow_name}"
                 rows.append((workflow_name, run_status, started_on, actions_summary, console_url))
+                data.append(
+                    {
+                        "workflow": workflow_name,
+                        "last_run_status": run_status,
+                        "started_on": started_on,
+                        "actions": actions_summary,
+                        "console_url": console_url,
+                    }
+                )
 
             except ClientError as e:
                 rows.append((workflow_name, "Error", "", str(e)[:50], ""))
+                data.append(
+                    {
+                        "workflow": workflow_name,
+                        "last_run_status": "Error",
+                        "started_on": "",
+                        "actions": str(e)[:50],
+                        "console_url": "",
+                    }
+                )
+
+        if json_output:
+            return data
 
         console.table(
             columns=["Workflow", "Last Run Status", "Started On", "Actions", "Console URL"],
             rows=rows,
             title="AWS Glue Workflows",
         )
+        return None
 
     except ClientError as e:
         error_message = e.response.get("Error", {}).get("Message", str(e))

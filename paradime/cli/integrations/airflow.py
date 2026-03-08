@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 from typing import List, Optional
 
@@ -55,14 +57,14 @@ from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dag
     required=False,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for DAG runs to complete before returning",
     default=True,
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for DAG completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
     default=1440,
 )
 @click.option(
@@ -70,6 +72,7 @@ from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dag
     help="Display task logs during execution. Only used with --wait-for-completion.",
     default=True,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def airflow_trigger(
     base_url: str,
     username: Optional[str],
@@ -79,14 +82,16 @@ def airflow_trigger(
     dag_ids: List[str],
     dag_run_conf: Optional[str],
     logical_date: Optional[str],
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
     show_logs: bool,
+    json_output: bool,
 ) -> None:
     """
     Trigger one or more Airflow DAG runs.
     """
-    console.header("Airflow — Trigger DAG Runs")
+    if not json_output:
+        console.header("Airflow — Trigger DAG Runs")
 
     # Parse dag_run_conf if provided
     import json
@@ -115,12 +120,21 @@ def airflow_trigger(
             dag_ids=list(dag_ids),
             dag_run_conf=parsed_dag_run_conf,
             logical_date=logical_date,
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
+            wait_for_completion=wait,
+            timeout_minutes=timeout,
             show_logs=show_logs,
             use_gcp_auth=use_gcp_auth,
             bearer_token=bearer_token,
         )
+
+        if json_output:
+            failed = [r for r in results if "FAILED" in r]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any DAG runs failed
         failed_dags = [result for result in results if "FAILED" in result]
@@ -129,6 +143,9 @@ def airflow_trigger(
             sys.exit(1)
 
     except Exception as e:
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
         console.error(f"Airflow DAG trigger failed: {e}", exit_code=1)
 
 
@@ -168,6 +185,7 @@ def airflow_trigger(
     help="Only show active (non-paused) DAGs",
     default=True,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def airflow_list_dags(
     base_url: str,
     username: Optional[str],
@@ -175,14 +193,16 @@ def airflow_list_dags(
     bearer_token: Optional[str],
     use_gcp_auth: bool,
     only_active: bool,
+    json_output: bool,
 ) -> None:
     """
     List all available Airflow DAGs with their status.
     """
-    if only_active:
-        console.info("Listing active Airflow DAGs…")
-    else:
-        console.info("Listing all Airflow DAGs…")
+    if not json_output:
+        if only_active:
+            console.info("Listing active Airflow DAGs…")
+        else:
+            console.info("Listing all Airflow DAGs…")
 
     # Validate authentication parameters
     if not use_gcp_auth and not bearer_token:
@@ -194,13 +214,16 @@ def airflow_list_dags(
             )
 
     try:
-        list_airflow_dags(
+        result = list_airflow_dags(
             base_url=base_url,
             username=username,
             password=password,
             only_active=only_active,
             use_gcp_auth=use_gcp_auth,
             bearer_token=bearer_token,
+            json_output=json_output,
         )
+        if json_output and result is not None:
+            console.json_out(result)
     except Exception as e:
         console.error(f"Failed to list Airflow DAGs: {e}", exit_code=1)

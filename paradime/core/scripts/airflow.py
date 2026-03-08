@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -556,7 +558,8 @@ def list_airflow_dags(
     only_active: bool = True,
     use_gcp_auth: bool = False,
     bearer_token: Optional[str] = None,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Airflow DAGs with their IDs and status.
 
@@ -567,6 +570,7 @@ def list_airflow_dags(
         only_active: Whether to only show active (non-paused) DAGs
         use_gcp_auth: Whether to use GCP Cloud Composer authentication
         bearer_token: Optional bearer token for token-based authentication
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Ensure base URL doesn't have trailing slash
     base_url = base_url.rstrip("/")
@@ -583,11 +587,15 @@ def list_airflow_dags(
 
     # Build URL and parameters
     params = {}
-    if only_active:
-        params["only_active"] = "true"
-        console.info("Listing active DAGs")
+    if not json_output:
+        if only_active:
+            params["only_active"] = "true"
+            console.info("Listing active DAGs")
+        else:
+            console.info("Listing all DAGs")
     else:
-        console.info("Listing all DAGs")
+        if only_active:
+            params["only_active"] = "true"
 
     dags_response = requests.get(
         f"{api_base}/dags",
@@ -601,12 +609,14 @@ def list_airflow_dags(
     dags_data = dags_response.json()
 
     if "dags" not in dags_data:
-        console.info("No DAGs found.")
-        return
+        if not json_output:
+            console.info("No DAGs found.")
+        return [] if json_output else None
 
     dags = dags_data["dags"]
 
     rows = []
+    data = []
     for dag in dags:
         dag_id = dag.get("dag_id", "Unknown")
         is_paused = dag.get("is_paused", False)
@@ -614,9 +624,22 @@ def list_airflow_dags(
         last_run = dag.get("last_parsed_time", "Never")
         ui_url = f"{base_url}/dags/{dag_id}/grid"
         rows.append((dag_id, str(is_active), str(is_paused), last_run, ui_url))
+        data.append(
+            {
+                "dag_id": dag_id,
+                "active": is_active,
+                "paused": is_paused,
+                "last_parsed": last_run,
+                "ui_url": ui_url,
+            }
+        )
+
+    if json_output:
+        return data
 
     console.table(
         columns=["DAG ID", "Active", "Paused", "Last Parsed", "UI URL"],
         rows=rows,
         title="Airflow DAGs",
     )
+    return None

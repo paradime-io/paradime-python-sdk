@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
@@ -560,16 +562,18 @@ def _wait_for_sync_sequence_completion(
             continue
 
 
-def list_hightouch_syncs(*, api_token: str) -> None:
+def list_hightouch_syncs(*, api_token: str, json_output: bool = False) -> list | None:
     """
     List all Hightouch syncs with their IDs and status.
 
     Args:
         api_token: Hightouch API token.
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     auth_headers = _get_auth_headers(api_token)
 
-    console.info("Listing all Hightouch syncs")
+    if not json_output:
+        console.info("Listing all Hightouch syncs")
 
     syncs_response = requests.get(
         f"{HIGHTOUCH_BASE_URL}/syncs",
@@ -586,14 +590,17 @@ def list_hightouch_syncs(*, api_token: str) -> None:
     elif isinstance(syncs_data, dict) and "data" in syncs_data:
         syncs = syncs_data["data"]
     else:
-        console.info("No syncs found.")
-        return
+        if not json_output:
+            console.info("No syncs found.")
+        return [] if json_output else None
 
     if not syncs:
-        console.info("No syncs found.")
-        return
+        if not json_output:
+            console.info("No syncs found.")
+        return [] if json_output else None
 
     rows = []
+    data = []
     for sync in syncs:
         sync_id = sync.get("id", "Unknown")
         slug = sync.get("slug", "N/A")
@@ -619,6 +626,21 @@ def list_hightouch_syncs(*, api_token: str) -> None:
                 str(last_run_at),
             )
         )
+        data.append(
+            {
+                "sync_id": str(sync_id),
+                "name": name,
+                "slug": slug,
+                "status": status,
+                "schedule": schedule_type,
+                "model_id": str(model_id),
+                "destination_id": str(destination_id),
+                "last_run": str(last_run_at),
+            }
+        )
+
+    if json_output:
+        return data
 
     console.table(
         columns=[
@@ -634,18 +656,21 @@ def list_hightouch_syncs(*, api_token: str) -> None:
         rows=rows,
         title="Hightouch Syncs",
     )
+    return None
 
 
-def list_hightouch_sync_sequences(*, api_token: str) -> None:
+def list_hightouch_sync_sequences(*, api_token: str, json_output: bool = False) -> list | None:
     """
     List all Hightouch sync sequences with their IDs and status.
 
     Args:
         api_token: Hightouch API token.
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     auth_headers = _get_auth_headers(api_token)
 
-    console.info("Listing all Hightouch sync sequences")
+    if not json_output:
+        console.info("Listing all Hightouch sync sequences")
 
     sequences_response = requests.get(
         f"{HIGHTOUCH_BASE_URL}/sync-sequences",
@@ -662,14 +687,17 @@ def list_hightouch_sync_sequences(*, api_token: str) -> None:
     elif isinstance(sequences_data, dict) and "data" in sequences_data:
         sequences = sequences_data["data"]
     else:
-        console.info("No sync sequences found.")
-        return
+        if not json_output:
+            console.info("No sync sequences found.")
+        return [] if json_output else None
 
     if not sequences:
-        console.info("No sync sequences found.")
-        return
+        if not json_output:
+            console.info("No sync sequences found.")
+        return [] if json_output else None
 
     rows = []
+    data = []
     for sequence in sequences:
         sequence_id = sequence.get("id", "Unknown")
         name = sequence.get("name", "Unknown")
@@ -688,9 +716,23 @@ def list_hightouch_sync_sequences(*, api_token: str) -> None:
         rows.append(
             (str(sequence_id), name, status, schedule_type, str(sync_count), str(last_run_at))
         )
+        data.append(
+            {
+                "sequence_id": str(sequence_id),
+                "name": name,
+                "status": status,
+                "schedule": schedule_type,
+                "syncs": sync_count,
+                "last_run": str(last_run_at),
+            }
+        )
+
+    if json_output:
+        return data
 
     console.table(
         columns=["Sequence ID", "Name", "Status", "Schedule", "Syncs", "Last Run"],
         rows=rows,
         title="Hightouch Sync Sequences",
     )
+    return None

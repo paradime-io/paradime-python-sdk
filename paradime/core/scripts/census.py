@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
@@ -320,12 +322,14 @@ def _wait_for_sync_completion(
 def list_census_syncs(
     *,
     api_token: str,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Census syncs with their IDs and status.
 
     Args:
         api_token: Census API token
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     base_url = "https://app.getcensus.com/api/v1"
     headers = {
@@ -333,7 +337,8 @@ def list_census_syncs(
         "Content-Type": "application/json",
     }
 
-    console.info("Listing all Census syncs")
+    if not json_output:
+        console.info("Listing all Census syncs")
 
     # Get all syncs - paginate if necessary
     all_syncs = []
@@ -367,10 +372,12 @@ def list_census_syncs(
         page += 1
 
     if not all_syncs:
-        console.info("No syncs found.")
-        return
+        if not json_output:
+            console.info("No syncs found.")
+        return [] if json_output else None
 
     rows = []
+    data = []
     for sync in all_syncs:
         sync_id = sync.get("id", "Unknown")
         label = sync.get("label", "Unnamed")
@@ -400,6 +407,21 @@ def list_census_syncs(
                 dashboard_url,
             )
         )
+        data.append(
+            {
+                "sync_id": str(sync_id),
+                "label": label,
+                "status": status,
+                "source": source_name,
+                "destination": destination_name,
+                "schedule": schedule_frequency,
+                "last_run": last_run_status,
+                "dashboard": dashboard_url,
+            }
+        )
+
+    if json_output:
+        return data
 
     console.table(
         columns=[
@@ -415,3 +437,4 @@ def list_census_syncs(
         rows=rows,
         title="Census Syncs",
     )
+    return None

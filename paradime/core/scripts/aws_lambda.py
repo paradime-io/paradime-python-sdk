@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
@@ -253,7 +255,8 @@ def list_lambda_functions(
     aws_access_key_id: Optional[str] = None,
     aws_secret_access_key: Optional[str] = None,
     aws_session_token: Optional[str] = None,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Lambda functions in the account.
 
@@ -262,6 +265,7 @@ def list_lambda_functions(
         aws_access_key_id: AWS access key ID (defaults to AWS_ACCESS_KEY_ID env var)
         aws_secret_access_key: AWS secret access key (defaults to AWS_SECRET_ACCESS_KEY env var)
         aws_session_token: AWS session token for temporary credentials (optional)
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Create Lambda client
     session_kwargs = {}
@@ -276,7 +280,8 @@ def list_lambda_functions(
 
     lambda_client = boto3.client("lambda", **session_kwargs)
 
-    console.info(f"Listing Lambda functions in region: {lambda_client.meta.region_name}")
+    if not json_output:
+        console.info(f"Listing Lambda functions in region: {lambda_client.meta.region_name}")
 
     try:
         # List all functions (with pagination support)
@@ -287,6 +292,7 @@ def list_lambda_functions(
             functions.extend(page["Functions"])
 
         rows = []
+        data = []
         for function in functions:
             function_name = function.get("FunctionName", "Unknown")
             runtime = function.get("Runtime", "Unknown")
@@ -297,6 +303,19 @@ def list_lambda_functions(
             rows.append(
                 (function_name, state, runtime, str(memory_size), str(timeout), last_modified)
             )
+            data.append(
+                {
+                    "function_name": function_name,
+                    "state": state,
+                    "runtime": runtime,
+                    "memory_mb": memory_size,
+                    "timeout_s": timeout,
+                    "last_modified": last_modified,
+                }
+            )
+
+        if json_output:
+            return data
 
         console.table(
             columns=[
@@ -310,6 +329,7 @@ def list_lambda_functions(
             rows=rows,
             title="Lambda Functions",
         )
+        return None
 
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "Unknown")

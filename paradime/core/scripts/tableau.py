@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -616,7 +618,8 @@ def list_tableau_workbooks(
     personal_access_token_secret: str,
     site_name: str,
     api_version: str,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """List all Tableau workbooks with their names and UUIDs."""
     auth_response = requests.post(
         f"{host}/api/{api_version}/auth/signin",
@@ -648,14 +651,16 @@ def list_tableau_workbooks(
     workbooks_data = workbooks_response.json()
 
     if "workbooks" not in workbooks_data or "workbook" not in workbooks_data["workbooks"]:
-        console.info("No workbooks found.")
-        return
+        if not json_output:
+            console.info("No workbooks found.")
+        return [] if json_output else None
 
     workbooks = workbooks_data["workbooks"]["workbook"]
     if isinstance(workbooks, dict):
         workbooks = [workbooks]
 
     rows = []
+    data = []
     for workbook in workbooks:
         name = workbook.get("name", "Unknown")
         wb_uuid = workbook.get("id", "Unknown")
@@ -665,12 +670,17 @@ def list_tableau_workbooks(
             else "Unknown"
         )
         rows.append((name, wb_uuid, project_name))
+        data.append({"name": name, "uuid": wb_uuid, "project": project_name})
+
+    if json_output:
+        return data
 
     console.table(
         columns=["Name", "UUID", "Project"],
         rows=rows,
         title="Tableau Workbooks",
     )
+    return None
 
 
 def list_tableau_datasources(
@@ -680,7 +690,8 @@ def list_tableau_datasources(
     personal_access_token_secret: str,
     site_name: str,
     api_version: str,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """List all Tableau data sources with their names and UUIDs."""
     auth_response = requests.post(
         f"{host}/api/{api_version}/auth/signin",
@@ -712,14 +723,16 @@ def list_tableau_datasources(
     datasources_data = datasources_response.json()
 
     if "datasources" not in datasources_data or "datasource" not in datasources_data["datasources"]:
-        console.info("No data sources found.")
-        return
+        if not json_output:
+            console.info("No data sources found.")
+        return [] if json_output else None
 
     datasources = datasources_data["datasources"]["datasource"]
     if isinstance(datasources, dict):
         datasources = [datasources]
 
     rows = []
+    data = []
     for datasource in datasources:
         name = datasource.get("name", "Unknown")
         ds_uuid = datasource.get("id", "Unknown")
@@ -730,9 +743,14 @@ def list_tableau_datasources(
             else "Unknown"
         )
         rows.append((name, ds_uuid, ds_type, project_name))
+        data.append({"name": name, "uuid": ds_uuid, "type": ds_type, "project": project_name})
+
+    if json_output:
+        return data
 
     console.table(
         columns=["Name", "UUID", "Type", "Project"],
         rows=rows,
         title="Tableau Data Sources",
     )
+    return None

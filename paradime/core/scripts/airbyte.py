@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
@@ -329,7 +331,8 @@ def list_airbyte_connections(
     workspace_id: Optional[str] = None,
     base_url: str = "https://api.airbyte.com/v1",
     use_cloud_auth: bool = True,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Airbyte connections with their IDs and status.
 
@@ -339,6 +342,7 @@ def list_airbyte_connections(
         workspace_id: Optional workspace ID to filter connections
         base_url: Airbyte API base URL (default: Airbyte Cloud)
         use_cloud_auth: Whether to use cloud authentication (OAuth) or server auth (basic)
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     if use_cloud_auth:
         access_token = _get_access_token(client_id, client_secret, base_url)
@@ -365,10 +369,23 @@ def list_airbyte_connections(
     connections_data = connections_response.json()
 
     if "data" not in connections_data:
-        console.info("No connections found.")
-        return
+        if not json_output:
+            console.info("No connections found.")
+        return [] if json_output else None
 
     connections = connections_data["data"]
+
+    if json_output:
+        return [
+            {
+                "id": conn.get("connectionId", "Unknown"),
+                "name": conn.get("name", "Unknown"),
+                "status": conn.get("status", "Unknown"),
+                "source_id": conn.get("sourceId", "Unknown"),
+                "destination_id": conn.get("destinationId", "Unknown"),
+            }
+            for conn in connections
+        ]
 
     console.table(
         columns=["ID", "Name", "Status", "Source ID", "Destination ID"],
@@ -384,3 +401,4 @@ def list_airbyte_connections(
         ],
         title=f"Airbyte Connections ({len(connections)} found)",
     )
+    return None
