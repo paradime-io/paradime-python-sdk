@@ -13,8 +13,9 @@ from paradime.client.paradime_cli_client import get_credentials_path
 from paradime.version import get_sdk_version
 
 
-@click.group()
-def cli() -> None:
+@click.group(invoke_without_command=True)
+@click.pass_context
+def cli(ctx: click.Context) -> None:
     """
     Work seamlessly with Paradime from the command line.
     """

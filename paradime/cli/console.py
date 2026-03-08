@@ -162,20 +162,25 @@ def table(
 # Welcome panel
 # ---------------------------------------------------------------------------
 
-# Paradime "P" logo in block characters, coloured purple
+# Paradime dino logo in block characters, coloured purple
 _LOGO_LINES = [
-    "  ██████╗  ",
-    "  ██╔══██╗ ",
-    "  ██████╔╝ ",
-    "  ██╔═══╝  ",
-    "  ██║      ",
-    "  ╚═╝      ",
+    "         ▄▄▄▄▄▄▄▄",
+    "        ██████████",
+    "        ██ ███████",
+    "        ██████████▄",
+    "        ████▌      ",
+    "   ▄▄  ██████████ ",
+    "   ████████████▌  ",
+    "    ▀████████▀    ",
+    "      ██   ██     ",
+    "      ██   ██     ",
+    "      ▐▌   ▐▌     ",
 ]
 
 
 def welcome_panel(version: str, workspace_endpoint: str | None = None) -> None:
     """
-    Render the Paradime CLI welcome panel — shown once on bare `paradime` invocation.
+    Render the Paradime CLI welcome panel — shown on every `paradime` invocation.
 
     Layout mirrors the Claude Code welcome screen:
       left  — logo, version badge, workspace info
