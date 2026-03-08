@@ -1,6 +1,6 @@
 import click
 
-from paradime.cli.rich_text_output import print_cli_header
+from paradime.cli import console
 from paradime.version import get_sdk_version
 
 
@@ -13,7 +13,15 @@ def version() -> None:
 
 
 def print_version() -> None:
-    print_cli_header(get_sdk_version())
+    sdk_version = get_sdk_version()
+    console.header(
+        f"Paradime CLI v{sdk_version}",
+        subtitle="Use the Paradime CLI to login and trigger Bolt dbt schedules from the terminal.",
+    )
+    console.url(
+        "Examples",
+        "https://github.com/paradime-io/paradime-python-sdk/tree/main/examples",
+    )
 
 
 if __name__ == "__main__":

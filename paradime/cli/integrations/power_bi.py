@@ -1,7 +1,11 @@
+from __future__ import annotations
+
+import sys
 from typing import List, Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.power_bi import (
     get_access_token,
@@ -43,6 +47,7 @@ from paradime.core.scripts.power_bi import (
     help="A base64 encoded json string to send as the request body - https://learn.microsoft.com/en-us/power-bi/connect-data/asynchronous-refresh#parameters.",
     required=False,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def power_bi_refresh(
     tenant_id: str,
     client_id: str,
@@ -50,20 +55,30 @@ def power_bi_refresh(
     group_id: str,
     dataset_name: List[str],
     refresh_request_body_b64: Optional[str],
+    json_output: bool,
 ) -> None:
     """
     Trigger a Power BI refresh for a specific dataset.
     """
-    click.echo(f"Power BI refresh started in group {group_id}...")
+    if not json_output:
+        console.header(f"Power BI — Refresh Datasets (group {group_id})")
 
-    trigger_power_bi_refreshes(
-        client_id=client_id,
-        client_secret=client_secret,
-        group_id=group_id,
-        dataset_names=dataset_name,
-        refresh_request_body_b64=refresh_request_body_b64,
-        tenant_id=tenant_id,
-    )
+    try:
+        trigger_power_bi_refreshes(
+            client_id=client_id,
+            client_secret=client_secret,
+            group_id=group_id,
+            dataset_names=dataset_name,
+            refresh_request_body_b64=refresh_request_body_b64,
+            tenant_id=tenant_id,
+        )
+        if json_output:
+            console.json_out({"success": True, "datasets": list(dataset_name)})
+    except Exception as e:
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
+        raise
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -87,11 +102,13 @@ def power_bi_refresh(
     "POWER_BI_TENANT_ID",
     help="The tenant id of your power bi application",
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def power_bi_list_datasets(
     client_id: str,
     client_secret: str,
     group_id: str,
     tenant_id: str,
+    json_output: bool,
 ) -> None:
     """
     List Power BI datasets.
@@ -101,5 +118,13 @@ def power_bi_list_datasets(
         access_token=access_token,
         group_id=group_id,
     )
-    for dataset in datasets.values():
-        click.echo(f"{dataset.name}:{dataset.id}")
+    if json_output:
+        console.json_out(
+            [
+                {"name": dataset.name, "id": dataset.id, "is_refreshable": dataset.is_refreshable}
+                for dataset in datasets.values()
+            ]
+        )
+    else:
+        for dataset in datasets.values():
+            console.kv(dataset.name, dataset.id)

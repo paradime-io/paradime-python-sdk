@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import sys
 from typing import List
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.hightouch import (
     list_hightouch_sync_sequences,
@@ -31,36 +34,52 @@ from paradime.core.scripts.hightouch import (
     default=False,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     default=True,
     help="Wait for syncs to complete before returning (default: True)",
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for sync completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
     default=1440,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def hightouch_sync(
     api_token: str,
     sync_ids: List[str],
     full_resync: bool,
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
+    json_output: bool,
 ) -> None:
     """
     Trigger syncs for Hightouch.
     """
-    click.echo(f"Starting syncs for {len(sync_ids)} Hightouch sync(s)...")
+    if not json_output:
+        console.header("Hightouch — Trigger Syncs")
 
     try:
         results = trigger_hightouch_syncs(
             api_token=api_token,
             sync_ids=list(sync_ids),
             full_resync=full_resync,
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
+            wait_for_completion=wait,
+            timeout_minutes=timeout,
         )
+
+        if json_output:
+            failed = [
+                r
+                for r in results
+                if "FAILED" in r or "CANCELLED" in r or "INTERRUPTED" in r or "ABORTED" in r
+            ]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any syncs failed or were cancelled
         failed_syncs = [
@@ -72,11 +91,14 @@ def hightouch_sync(
             or "ABORTED" in result
         ]
         if failed_syncs:
+            console.error(f"{len(failed_syncs)} sync(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Hightouch sync failed: {str(e)}")
-        raise click.Abort()
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
+        console.error(f"Hightouch sync failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -92,34 +114,50 @@ def hightouch_sync(
     required=True,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     default=True,
     help="Wait for sync sequences to complete before returning (default: True)",
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for sequence completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
     default=1440,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def hightouch_sync_sequence(
     api_token: str,
     sync_sequence_ids: List[str],
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
+    json_output: bool,
 ) -> None:
     """
     Trigger sync sequences for Hightouch.
     """
-    click.echo(f"Starting {len(sync_sequence_ids)} Hightouch sync sequence(s)...")
+    if not json_output:
+        console.header("Hightouch — Trigger Sync Sequences")
 
     try:
         results = trigger_hightouch_sync_sequences(
             api_token=api_token,
             sync_sequence_ids=list(sync_sequence_ids),
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
+            wait_for_completion=wait,
+            timeout_minutes=timeout,
         )
+
+        if json_output:
+            failed = [
+                r
+                for r in results
+                if "FAILED" in r or "CANCELLED" in r or "INTERRUPTED" in r or "ABORTED" in r
+            ]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any sequences failed or were cancelled
         failed_sequences = [
@@ -131,11 +169,14 @@ def hightouch_sync_sequence(
             or "ABORTED" in result
         ]
         if failed_sequences:
+            console.error(f"{len(failed_sequences)} sync sequence(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Hightouch sync sequence failed: {str(e)}")
-        raise click.Abort()
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
+        console.error(f"Hightouch sync sequence failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -144,13 +185,17 @@ def hightouch_sync_sequence(
     "HIGHTOUCH_API_TOKEN",
     help="Your Hightouch API token. You can create this in your Hightouch workspace settings.",
 )
-def hightouch_list_syncs(api_token: str) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
+def hightouch_list_syncs(api_token: str, json_output: bool) -> None:
     """
     List all available Hightouch syncs with their status.
     """
-    click.echo("Listing all Hightouch syncs...")
+    if not json_output:
+        console.info("Listing all Hightouch syncs…")
 
-    list_hightouch_syncs(api_token=api_token)
+    result = list_hightouch_syncs(api_token=api_token, json_output=json_output)
+    if json_output and result is not None:
+        console.json_out(result)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -159,10 +204,14 @@ def hightouch_list_syncs(api_token: str) -> None:
     "HIGHTOUCH_API_TOKEN",
     help="Your Hightouch API token. You can create this in your Hightouch workspace settings.",
 )
-def hightouch_list_sync_sequences(api_token: str) -> None:
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
+def hightouch_list_sync_sequences(api_token: str, json_output: bool) -> None:
     """
     List all available Hightouch sync sequences with their status.
     """
-    click.echo("Listing all Hightouch sync sequences...")
+    if not json_output:
+        console.info("Listing all Hightouch sync sequences…")
 
-    list_hightouch_sync_sequences(api_token=api_token)
+    result = list_hightouch_sync_sequences(api_token=api_token, json_output=json_output)
+    if json_output and result is not None:
+        console.json_out(result)
