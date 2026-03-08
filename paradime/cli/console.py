@@ -16,9 +16,12 @@ from contextlib import contextmanager
 from typing import Generator, Iterable, Sequence
 
 from rich import box
+from rich.columns import Columns
 from rich.console import Console
+from rich.panel import Panel
 from rich.status import Status
 from rich.table import Table
+from rich.text import Text
 from rich.theme import Theme
 
 # ---------------------------------------------------------------------------
@@ -153,6 +156,94 @@ def table(
     for row in rows:
         t.add_row(*row)
     console.print(t)
+
+
+# ---------------------------------------------------------------------------
+# Welcome panel
+# ---------------------------------------------------------------------------
+
+# Paradime "P" logo in block characters, coloured purple
+_LOGO_LINES = [
+    "  ██████╗  ",
+    "  ██╔══██╗ ",
+    "  ██████╔╝ ",
+    "  ██╔═══╝  ",
+    "  ██║      ",
+    "  ╚═╝      ",
+]
+
+
+def welcome_panel(version: str, workspace_endpoint: str | None = None) -> None:
+    """
+    Render the Paradime CLI welcome panel — shown once on bare `paradime` invocation.
+
+    Layout mirrors the Claude Code welcome screen:
+      left  — logo, version badge, workspace info
+      right — quick-start tips and documentation links
+    """
+    # ── Left column ──────────────────────────────────────────────────────────
+    logo = Text("\n".join(_LOGO_LINES), style="#827be6")
+
+    badge = Text()
+    badge.append("  Paradime CLI ", style="bold #827be6")
+    badge.append(f"v{version}", style="bold white")
+
+    workspace_line = Text()
+    if workspace_endpoint:
+        # Show just the domain part for brevity
+        domain = workspace_endpoint.replace("https://", "").replace("http://", "").rstrip("/")
+        workspace_line.append(f"  {domain}", style="dim")
+    else:
+        workspace_line.append("  No workspace configured", style="dim")
+
+    left = Text.assemble(
+        "\n",
+        logo,
+        "\n\n",
+        badge,
+        "\n",
+        workspace_line,
+        "\n",
+    )
+
+    # ── Right column ─────────────────────────────────────────────────────────
+    right = Text()
+    right.append("Getting started\n", style="bold")
+    right.append("─" * 36 + "\n", style="dim")
+    right.append("Run ", style="dim")
+    right.append("paradime login", style="bold #827be6")
+    right.append(" to connect your workspace\n", style="dim")
+    right.append("Run ", style="dim")
+    right.append("paradime bolt run <schedule>", style="bold #827be6")
+    right.append(" to trigger a Bolt run\n", style="dim")
+    right.append("Run ", style="dim")
+    right.append("paradime run --help", style="bold #827be6")
+    right.append(" to list integrations\n\n", style="dim")
+    right.append("Documentation\n", style="bold")
+    right.append("─" * 36 + "\n", style="dim")
+    right.append("Docs    ", style="dim")
+    right.append("https://docs.paradime.io\n", style="underline #9696a0")
+    right.append("Examples  ", style="dim")
+    right.append(
+        "https://github.com/paradime-io/paradime-python-sdk/tree/main/examples\n",
+        style="underline #9696a0",
+    )
+
+    # ── Assemble two-column layout inside a panel ────────────────────────────
+    cols = Columns(
+        [left, right],
+        equal=False,
+        expand=True,
+    )
+
+    panel = Panel(
+        cols,
+        title=f"[bold #827be6]Paradime CLI[/] [dim]v{version}[/]",
+        border_style="#827be6",
+        padding=(0, 1),
+    )
+
+    console.print(panel)
 
 
 # ---------------------------------------------------------------------------
