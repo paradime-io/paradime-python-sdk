@@ -18,22 +18,18 @@ class LineageDiffClient:
     def trigger_report(
         self,
         *,
-        user_email: str,
+        bolt_run_id: int,
         pull_request_number: int,
-        repository_name: str,
-        base_commit_sha: str,
-        head_commit_sha: str,
+        user_email: str,
         changed_file_paths: List[str],
     ) -> str:
         """
         Triggers a lineage diff report for the specified parameters.
 
         Args:
-            user_email (str): The email of the user triggering the report (pull request author).
+            bolt_run_id (int): The ID of the completed Turbo CI bolt run.
             pull_request_number (int): The number of the pull request.
-            repository_name (str): The full name of the repository. E.g. "paradime-io/jaffle-shop".
-            base_commit_sha (str): The SHA of the base commit.
-            head_commit_sha (str): The SHA of the head commit.
+            user_email (str): The email of the user triggering the report (pull request author).
             changed_file_paths (List[str]): A list of file paths that have changed in the pull request.
 
         Returns:
@@ -41,20 +37,16 @@ class LineageDiffClient:
         """
         query = """
             mutation TriggerLineageDiffReport(
-                $baseCommitSha: String!
-                $changedFilePaths: [String!]!
-                $headCommitSha: String!
+                $boltRunId: Int!
                 $pullRequestNumber: Int!
-                $repositoryName: String!
                 $userEmail: String!
+                $changedFilePaths: [String!]!
             ) {
                 triggerLineageDiffReport(
-                    baseCommitSha: $baseCommitSha
-                    changedFilePaths: $changedFilePaths
-                    headCommitSha: $headCommitSha
+                    boltRunId: $boltRunId
                     pullRequestNumber: $pullRequestNumber
-                    repositoryName: $repositoryName
                     userEmail: $userEmail
+                    changedFilePaths: $changedFilePaths
                 ) {
                     ok
                     uuid
@@ -63,12 +55,10 @@ class LineageDiffClient:
         """
 
         variables = {
-            "baseCommitSha": base_commit_sha,
-            "changedFilePaths": changed_file_paths,
-            "headCommitSha": head_commit_sha,
+            "boltRunId": bolt_run_id,
             "pullRequestNumber": pull_request_number,
-            "repositoryName": repository_name,
             "userEmail": user_email,
+            "changedFilePaths": changed_file_paths,
         }
 
         response = self.client._call_gql(query, variables)
@@ -119,11 +109,9 @@ class LineageDiffClient:
     def trigger_report_and_wait(
         self,
         *,
-        user_email: str,
+        bolt_run_id: int,
         pull_request_number: int,
-        repository_name: str,
-        base_commit_sha: str,
-        head_commit_sha: str,
+        user_email: str,
         changed_file_paths: List[str],
         timeout: int = 3600,
     ) -> Report:
@@ -131,22 +119,18 @@ class LineageDiffClient:
         Triggers a lineage diff report for the specified parameters and waits for the report to be available.
 
         Args:
-            user_email (str): The email of the user triggering the report (pull request author).
+            bolt_run_id (int): The ID of the completed Turbo CI bolt run.
             pull_request_number (int): The number of the pull request.
-            repository_name (str): The full name of the repository. E.g. "paradime-io/jaffle-shop".
-            base_commit_sha (str): The SHA of the base commit.
-            head_commit_sha (str): The SHA of the head commit.
+            user_email (str): The email of the user triggering the report (pull request author).
             changed_file_paths (List[str]): A list of file paths that have changed in the pull request.
 
         Returns:
             Report: The lineage diff report.
         """
         uuid = self.trigger_report(
-            user_email=user_email,
+            bolt_run_id=bolt_run_id,
             pull_request_number=pull_request_number,
-            repository_name=repository_name,
-            base_commit_sha=base_commit_sha,
-            head_commit_sha=head_commit_sha,
+            user_email=user_email,
             changed_file_paths=changed_file_paths,
         )
 
