@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
+from typing import List, Optional
 
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.aws_stepfunctions import (
     list_stepfunctions_state_machines,
     trigger_stepfunctions_executions,
@@ -40,8 +40,8 @@ from paradime.core.scripts.aws_stepfunctions import (
 )
 @click.option(
     "--state-machine-arns",
-    multiple=True,
-    help="The ARN(s) of the Step Functions state machine(s) to execute",
+    type=COMMA_LIST,
+    help="Comma-separated Step Functions state machine ARN(s) to execute",
     required=True,
 )
 @click.option(
@@ -67,7 +67,7 @@ def aws_stepfunctions_trigger(
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
     aws_region: Optional[str],
-    state_machine_arns: tuple,
+    state_machine_arns: List[str],
     input_data: Optional[str],
     wait: bool,
     timeout: int,
@@ -84,7 +84,7 @@ def aws_stepfunctions_trigger(
 
     Example:
         paradime run aws-stepfunctions-trigger --state-machine-arns arn:aws:states:us-east-1:123456789012:stateMachine:MyStateMachine
-        paradime run aws-stepfunctions-trigger --state-machine-arns arn:... --input-data '{"key":"value"}'
+        paradime run aws-stepfunctions-trigger --state-machine-arns arn:...,arn:... --input-data '{"key":"value"}'
     """
     import json
 
@@ -101,7 +101,7 @@ def aws_stepfunctions_trigger(
 
     try:
         results = trigger_stepfunctions_executions(
-            state_machine_arns=list(state_machine_arns),
+            state_machine_arns=state_machine_arns,
             input_data=input_dict,
             region_name=aws_region,
             aws_access_key_id=aws_access_key_id,

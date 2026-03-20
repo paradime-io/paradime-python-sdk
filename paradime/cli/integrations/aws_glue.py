@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
+from typing import List, Optional
 
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.aws_glue import (
     list_glue_jobs,
     list_glue_workflows,
@@ -42,8 +42,8 @@ from paradime.core.scripts.aws_glue import (
 )
 @click.option(
     "--workflow-names",
-    multiple=True,
-    help="The name(s) of the AWS Glue workflow(s) to trigger",
+    type=COMMA_LIST,
+    help="Comma-separated AWS Glue workflow name(s) to trigger",
     required=True,
 )
 @click.option(
@@ -63,7 +63,7 @@ def aws_glue_trigger_workflows(
     aws_secret_access_key: Optional[str],  # noqa: ARG001
     aws_session_token: Optional[str],  # noqa: ARG001
     aws_region: Optional[str],
-    workflow_names: tuple,
+    workflow_names: List[str],
     wait: bool,
     timeout: int,
     json_output: bool,
@@ -78,7 +78,7 @@ def aws_glue_trigger_workflows(
     - AWS_REGION
 
     Example:
-        paradime run aws-glue-trigger --workflow-names my-workflow-1 --workflow-names my-workflow-2
+        paradime run aws-glue-trigger --workflow-names my-workflow-1,my-workflow-2
     """
     # Note: AWS credentials are set via environment variables by env_click_option decorator
     # boto3 will pick them up automatically from the environment
@@ -89,7 +89,7 @@ def aws_glue_trigger_workflows(
 
     try:
         results = trigger_glue_workflows(
-            workflow_names=list(workflow_names),
+            workflow_names=workflow_names,
             wait_for_completion=wait,
             timeout_minutes=timeout,
             region_name=aws_region,
@@ -204,8 +204,8 @@ def aws_glue_list_workflows(
 )
 @click.option(
     "--job-names",
-    multiple=True,
-    help="The name(s) of the AWS Glue job(s) to trigger",
+    type=COMMA_LIST,
+    help="Comma-separated AWS Glue job name(s) to trigger",
     required=True,
 )
 @click.option(
@@ -225,7 +225,7 @@ def aws_glue_trigger_jobs(
     aws_secret_access_key: Optional[str],  # noqa: ARG001
     aws_session_token: Optional[str],  # noqa: ARG001
     aws_region: Optional[str],
-    job_names: tuple,
+    job_names: List[str],
     wait: bool,
     timeout: int,
     json_output: bool,
@@ -240,7 +240,7 @@ def aws_glue_trigger_jobs(
     - AWS_REGION
 
     Example:
-        paradime run aws-glue-trigger-jobs --job-names demo-glue-job --job-names another-job
+        paradime run aws-glue-trigger-jobs --job-names demo-glue-job,another-job
     """
     # Note: AWS credentials are set via environment variables by env_click_option decorator
     # boto3 will pick them up automatically from the environment
@@ -251,7 +251,7 @@ def aws_glue_trigger_jobs(
 
     try:
         results = trigger_glue_jobs(
-            job_names=list(job_names),
+            job_names=job_names,
             wait_for_completion=wait,
             timeout_minutes=timeout,
             region_name=aws_region,

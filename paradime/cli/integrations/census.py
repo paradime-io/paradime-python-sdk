@@ -6,7 +6,7 @@ from typing import List
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.census import list_census_syncs, trigger_census_syncs
 
 
@@ -18,8 +18,8 @@ from paradime.core.scripts.census import list_census_syncs, trigger_census_syncs
 )
 @click.option(
     "--sync-ids",
-    multiple=True,
-    help="The ID(s) of the sync(s) you want to trigger",
+    type=COMMA_LIST,
+    help="Comma-separated sync ID(s) to trigger",
     required=True,
 )
 @click.option(
@@ -57,7 +57,7 @@ def census_sync(
     try:
         results = trigger_census_syncs(
             api_token=api_token,
-            sync_ids=list(sync_ids),
+            sync_ids=sync_ids,
             force_full_sync=force_full_sync,
             wait_for_completion=wait,
             timeout_minutes=timeout,

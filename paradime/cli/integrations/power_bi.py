@@ -6,7 +6,7 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.power_bi import (
     get_access_token,
     get_power_bi_datasets,
@@ -38,8 +38,8 @@ from paradime.core.scripts.power_bi import (
 @env_click_option(
     "dataset-name",
     env_var=None,
-    help="The dataset name(s) you want to refresh",
-    multiple=True,
+    help="Comma-separated dataset name(s) to refresh",
+    type=COMMA_LIST,
 )
 @env_click_option(
     "refresh-request-body-b64",

@@ -6,7 +6,7 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fivetran_sync
 
 
@@ -23,8 +23,8 @@ from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fiv
 )
 @click.option(
     "--connector-ids",
-    multiple=True,
-    help="The ID(s) of the connector(s) you want to sync",
+    type=COMMA_LIST,
+    help="Comma-separated connector ID(s) to sync",
     required=True,
 )
 @click.option(
@@ -64,7 +64,7 @@ def fivetran_sync(
         results = trigger_fivetran_sync(
             api_key=api_key,
             api_secret=api_secret,
-            connector_ids=list(connector_ids),
+            connector_ids=connector_ids,
             force=force,
             wait_for_completion=wait,
             timeout_minutes=timeout,

@@ -6,7 +6,7 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.tableau import (
     list_tableau_datasources,
     list_tableau_workbooks,
@@ -26,15 +26,15 @@ from paradime.core.scripts.tableau import (
 @env_click_option(
     "workbook-name",
     env_var=None,
-    multiple=True,
-    help="The name or UUID of the workbook(s) you want to refresh",
+    type=COMMA_LIST,
+    help="Comma-separated workbook name(s) or UUID(s) to refresh",
     required=False,
 )
 @env_click_option(
     "datasource-name",
     env_var=None,
-    multiple=True,
-    help="The name or UUID of the data source(s) you want to refresh",
+    type=COMMA_LIST,
+    help="Comma-separated data source name(s) or UUID(s) to refresh",
     required=False,
 )
 @env_click_option(

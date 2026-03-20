@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
+from typing import List, Optional
 
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.aws_lambda import list_lambda_functions, trigger_lambda_functions
 
 
@@ -37,8 +37,8 @@ from paradime.core.scripts.aws_lambda import list_lambda_functions, trigger_lamb
 )
 @click.option(
     "--function-names",
-    multiple=True,
-    help="The name(s) or ARN(s) of the Lambda function(s) to invoke",
+    type=COMMA_LIST,
+    help="Comma-separated Lambda function name(s) or ARN(s) to invoke",
     required=True,
 )
 @click.option(
@@ -70,7 +70,7 @@ def aws_lambda_trigger(
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
     aws_region: Optional[str],
-    function_names: tuple,
+    function_names: List[str],
     payload: Optional[str],
     invocation_type: str,
     wait: bool,
@@ -88,7 +88,7 @@ def aws_lambda_trigger(
 
     Example:
         paradime run aws-lambda-trigger --function-names my-function --invocation-type RequestResponse
-        paradime run aws-lambda-trigger --function-names func1 --function-names func2 --payload '{"key":"value"}'
+        paradime run aws-lambda-trigger --function-names func1,func2 --payload '{"key":"value"}'
     """
     import json
 
@@ -105,7 +105,7 @@ def aws_lambda_trigger(
 
     try:
         results = trigger_lambda_functions(
-            function_names=list(function_names),
+            function_names=function_names,
             payload=payload_dict,
             invocation_type=invocation_type,
             region_name=aws_region,

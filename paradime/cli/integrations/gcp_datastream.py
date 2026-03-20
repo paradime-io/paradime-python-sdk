@@ -3,7 +3,7 @@ from typing import List
 
 import click
 
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.gcp_datastream import list_datastream_streams, trigger_datastream
 
 
@@ -25,8 +25,8 @@ from paradime.core.scripts.gcp_datastream import list_datastream_streams, trigge
 )
 @click.option(
     "--stream-name",
-    multiple=True,
-    help="The display name(s) of the Datastream stream(s) to manage.",
+    type=COMMA_LIST,
+    help="Comma-separated Datastream stream display name(s) to manage.",
     required=True,
 )
 @click.option(
@@ -65,7 +65,7 @@ def gcp_datastream_trigger(
             service_account_key_file=service_account_key_file,
             project=project,
             location=location,
-            stream_names=list(stream_name),
+            stream_names=stream_name,
             action=action,
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,

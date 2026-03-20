@@ -6,7 +6,7 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.airbyte import list_airbyte_connections, trigger_airbyte_jobs
 
 
@@ -35,8 +35,8 @@ from paradime.core.scripts.airbyte import list_airbyte_connections, trigger_airb
 )
 @click.option(
     "--connection-ids",
-    multiple=True,
-    help="The ID(s) of the connection(s) you want to run jobs for",
+    type=COMMA_LIST,
+    help="Comma-separated connection ID(s) to run jobs for",
     required=True,
 )
 @click.option(
@@ -84,7 +84,7 @@ def airbyte_sync(
         results = trigger_airbyte_jobs(
             client_id=client_id,
             client_secret=client_secret,
-            connection_ids=list(connection_ids),
+            connection_ids=connection_ids,
             job_type=job_type,
             workspace_id=workspace_id,
             wait_for_completion=wait,

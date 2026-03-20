@@ -6,7 +6,7 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dags
 
 
@@ -42,8 +42,8 @@ from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dag
 )
 @click.option(
     "--dag-ids",
-    multiple=True,
-    help="The ID(s) of the DAG(s) you want to trigger",
+    type=COMMA_LIST,
+    help="Comma-separated DAG ID(s) to trigger",
     required=True,
 )
 @click.option(
@@ -117,7 +117,7 @@ def airflow_trigger(
             base_url=base_url,
             username=username,
             password=password,
-            dag_ids=list(dag_ids),
+            dag_ids=dag_ids,
             dag_run_conf=parsed_dag_run_conf,
             logical_date=logical_date,
             wait_for_completion=wait,

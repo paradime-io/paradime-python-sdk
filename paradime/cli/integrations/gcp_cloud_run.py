@@ -3,7 +3,7 @@ from typing import List
 
 import click
 
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.gcp_cloud_run import list_cloud_run_jobs, trigger_cloud_run_jobs
 
 
@@ -25,8 +25,8 @@ from paradime.core.scripts.gcp_cloud_run import list_cloud_run_jobs, trigger_clo
 )
 @click.option(
     "--job-name",
-    multiple=True,
-    help="The name(s) of the Cloud Run Job(s) to trigger.",
+    type=COMMA_LIST,
+    help="Comma-separated Cloud Run Job name(s) to trigger.",
     required=True,
 )
 @click.option(
@@ -58,7 +58,7 @@ def gcp_cloud_run_trigger(
             service_account_key_file=service_account_key_file,
             project=project,
             location=location,
-            job_names=list(job_name),
+            job_names=job_name,
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
         )

@@ -3,7 +3,7 @@ from typing import List, Optional
 
 import click
 
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.gcp_cloud_function import list_cloud_functions, trigger_cloud_functions
 
 
@@ -25,8 +25,8 @@ from paradime.core.scripts.gcp_cloud_function import list_cloud_functions, trigg
 )
 @click.option(
     "--function-name",
-    multiple=True,
-    help="The name(s) of the Cloud Function(s) to invoke.",
+    type=COMMA_LIST,
+    help="Comma-separated Cloud Function name(s) to invoke.",
     required=True,
 )
 @click.option(
@@ -64,7 +64,7 @@ def gcp_cloud_function_trigger(
             service_account_key_file=service_account_key_file,
             project=project,
             location=location,
-            function_names=list(function_name),
+            function_names=function_name,
             payload=payload,
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,

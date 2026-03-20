@@ -3,7 +3,7 @@ from typing import List
 
 import click
 
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.gcp_bigquery_transfer import (
     list_bigquery_transfers,
     trigger_bigquery_transfer,
@@ -30,8 +30,8 @@ from paradime.core.scripts.gcp_bigquery_transfer import (
 )
 @click.option(
     "--scheduled-query-name",
-    multiple=True,
-    help="The display name(s) of the scheduled query/queries to trigger.",
+    type=COMMA_LIST,
+    help="Comma-separated display name(s) of the scheduled query/queries to trigger.",
     required=True,
 )
 @click.option(
@@ -63,7 +63,7 @@ def gcp_bigquery_transfer_trigger(
             service_account_key_file=service_account_key_file,
             project=project,
             location=location,
-            scheduled_query_names=list(scheduled_query_name),
+            scheduled_query_names=scheduled_query_name,
             wait_for_completion=wait_for_completion,
             timeout_minutes=timeout_minutes,
         )

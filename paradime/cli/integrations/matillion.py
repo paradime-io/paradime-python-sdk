@@ -6,7 +6,7 @@ from typing import List
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.matillion import (
     list_matillion_pipelines,
     list_matillion_projects,
@@ -37,8 +37,8 @@ from paradime.core.scripts.matillion import (
 )
 @click.option(
     "--pipeline-names",
-    multiple=True,
-    help="The name(s) of the pipeline(s) you want to execute",
+    type=COMMA_LIST,
+    help="Comma-separated pipeline name(s) to execute",
     required=True,
 )
 @click.option(
@@ -81,7 +81,7 @@ def matillion_pipeline(
             client_id=client_id,
             client_secret=client_secret,
             project_name=project_names,
-            pipeline_names=list(pipeline_names),
+            pipeline_names=pipeline_names,
             environment=environment,
             wait_for_completion=wait,
             timeout_minutes=timeout,
