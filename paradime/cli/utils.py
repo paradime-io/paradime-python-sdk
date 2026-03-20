@@ -11,7 +11,9 @@ class CommaSeparatedList(click.ParamType):
 
     name = "COMMA_LIST"
 
-    def convert(self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]) -> List[str]:
+    def convert(
+        self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
+    ) -> List[str]:
         if value is None:
             return []
         if isinstance(value, list):
