@@ -1,4 +1,5 @@
-import logging
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, List, Optional
@@ -6,8 +7,7 @@ from typing import Any, List, Optional
 import boto3  # type: ignore[import-untyped]
 from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
+from paradime.cli import console
 
 
 def trigger_sagemaker_pipelines(
@@ -38,16 +38,8 @@ def trigger_sagemaker_pipelines(
     futures = []
     results = []
 
-    # Add visual separator and header
-    print(f"\n{'='*60}")
-    print("🚀 TRIGGERING SAGEMAKER PIPELINES")
-    print(f"{'='*60}")
-
     with ThreadPoolExecutor() as executor:
         for i, pipeline_name in enumerate(set(pipeline_names), 1):
-            print(f"\n[{i}/{len(set(pipeline_names))}] 🔬 {pipeline_name}")
-            print(f"{'-'*40}")
-
             futures.append(
                 (
                     pipeline_name,
@@ -64,11 +56,6 @@ def trigger_sagemaker_pipelines(
                 )
             )
 
-        # Add separator for live progress section
-        print(f"\n{'='*60}")
-        print("⚡ LIVE PROGRESS")
-        print(f"{'='*60}")
-
         # Wait for completion and collect results
         pipeline_results = []
         for pipeline_name, future in futures:
@@ -78,29 +65,23 @@ def trigger_sagemaker_pipelines(
             pipeline_results.append((pipeline_name, response_txt))
             results.append(response_txt)
 
-        # Display results as simple table
-        print(f"\n{'='*80}")
-        print("📊 PIPELINE EXECUTION RESULTS")
-        print(f"{'='*80}")
-        print(f"{'PIPELINE NAME':<40} {'STATUS':<15}")
-        print(f"{'-'*40} {'-'*15}")
-
-        for pipeline_name, response_txt in pipeline_results:
-            # Format result with emoji
+        def _status_text(response_txt: str) -> str:
             if "SUCCESS" in response_txt or "SUCCEEDED" in response_txt:
-                status = "✅ SUCCESS"
+                return "SUCCESS"
             elif "FAILED" in response_txt:
-                status = "❌ FAILED"
+                return "FAILED"
             elif "STOPPED" in response_txt:
-                status = "🚫 STOPPED"
+                return "STOPPED"
             elif "STOPPING" in response_txt:
-                status = "⏸️ STOPPING"
+                return "STOPPING"
             else:
-                status = "ℹ️ COMPLETED"
+                return "COMPLETED"
 
-            print(f"{pipeline_name:<40} {status:<15}")
-
-        print(f"{'='*80}\n")
+        console.table(
+            columns=["Pipeline Name", "Status"],
+            rows=[(pn, _status_text(response_txt)) for pn, response_txt in pipeline_results],
+            title="Pipeline Execution Results",
+        )
 
     return results
 
@@ -130,9 +111,6 @@ def trigger_sagemaker_pipeline(
     Returns:
         Status message indicating execution result
     """
-    import datetime
-
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
 
     # Create SageMaker client
     session_kwargs = {}
@@ -147,7 +125,7 @@ def trigger_sagemaker_pipeline(
 
     sagemaker_client = boto3.client("sagemaker", **session_kwargs)
 
-    print(f"{timestamp} 🚀 [{pipeline_name}] Starting pipeline execution...")
+    console.debug(f"[{pipeline_name}] Starting pipeline execution...")
 
     try:
         # Start the pipeline execution
@@ -156,15 +134,13 @@ def trigger_sagemaker_pipeline(
         pipeline_execution_arn = response.get("PipelineExecutionArn")
         execution_display_name = response.get("PipelineExecutionDisplayName", "Unknown")
 
-        print(
-            f"{timestamp} ✅ [{pipeline_name}] Pipeline execution started: {execution_display_name}"
-        )
-        print(f"{timestamp} 📝 [{pipeline_name}] Execution ARN: {pipeline_execution_arn}")
+        console.debug(f"[{pipeline_name}] Pipeline execution started: {execution_display_name}")
+        console.debug(f"[{pipeline_name}] Execution ARN: {pipeline_execution_arn}")
 
         if not wait_for_completion:
             return f"Pipeline execution started (ARN: {pipeline_execution_arn})"
 
-        print(f"{timestamp} ⏳ [{pipeline_name}] Monitoring pipeline execution...")
+        console.debug(f"[{pipeline_name}] Monitoring pipeline execution...")
 
         # Wait for pipeline execution completion
         execution_status = _wait_for_pipeline_completion(
@@ -180,13 +156,13 @@ def trigger_sagemaker_pipeline(
         error_code = e.response.get("Error", {}).get("Code", "Unknown")
         error_message = e.response.get("Error", {}).get("Message", str(e))
 
-        print(f"{timestamp} ❌ [{pipeline_name}] AWS Error: {error_code}")
-        print(f"{timestamp} 📄 [{pipeline_name}] Error message: {error_message}")
+        console.error(f"[{pipeline_name}] AWS Error: {error_code}")
+        console.debug(f"[{pipeline_name}] Error message: {error_message}")
 
         return f"ERROR ({error_code}: {error_message})"
 
     except Exception as e:
-        print(f"{timestamp} ❌ [{pipeline_name}] Unexpected error: {str(e)}")
+        console.error(f"[{pipeline_name}] Unexpected error: {str(e)}")
         return f"ERROR ({str(e)[:100]})"
 
 
@@ -232,41 +208,37 @@ def _wait_for_pipeline_completion(
 
             # Log progress every 2 checks (1 minute)
             if counter == 0 or counter % 2 == 0:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if execution_status == "Executing":
-                    print(
-                        f"{timestamp} 🔄 [{pipeline_name}] Executing... ({elapsed_min}m {elapsed_sec}s elapsed)"
+                    console.debug(
+                        f"[{pipeline_name}] Executing... ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
                 elif execution_status == "Stopping":
-                    print(
-                        f"{timestamp} ⏸️ [{pipeline_name}] Stopping... ({elapsed_min}m {elapsed_sec}s elapsed)"
+                    console.debug(
+                        f"[{pipeline_name}] Stopping... ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
 
             # Check if execution is complete
             if execution_status in ["Succeeded", "Failed", "Stopped"]:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if execution_status == "Succeeded":
-                    print(
-                        f"{timestamp} ✅ [{pipeline_name}] Pipeline completed successfully ({elapsed_min}m {elapsed_sec}s)"
+                    console.debug(
+                        f"[{pipeline_name}] Pipeline completed successfully ({elapsed_min}m {elapsed_sec}s)"
                     )
                     return f"SUCCEEDED (ARN: {pipeline_execution_arn})"
                 elif execution_status == "Failed":
-                    print(f"{timestamp} ❌ [{pipeline_name}] Pipeline execution failed")
+                    console.error(f"[{pipeline_name}] Pipeline execution failed")
                     if failure_reason:
-                        print(f"{timestamp} 📄 [{pipeline_name}] Failure reason: {failure_reason}")
+                        console.debug(f"[{pipeline_name}] Failure reason: {failure_reason}")
                     return f"FAILED (Reason: {failure_reason or 'Unknown'})"
                 elif execution_status == "Stopped":
-                    print(f"{timestamp} 🚫 [{pipeline_name}] Pipeline execution stopped")
+                    console.debug(f"[{pipeline_name}] Pipeline execution stopped")
                     return f"STOPPED (ARN: {pipeline_execution_arn})"
 
             elif execution_status in ["Executing", "Stopping"]:
@@ -280,13 +252,9 @@ def _wait_for_pipeline_completion(
             time.sleep(sleep_interval)
 
         except ClientError as e:
-            import datetime
 
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
             error_message = e.response.get("Error", {}).get("Message", str(e))
-            print(
-                f"{timestamp} ⚠️  [{pipeline_name}] Error checking status: {error_message}. Retrying..."
-            )
+            console.debug(f"[{pipeline_name}] Error checking status: {error_message}. Retrying...")
             time.sleep(sleep_interval)
             continue
 
@@ -297,7 +265,8 @@ def list_sagemaker_pipelines(
     aws_access_key_id: Optional[str] = None,
     aws_secret_access_key: Optional[str] = None,
     aws_session_token: Optional[str] = None,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all SageMaker Pipelines in the account.
 
@@ -306,6 +275,7 @@ def list_sagemaker_pipelines(
         aws_access_key_id: AWS access key ID (defaults to AWS_ACCESS_KEY_ID env var)
         aws_secret_access_key: AWS secret access key (defaults to AWS_SECRET_ACCESS_KEY env var)
         aws_session_token: AWS session token for temporary credentials (optional)
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Create SageMaker client
     session_kwargs = {}
@@ -320,7 +290,8 @@ def list_sagemaker_pipelines(
 
     sagemaker_client = boto3.client("sagemaker", **session_kwargs)
 
-    print(f"\n🔍 Listing SageMaker Pipelines in region: {sagemaker_client.meta.region_name}")
+    if not json_output:
+        console.info(f"Listing SageMaker Pipelines in region: {sagemaker_client.meta.region_name}")
 
     try:
         # List all pipelines (with pagination support)
@@ -330,28 +301,35 @@ def list_sagemaker_pipelines(
         for page in paginator.paginate():
             pipelines.extend(page["PipelineSummaries"])
 
-        print(f"\n{'='*80}")
-        print(f"📋 FOUND {len(pipelines)} SAGEMAKER PIPELINE(S)")
-        print(f"{'='*80}")
-
-        for i, pipeline in enumerate(pipelines, 1):
+        rows = []
+        data = []
+        for pipeline in pipelines:
             pipeline_name = pipeline.get("PipelineName", "Unknown")
-            pipeline_arn = pipeline.get("PipelineArn", "Unknown")
             pipeline_display_name = pipeline.get("PipelineDisplayName", pipeline_name)
-            creation_time = pipeline.get("CreationTime", "Unknown")
-            last_modified_time = pipeline.get("LastModifiedTime", "Unknown")
+            creation_time = str(pipeline.get("CreationTime", "Unknown"))
+            last_modified_time = str(pipeline.get("LastModifiedTime", "Unknown"))
+            rows.append((pipeline_name, pipeline_display_name, creation_time, last_modified_time))
+            data.append(
+                {
+                    "pipeline_name": pipeline_name,
+                    "display_name": pipeline_display_name,
+                    "created": creation_time,
+                    "last_modified": last_modified_time,
+                }
+            )
 
-            print(f"\n[{i}/{len(pipelines)}] 🔬 {pipeline_name}")
-            print(f"{'-'*50}")
-            print(f"   Display Name: {pipeline_display_name}")
-            print(f"   ARN: {pipeline_arn}")
-            print(f"   Created: {creation_time}")
-            print(f"   Last Modified: {last_modified_time}")
+        if json_output:
+            return data
 
-        print(f"\n{'='*80}\n")
+        console.table(
+            columns=["Pipeline Name", "Display Name", "Created", "Last Modified"],
+            rows=rows,
+            title="SageMaker Pipelines",
+        )
+        return None
 
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "Unknown")
         error_message = e.response.get("Error", {}).get("Message", str(e))
-        print(f"❌ Error listing SageMaker Pipelines: {error_code} - {error_message}")
+        console.error(f"Error listing SageMaker Pipelines: {error_code} - {error_message}")
         raise

@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import sys
 from typing import Optional
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.aws_sagemaker import (
     list_sagemaker_pipelines,
@@ -42,24 +45,26 @@ from paradime.core.scripts.aws_sagemaker import (
     required=True,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for pipeline executions to complete before returning",
     default=True,
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for pipeline completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
     default=1440,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def aws_sagemaker_trigger(
     aws_access_key_id: Optional[str],
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
     aws_region: Optional[str],
     pipeline_names: tuple,
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
+    json_output: bool,
 ) -> None:
     """
     Trigger one or more AWS SageMaker Pipelines.
@@ -73,7 +78,8 @@ def aws_sagemaker_trigger(
     Example:
         paradime run aws-sagemaker-trigger --pipeline-names my-pipeline --pipeline-names another-pipeline
     """
-    click.echo(f"Starting {len(pipeline_names)} SageMaker Pipeline(s)...")
+    if not json_output:
+        console.header("AWS SageMaker — Trigger Pipelines")
 
     try:
         results = trigger_sagemaker_pipelines(
@@ -82,18 +88,30 @@ def aws_sagemaker_trigger(
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             aws_session_token=aws_session_token,
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
+            wait_for_completion=wait,
+            timeout_minutes=timeout,
         )
+
+        if json_output:
+            failed = [r for r in results if "FAILED" in r or "ERROR" in r]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any pipeline executions failed
         failed_pipelines = [result for result in results if "FAILED" in result or "ERROR" in result]
         if failed_pipelines:
+            console.error(f"{len(failed_pipelines)} pipeline execution(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ SageMaker Pipeline trigger failed: {str(e)}")
-        raise click.Abort()
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
+        console.error(f"SageMaker Pipeline trigger failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -121,11 +139,13 @@ def aws_sagemaker_trigger(
     help="AWS region name (e.g., us-east-1, us-west-2). Defaults to default region from AWS config.",
     required=False,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def aws_sagemaker_list(
     aws_access_key_id: Optional[str],
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
     aws_region: Optional[str],
+    json_output: bool,
 ) -> None:
     """
     List all AWS SageMaker Pipelines with their status.
@@ -139,15 +159,18 @@ def aws_sagemaker_list(
     Example:
         paradime run aws-sagemaker-list
     """
-    click.echo("Listing SageMaker Pipelines...")
+    if not json_output:
+        console.info("Listing SageMaker Pipelines…")
 
     try:
-        list_sagemaker_pipelines(
+        result = list_sagemaker_pipelines(
             region_name=aws_region,
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             aws_session_token=aws_session_token,
+            json_output=json_output,
         )
+        if json_output and result is not None:
+            console.json_out(result)
     except Exception as e:
-        click.echo(f"❌ Failed to list SageMaker Pipelines: {str(e)}")
-        raise click.Abort()
+        console.error(f"Failed to list SageMaker Pipelines: {e}", exit_code=1)

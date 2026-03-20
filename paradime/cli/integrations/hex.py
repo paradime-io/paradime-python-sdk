@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import sys
 from typing import List
 
 import click
 
+from paradime.cli import console
 from paradime.cli.utils import env_click_option
 from paradime.core.scripts.hex import list_hex_projects, trigger_hex_runs
 
@@ -20,7 +23,7 @@ from paradime.core.scripts.hex import list_hex_projects, trigger_hex_runs
     default="https://app.hex.tech",
 )
 @click.option(
-    "--project-id",
+    "--project-ids",
     multiple=True,
     help="The ID(s) of the project(s) you want to trigger",
     required=True,
@@ -36,37 +39,41 @@ from paradime.core.scripts.hex import list_hex_projects, trigger_hex_runs
     help="Update cached app state with run results",
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     default=True,
     help="Wait for runs to complete before returning (default: True)",
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for run completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
     default=1440,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def hex_trigger(
     api_token: str,
     base_url: str,
-    project_id: List[str],
+    project_ids: List[str],
     input_param: tuple,
     update_published: bool,
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
+    json_output: bool,
 ) -> None:
     """
     Trigger runs for Hex projects.
     """
-    click.echo(f"Starting runs for {len(project_id)} Hex project(s)...")
+    if not json_output:
+        console.header("Hex — Trigger Project Runs")
 
     # Parse input parameters
     input_params = {}
     if input_param:
         for param in input_param:
             if "=" not in param:
-                click.echo(f"❌ Invalid input parameter format: {param}. Expected key=value")
-                sys.exit(1)
+                console.error(
+                    f"Invalid input parameter format: {param}. Expected key=value", exit_code=1
+                )
             key, value = param.split("=", 1)
             input_params[key] = value
 
@@ -74,12 +81,25 @@ def hex_trigger(
         results = trigger_hex_runs(
             api_token=api_token,
             base_url=base_url,
-            project_ids=list(project_id),
+            project_ids=list(project_ids),
             input_params=input_params if input_params else None,
             update_published=update_published,
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
+            wait_for_completion=wait,
+            timeout_minutes=timeout,
         )
+
+        if json_output:
+            failed = [
+                r
+                for r in results
+                if "ERRORED" in r or "KILLED" in r or "UNABLE_TO_ALLOCATE_KERNEL" in r
+            ]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any runs failed or errored
         failed_runs = [
@@ -88,11 +108,14 @@ def hex_trigger(
             if "ERRORED" in result or "KILLED" in result or "UNABLE_TO_ALLOCATE_KERNEL" in result
         ]
         if failed_runs:
+            console.error(f"{len(failed_runs)} project run(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Hex project run failed: {str(e)}")
-        raise click.Abort()
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
+        console.error(f"Hex project run failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -123,22 +146,28 @@ def hex_trigger(
     is_flag=True,
     help="Include trashed projects",
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def hex_list_projects(
     api_token: str,
     base_url: str,
     limit: int,
     include_archived: bool,
     include_trashed: bool,
+    json_output: bool,
 ) -> None:
     """
     List all available Hex projects in the workspace.
     """
-    click.echo("Listing Hex projects...")
+    if not json_output:
+        console.info("Listing Hex projects…")
 
-    list_hex_projects(
+    result = list_hex_projects(
         api_token=api_token,
         base_url=base_url,
         limit=limit,
         include_archived=include_archived,
         include_trashed=include_trashed,
+        json_output=json_output,
     )
+    if json_output and result is not None:
+        console.json_out(result)

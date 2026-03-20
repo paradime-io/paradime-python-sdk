@@ -1,14 +1,13 @@
-import logging
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import requests
 
+from paradime.cli import console
 from paradime.core.scripts.utils import handle_http_error
-
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 def trigger_census_syncs(
@@ -35,16 +34,8 @@ def trigger_census_syncs(
     futures = []
     results = []
 
-    # Add visual separator and header
-    print(f"\n{'='*60}")
-    print("🚀 TRIGGERING CENSUS SYNCS")
-    print(f"{'='*60}")
-
     with ThreadPoolExecutor() as executor:
         for i, sync_id in enumerate(set(sync_ids), 1):
-            print(f"\n[{i}/{len(set(sync_ids))}] 🔌 {sync_id}")
-            print(f"{'-'*40}")
-
             futures.append(
                 (
                     sync_id,
@@ -59,11 +50,6 @@ def trigger_census_syncs(
                 )
             )
 
-        # Add separator for live progress section
-        print(f"\n{'='*60}")
-        print("⚡ LIVE PROGRESS")
-        print(f"{'='*60}")
-
         # Wait for completion and collect results
         sync_results = []
         for sync_id, future in futures:
@@ -73,30 +59,30 @@ def trigger_census_syncs(
             sync_results.append((sync_id, response_txt))
             results.append(response_txt)
 
-        # Display results as simple table
-        print(f"\n{'='*80}")
-        print("📊 SYNC RESULTS")
-        print(f"{'='*80}")
-        print(f"{'SYNC ID':<25} {'STATUS':<15} {'DASHBOARD'}")
-        print(f"{'-'*25} {'-'*15} {'-'*45}")
-
-        for sync_id, response_txt in sync_results:
-            # Format result with emoji
+        def _status_text(response_txt: str) -> str:
             if "SUCCESS" in response_txt or "COMPLETED" in response_txt:
-                status = "✅ SUCCESS"
+                return "SUCCESS"
             elif "FAILED" in response_txt:
-                status = "❌ FAILED"
+                return "FAILED"
             elif "CANCELLED" in response_txt:
-                status = "🚫 CANCELLED"
+                return "CANCELLED"
             elif "WORKING" in response_txt:
-                status = "🔄 WORKING"
+                return "WORKING"
             else:
-                status = "ℹ️ TRIGGERED"
+                return "TRIGGERED"
 
-            dashboard_url = f"https://app.getcensus.com/syncs/{sync_id}"
-            print(f"{sync_id:<25} {status:<15} {dashboard_url}")
-
-        print(f"{'='*80}\n")
+        console.table(
+            columns=["Sync ID", "Status", "Dashboard"],
+            rows=[
+                (
+                    sync_id,
+                    _status_text(response_txt),
+                    f"https://app.getcensus.com/syncs/{sync_id}",
+                )
+                for sync_id, response_txt in sync_results
+            ],
+            title="Sync Results",
+        )
 
     return results
 
@@ -128,12 +114,8 @@ def trigger_sync(
         "Content-Type": "application/json",
     }
 
-    import datetime
-
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-
     # Check sync status before attempting trigger
-    print(f"{timestamp} 🔍 [{sync_id}] Checking sync status...")
+    console.debug(f"[{sync_id}] Checking sync status...")
     try:
         sync_response = requests.get(
             f"{base_url}/syncs/{sync_id}",
@@ -145,25 +127,21 @@ def trigger_sync(
             sync_status = sync_data.get("status", "unknown")
             schedule_frequency = sync_data.get("schedule", {}).get("frequency", "unknown")
 
-            print(
-                f"{timestamp} 📊 [{sync_id}] Status: {sync_status} | Schedule: {schedule_frequency}"
-            )
+            console.debug(f"[{sync_id}] Status: {sync_status} | Schedule: {schedule_frequency}")
 
             # Handle paused syncs
             if sync_status == "paused":
-                print(f"{timestamp} ⚠️  [{sync_id}] Warning: Sync is paused")
+                console.debug(f"[{sync_id}] Warning: Sync is paused")
 
     except Exception as e:
-        print(
-            f"{timestamp} ⚠️  [{sync_id}] Could not check status: {str(e)[:50]}... Proceeding anyway."
-        )
+        console.debug(f"[{sync_id}] Could not check status: {str(e)[:50]}... Proceeding anyway.")
 
     # Trigger the sync
     sync_payload = {}
     if force_full_sync:
         sync_payload["force_full_sync"] = True
 
-    print(f"{timestamp} 🚀 [{sync_id}] Triggering sync...")
+    console.debug(f"[{sync_id}] Triggering sync...")
     trigger_response = requests.post(
         f"{base_url}/syncs/{sync_id}/trigger",
         json=sync_payload if sync_payload else None,
@@ -179,22 +157,19 @@ def trigger_sync(
     sync_run_id = trigger_data.get("data", {}).get("sync_run_id")
 
     if not sync_run_id:
-        print(f"{timestamp} ⚠️  [{sync_id}] No sync_run_id returned in response")
+        console.debug(f"[{sync_id}] No sync_run_id returned in response")
         return "Sync triggered but no run ID returned"
 
-    print(
-        f"{timestamp} ✅ [{sync_id}] Sync triggered successfully (Run ID: {sync_run_id})",
-        flush=True,
-    )
+    console.debug(f"[{sync_id}] Sync triggered successfully (Run ID: {sync_run_id})")
 
     # Show dashboard link immediately after successful trigger
     dashboard_url = f"https://app.getcensus.com/syncs/{sync_id}/sync-history/{sync_run_id}"
-    print(f"{timestamp} 🔗 [{sync_id}] Dashboard: {dashboard_url}", flush=True)
+    console.debug(f"[{sync_id}] Dashboard: {dashboard_url}")
 
     if not wait_for_completion:
         return f"Sync triggered (Run ID: {sync_run_id})"
 
-    print(f"{timestamp} ⏳ [{sync_id}] Monitoring sync progress...", flush=True)
+    console.debug(f"[{sync_id}] Monitoring sync progress...")
 
     # Wait for sync completion
     sync_status = _wait_for_sync_completion(
@@ -259,12 +234,8 @@ def _wait_for_sync_completion(
                         f"Sync run status check failed {consecutive_failures} times in a row. Last HTTP status: {sync_run_response.status_code}"
                     )
 
-                import datetime
-
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(
-                    f"{timestamp} ⚠️  [{sync_id}] HTTP {sync_run_response.status_code} error. Retrying... ({consecutive_failures}/{max_consecutive_failures})",
-                    flush=True,
+                console.debug(
+                    f"[{sync_id}] HTTP {sync_run_response.status_code} error. Retrying... ({consecutive_failures}/{max_consecutive_failures})"
                 )
                 time.sleep(
                     sleep_interval * min(consecutive_failures, 3)
@@ -285,9 +256,7 @@ def _wait_for_sync_completion(
 
             # Log progress every 6 checks (30 seconds)
             if counter == 0 or counter % 6 == 0:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
@@ -295,21 +264,15 @@ def _wait_for_sync_completion(
                     records_processed = data.get("records_processed", 0)
                     records_updated = data.get("records_updated", 0)
                     records_failed = data.get("records_failed", 0)
-                    print(
-                        f"{timestamp} 🔄 [{sync_id}] Working... (Processed: {records_processed}, Updated: {records_updated}, Failed: {records_failed}) ({elapsed_min}m {elapsed_sec}s elapsed)",
-                        flush=True,
+                    console.debug(
+                        f"[{sync_id}] Working... (Processed: {records_processed}, Updated: {records_updated}, Failed: {records_failed}) ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
                 elif status in ["queued", "pending"]:
-                    print(
-                        f"{timestamp} ⏳ [{sync_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)",
-                        flush=True,
-                    )
+                    console.debug(f"[{sync_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)")
 
             # Check if sync is complete
             if status in ["completed", "failed", "cancelled"]:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
@@ -318,20 +281,16 @@ def _wait_for_sync_completion(
                 records_failed = data.get("records_failed", 0)
 
                 if status == "completed":
-                    print(
-                        f"{timestamp} ✅ [{sync_id}] Completed successfully (Processed: {records_processed}, Updated: {records_updated}, Failed: {records_failed}) ({elapsed_min}m {elapsed_sec}s)",
-                        flush=True,
+                    console.debug(
+                        f"[{sync_id}] Completed successfully (Processed: {records_processed}, Updated: {records_updated}, Failed: {records_failed}) ({elapsed_min}m {elapsed_sec}s)"
                     )
                     return f"SUCCESS (Run ID: {sync_run_id}, Processed: {records_processed}, Updated: {records_updated})"
                 elif status == "failed":
                     error_message = data.get("error_message", "No error message")
-                    print(
-                        f"{timestamp} ❌ [{sync_id}] Sync failed: {error_message[:100]}",
-                        flush=True,
-                    )
+                    console.error(f"[{sync_id}] Sync failed: {error_message[:100]}")
                     return f"FAILED (Run ID: {sync_run_id}, Error: {error_message[:100]})"
                 elif status == "cancelled":
-                    print(f"{timestamp} 🚫 [{sync_id}] Sync cancelled", flush=True)
+                    console.debug(f"[{sync_id}] Sync cancelled")
                     return f"CANCELLED (Run ID: {sync_run_id})"
 
             elif status in ["working", "queued", "pending"]:
@@ -351,12 +310,8 @@ def _wait_for_sync_completion(
                     f"Network errors occurred {consecutive_failures} times in a row. Last error: {str(e)[:100]}"
                 )
 
-            import datetime
-
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(
-                f"{timestamp} ⚠️  [{sync_id}] Network error: {str(e)[:50]}... Retrying... ({consecutive_failures}/{max_consecutive_failures})",
-                flush=True,
+            console.debug(
+                f"[{sync_id}] Network error: {str(e)[:50]}... Retrying... ({consecutive_failures}/{max_consecutive_failures})"
             )
             time.sleep(
                 sleep_interval * min(consecutive_failures, 3)
@@ -367,12 +322,14 @@ def _wait_for_sync_completion(
 def list_census_syncs(
     *,
     api_token: str,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Census syncs with their IDs and status.
 
     Args:
         api_token: Census API token
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     base_url = "https://app.getcensus.com/api/v1"
     headers = {
@@ -380,7 +337,8 @@ def list_census_syncs(
         "Content-Type": "application/json",
     }
 
-    print("\n🔍 Listing all Census syncs")
+    if not json_output:
+        console.info("Listing all Census syncs")
 
     # Get all syncs - paginate if necessary
     all_syncs = []
@@ -414,14 +372,13 @@ def list_census_syncs(
         page += 1
 
     if not all_syncs:
-        print("No syncs found.")
-        return
+        if not json_output:
+            console.info("No syncs found.")
+        return [] if json_output else None
 
-    print(f"\n{'='*80}")
-    print(f"📋 FOUND {len(all_syncs)} SYNC(S)")
-    print(f"{'='*80}")
-
-    for i, sync in enumerate(all_syncs, 1):
+    rows = []
+    data = []
+    for sync in all_syncs:
         sync_id = sync.get("id", "Unknown")
         label = sync.get("label", "Unnamed")
         status = sync.get("status", "Unknown")
@@ -437,42 +394,47 @@ def list_census_syncs(
         # Get last run info
         last_run = sync.get("last_run", {})
         last_run_status = last_run.get("status", "never_run")
-        last_run_completed_at = last_run.get("completed_at", "N/A")
-
-        # Format status with emoji
-        status_emoji = (
-            "✅"
-            if status == "active"
-            else "⏸️" if status == "paused" else "❌" if status == "archived" else "❓"
-        )
-
-        last_run_emoji = (
-            "✅"
-            if last_run_status == "completed"
-            else (
-                "❌"
-                if last_run_status == "failed"
-                else (
-                    "🔄"
-                    if last_run_status == "working"
-                    else "⏳" if last_run_status == "queued" else "➖"
-                )
+        dashboard_url = f"https://app.getcensus.com/syncs/{sync_id}"
+        rows.append(
+            (
+                str(sync_id),
+                label,
+                status,
+                source_name,
+                destination_name,
+                schedule_frequency,
+                last_run_status,
+                dashboard_url,
             )
         )
+        data.append(
+            {
+                "sync_id": str(sync_id),
+                "label": label,
+                "status": status,
+                "source": source_name,
+                "destination": destination_name,
+                "schedule": schedule_frequency,
+                "last_run": last_run_status,
+                "dashboard": dashboard_url,
+            }
+        )
 
-        # Create dashboard deep link
-        dashboard_url = f"https://app.getcensus.com/syncs/{sync_id}"
+    if json_output:
+        return data
 
-        print(f"\n[{i}/{len(all_syncs)}] 🔄 {sync_id}")
-        print(f"{'-'*50}")
-        print(f"   Label: {label}")
-        print(f"   {status_emoji} Status: {status}")
-        print(f"   Source: {source_name}")
-        print(f"   Destination: {destination_name}")
-        print(f"   Schedule: {schedule_frequency}")
-        print(f"   {last_run_emoji} Last Run: {last_run_status}")
-        if last_run_completed_at != "N/A":
-            print(f"   Completed At: {last_run_completed_at}")
-        print(f"   🔗 Dashboard: {dashboard_url}")
-
-    print(f"\n{'='*80}\n")
+    console.table(
+        columns=[
+            "Sync ID",
+            "Label",
+            "Status",
+            "Source",
+            "Destination",
+            "Schedule",
+            "Last Run",
+            "Dashboard",
+        ],
+        rows=rows,
+        title="Census Syncs",
+    )
+    return None

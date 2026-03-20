@@ -1,14 +1,13 @@
-import logging
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 import requests
 
+from paradime.cli import console
 from paradime.core.scripts.utils import handle_http_error
-
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 def trigger_hex_runs(
@@ -39,16 +38,8 @@ def trigger_hex_runs(
     futures = []
     results = []
 
-    # Add visual separator and header
-    print(f"\n{'='*60}")
-    print("🚀 TRIGGERING HEX PROJECTS")
-    print(f"{'='*60}")
-
     with ThreadPoolExecutor() as executor:
         for i, project_id in enumerate(set(project_ids), 1):
-            print(f"\n[{i}/{len(set(project_ids))}] 🔌 {project_id}")
-            print(f"{'-'*40}")
-
             futures.append(
                 (
                     project_id,
@@ -65,11 +56,6 @@ def trigger_hex_runs(
                 )
             )
 
-        # Add separator for live progress section
-        print(f"\n{'='*60}")
-        print("⚡ LIVE PROGRESS")
-        print(f"{'='*60}")
-
         # Wait for completion and collect results
         project_results = []
         for project_id, future in futures:
@@ -79,36 +65,33 @@ def trigger_hex_runs(
             project_results.append((project_id, response_txt))
             results.append(response_txt)
 
-        # Display results as simple table
-        print(f"\n{'='*80}")
-        print("📊 RUN RESULTS")
-        print(f"{'='*80}")
-        print(f"{'PROJECT':<40} {'STATUS':<15} {'URL'}")
-        print(f"{'-'*40} {'-'*15} {'-'*45}")
-
-        for project_id, response_txt in project_results:
-            # Format result with emoji
+        def _status_text(response_txt: str) -> str:
             if "COMPLETED" in response_txt:
-                status = "✅ COMPLETED"
+                return "COMPLETED"
             elif "ERRORED" in response_txt:
-                status = "❌ ERRORED"
+                return "ERRORED"
             elif "KILLED" in response_txt:
-                status = "🚫 KILLED"
+                return "KILLED"
             elif "UNABLE_TO_ALLOCATE_KERNEL" in response_txt:
-                status = "⚠️ NO KERNEL"
+                return "NO KERNEL"
             elif "PENDING" in response_txt or "RUNNING" in response_txt:
-                status = "🔄 RUNNING"
+                return "RUNNING"
             else:
-                status = "ℹ️ TRIGGERED"
+                return "TRIGGERED"
 
-            # Extract URL from response if available
-            run_url = ""
+        def _extract_url(response_txt: str) -> str:
             if "run_url:" in response_txt:
-                run_url = response_txt.split("run_url:")[1].strip().split()[0]
+                return response_txt.split("run_url:")[1].strip().split()[0]
+            return ""
 
-            print(f"{project_id:<40} {status:<15} {run_url}")
-
-        print(f"{'='*80}\n")
+        console.table(
+            columns=["Project", "Status", "URL"],
+            rows=[
+                (project_id, _status_text(response_txt), _extract_url(response_txt))
+                for project_id, response_txt in project_results
+            ],
+            title="Run Results",
+        )
 
     return results
 
@@ -143,10 +126,6 @@ def trigger_single_run(
         "Content-Type": "application/json",
     }
 
-    import datetime
-
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-
     # Prepare request payload
     payload: Dict[str, Any] = {
         "updatePublishedResults": update_published,
@@ -158,7 +137,7 @@ def trigger_single_run(
     # Trigger the run
     api_url = f"{base_url}/api/v1/projects/{project_id}/runs"
 
-    print(f"{timestamp} 🚀 [{project_id}] Triggering project run...")
+    console.debug(f"[{project_id}] Triggering project run...")
 
     run_response = requests.post(
         api_url,
@@ -177,13 +156,13 @@ def trigger_single_run(
     run_url = run_data.get("runUrl", f"{base_url}/hex/{project_id}/app")
     run_status = run_data.get("status", "PENDING")
 
-    print(f"{timestamp} ✅ [{project_id}] Run triggered (Run ID: {run_id})", flush=True)
-    print(f"{timestamp} 🔗 [{project_id}] URL: {run_url}", flush=True)
+    console.debug(f"[{project_id}] Run triggered (Run ID: {run_id})")
+    console.debug(f"[{project_id}] URL: {run_url}")
 
     if not wait_for_completion:
         return f"Run triggered (Run ID: {run_id}, Status: {run_status}) run_url:{run_url}"
 
-    print(f"{timestamp} ⏳ [{project_id}] Monitoring run progress...", flush=True)
+    console.debug(f"[{project_id}] Monitoring run progress...")
 
     # Wait for run completion
     final_status = _wait_for_run_completion(
@@ -252,63 +231,46 @@ def _wait_for_run_completion(
 
             # Log progress every 6 checks (60 seconds)
             if counter == 0 or counter % 6 == 0:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if run_status in ["PENDING", "RUNNING"]:
-                    print(
-                        f"{timestamp} 🔄 [{project_id}] {run_status}... ({elapsed_min}m {elapsed_sec}s elapsed)",
-                        flush=True,
+                    console.debug(
+                        f"[{project_id}] {run_status}... ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
 
             # Check if run is complete
             if run_status == "COMPLETED":
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
-                print(
-                    f"{timestamp} ✅ [{project_id}] Completed successfully ({elapsed_min}m {elapsed_sec}s)",
-                    flush=True,
+                console.debug(
+                    f"[{project_id}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
                 )
                 return "COMPLETED"
 
             elif run_status == "ERRORED":
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"{timestamp} ❌ [{project_id}] Run errored", flush=True)
+                console.error(f"[{project_id}] Run errored")
                 return "ERRORED"
 
             elif run_status == "KILLED":
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"{timestamp} 🚫 [{project_id}] Run was killed", flush=True)
+                console.debug(f"[{project_id}] Run was killed")
                 return "KILLED"
 
             elif run_status == "UNABLE_TO_ALLOCATE_KERNEL":
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"{timestamp} ⚠️ [{project_id}] Unable to allocate kernel", flush=True)
+                console.debug(f"[{project_id}] Unable to allocate kernel")
                 return "UNABLE_TO_ALLOCATE_KERNEL"
 
             counter += 1
             time.sleep(sleep_interval)
 
         except requests.exceptions.RequestException as e:
-            import datetime
 
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(
-                f"{timestamp} ⚠️  [{project_id}] Network error: {str(e)[:50]}... Retrying.",
-                flush=True,
-            )
+            console.debug(f"[{project_id}] Network error: {str(e)[:50]}... Retrying.")
             time.sleep(sleep_interval)
             continue
 
@@ -320,7 +282,8 @@ def list_hex_projects(
     limit: int = 100,
     include_archived: bool = False,
     include_trashed: bool = False,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Hex projects in the workspace.
 
@@ -330,6 +293,7 @@ def list_hex_projects(
         limit: Number of projects to fetch
         include_archived: Whether to include archived projects
         include_trashed: Whether to include trashed projects
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -343,7 +307,8 @@ def list_hex_projects(
         "includeTrashed": str(include_trashed).lower(),
     }
 
-    print("\n🔍 Listing Hex projects")
+    if not json_output:
+        console.info("Listing Hex projects")
 
     projects_response = requests.get(
         api_url,
@@ -358,14 +323,13 @@ def list_hex_projects(
     projects = response_data.get("values", [])
 
     if not projects:
-        print("No projects found.")
-        return
+        if not json_output:
+            console.info("No projects found.")
+        return [] if json_output else None
 
-    print(f"\n{'='*80}")
-    print(f"📋 FOUND {len(projects)} PROJECT(S)")
-    print(f"{'='*80}")
-
-    for i, project in enumerate(projects, 1):
+    rows = []
+    data = []
+    for project in projects:
         project_id = project.get("id", "Unknown")
         name = project.get("title", "Unnamed")
         owner_info = project.get("owner", {})
@@ -379,25 +343,31 @@ def list_hex_projects(
         archived_at = project.get("archivedAt")
         trashed_at = project.get("trashedAt")
 
-        # Format status with emoji
         if trashed_at:
-            status_emoji = "🗑️"
             display_status = "TRASHED"
         elif archived_at:
-            status_emoji = "📦"
             display_status = "ARCHIVED"
         else:
-            status_emoji = "✅"
             display_status = status
 
-        # Create project URL
         project_url = f"{base_url}/hex/{project_id}/app"
+        rows.append((project_id, name, owner, display_status, project_url))
+        data.append(
+            {
+                "project_id": project_id,
+                "name": name,
+                "owner": owner,
+                "status": display_status,
+                "url": project_url,
+            }
+        )
 
-        print(f"\n[{i}/{len(projects)}] 🔌 {project_id}")
-        print(f"{'-'*50}")
-        print(f"   Name: {name}")
-        print(f"   Owner: {owner}")
-        print(f"   {status_emoji} Status: {display_status}")
-        print(f"   🔗 URL: {project_url}")
+    if json_output:
+        return data
 
-    print(f"\n{'='*80}\n")
+    console.table(
+        columns=["Project ID", "Name", "Owner", "Status", "URL"],
+        rows=rows,
+        title="Hex Projects",
+    )
+    return None
