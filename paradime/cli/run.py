@@ -18,6 +18,7 @@ from paradime.cli.integrations.aws_stepfunctions import (
     aws_stepfunctions_trigger,
 )
 from paradime.cli.integrations.census import census_list_syncs, census_sync
+from paradime.cli.integrations.databricks_workflow import databricks_workflow_list, databricks_workflow_trigger
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync
 from paradime.cli.integrations.gcp_bigquery_transfer import (
     gcp_bigquery_transfer_list,
@@ -110,3 +111,5 @@ run.add_command(gcp_datastream_trigger)
 run.add_command(matillion_pipeline)
 run.add_command(matillion_list_pipelines)
 run.add_command(matillion_list_projects)
+run.add_command(databricks_workflow_trigger)
+run.add_command(databricks_workflow_list)
