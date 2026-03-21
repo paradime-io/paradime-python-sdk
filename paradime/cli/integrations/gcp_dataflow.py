@@ -45,14 +45,14 @@ from paradime.core.scripts.gcp_dataflow import trigger_dataflow_job
     required=False,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for the Dataflow job to complete before returning.",
     default=True,
 )
 @click.option(
     "--timeout-minutes",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.",
     default=1440,
 )
 def gcp_dataflow_trigger(
@@ -63,7 +63,7 @@ def gcp_dataflow_trigger(
     job_name: str,
     template_type: str,
     parameters: Optional[str],
-    wait_for_completion: bool,
+    wait: bool,
     timeout_minutes: int,
 ) -> None:
     """
@@ -80,7 +80,7 @@ def gcp_dataflow_trigger(
             job_name=job_name,
             template_type=template_type,
             parameters=parameters,
-            wait_for_completion=wait_for_completion,
+            wait_for_completion=wait,
             timeout_minutes=timeout_minutes,
         )
 

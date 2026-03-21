@@ -56,14 +56,14 @@ from paradime.core.scripts.gcp_dataproc import list_dataproc_clusters, trigger_d
     required=False,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for the Dataproc job to complete before returning.",
     default=True,
 )
 @click.option(
     "--timeout-minutes",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.",
     default=1440,
 )
 def gcp_dataproc_trigger(
@@ -76,7 +76,7 @@ def gcp_dataproc_trigger(
     main_class: Optional[str],
     args: List[str],
     job_file: Optional[str],
-    wait_for_completion: bool,
+    wait: bool,
     timeout_minutes: int,
 ) -> None:
     """
@@ -95,7 +95,7 @@ def gcp_dataproc_trigger(
             main_class=main_class,
             args=list(args) if args else None,
             job_file=job_file,
-            wait_for_completion=wait_for_completion,
+            wait_for_completion=wait,
             timeout_minutes=timeout_minutes,
         )
 

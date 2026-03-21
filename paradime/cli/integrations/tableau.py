@@ -24,14 +24,14 @@ from paradime.core.scripts.tableau import (
     default="",
 )
 @env_click_option(
-    "workbook-name",
+    "workbook-names",
     env_var=None,
     type=COMMA_LIST,
     help="Comma-separated workbook name(s) or UUID(s) to refresh",
     required=False,
 )
 @env_click_option(
-    "datasource-name",
+    "datasource-names",
     env_var=None,
     type=COMMA_LIST,
     help="Comma-separated data source name(s) or UUID(s) to refresh",
@@ -67,8 +67,8 @@ from paradime.core.scripts.tableau import (
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def tableau_refresh(
     site_name: str,
-    workbook_name: Optional[List[str]],
-    datasource_name: Optional[List[str]],
+    workbook_names: Optional[List[str]],
+    datasource_names: Optional[List[str]],
     host: str,
     personal_access_token_secret: str,
     personal_access_token_name: str,
@@ -79,15 +79,15 @@ def tableau_refresh(
     """
     Trigger a Tableau refresh for workbooks or data sources.
     """
-    if not workbook_name and not datasource_name:
+    if not workbook_names and not datasource_names:
         raise click.UsageError("Must specify either --workbook-name or --datasource-name")
 
-    if workbook_name and datasource_name:
+    if workbook_names and datasource_names:
         raise click.UsageError(
             "Cannot specify both --workbook-name and --datasource-name. Choose one."
         )
 
-    if workbook_name:
+    if workbook_names:
         if not json_output:
             console.header(f"Tableau — Refresh Workbooks (site: {site_name or 'default'})")
         try:
@@ -96,7 +96,7 @@ def tableau_refresh(
                 personal_access_token_name=personal_access_token_name,
                 personal_access_token_secret=personal_access_token_secret,
                 site_name=site_name or "",
-                workbook_names=workbook_name,
+                workbook_names=workbook_names,
                 api_version="3.4",
                 wait_for_completion=wait,
                 timeout_minutes=timeout,
@@ -124,7 +124,7 @@ def tableau_refresh(
             console.error(f"{len(failed_refreshes)} workbook refresh(es) failed.")
             sys.exit(1)
 
-    if datasource_name:
+    if datasource_names:
         if not json_output:
             console.header(f"Tableau — Refresh Data Sources (site: {site_name or 'default'})")
         try:
@@ -133,7 +133,7 @@ def tableau_refresh(
                 personal_access_token_name=personal_access_token_name,
                 personal_access_token_secret=personal_access_token_secret,
                 site_name=site_name or "",
-                datasource_names=datasource_name,
+                datasource_names=datasource_names,
                 api_version="3.4",
                 wait_for_completion=wait,
                 timeout_minutes=timeout,

@@ -15,7 +15,7 @@ description: Quick reference for integration patterns
 @click.command(context_settings=dict(max_content_width=160))
 @env_click_option("api-key", "INTEGRATION_API_KEY", help="...")
 @click.option("--resource-id", multiple=True, required=True)
-@click.option("--wait-for-completion", is_flag=True, default=True)
+@click.option("--wait", is_flag=True, default=True)
 @click.option("--timeout-minutes", type=int, default=1440)
 def integration_action(...) -> None:
     click.echo(f"Starting action for {len(resource_id)} resources...")

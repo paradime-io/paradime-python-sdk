@@ -69,7 +69,7 @@ from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dag
 )
 @click.option(
     "--show-logs/--no-show-logs",
-    help="Display task logs during execution. Only used with --wait-for-completion.",
+    help="Display task logs during execution. Only used with --wait.",
     default=True,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

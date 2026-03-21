@@ -36,7 +36,7 @@ from paradime.core.scripts.power_bi import (
     help="The group id of your power bi workspace",
 )
 @env_click_option(
-    "dataset-name",
+    "dataset-names",
     env_var=None,
     help="Comma-separated dataset name(s) to refresh",
     type=COMMA_LIST,
@@ -53,7 +53,7 @@ def power_bi_refresh(
     client_id: str,
     client_secret: str,
     group_id: str,
-    dataset_name: List[str],
+    dataset_names: List[str],
     refresh_request_body_b64: Optional[str],
     json_output: bool,
 ) -> None:
@@ -68,12 +68,12 @@ def power_bi_refresh(
             client_id=client_id,
             client_secret=client_secret,
             group_id=group_id,
-            dataset_names=dataset_name,
+            dataset_names=dataset_names,
             refresh_request_body_b64=refresh_request_body_b64,
             tenant_id=tenant_id,
         )
         if json_output:
-            console.json_out({"success": True, "datasets": list(dataset_name)})
+            console.json_out({"success": True, "datasets": list(dataset_names)})
     except Exception as e:
         if json_output:
             console.json_out({"error": str(e), "success": False})

@@ -24,7 +24,7 @@ from paradime.core.scripts.gcp_cloud_function import list_cloud_functions, trigg
     help="GCP region (e.g. 'us-central1').",
 )
 @click.option(
-    "--function-name",
+    "--function-names",
     type=COMMA_LIST,
     help="Comma-separated Cloud Function name(s) to invoke.",
     required=True,
@@ -35,38 +35,38 @@ from paradime.core.scripts.gcp_cloud_function import list_cloud_functions, trigg
     required=False,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for the function invocation to complete before returning.",
     default=True,
 )
 @click.option(
     "--timeout-minutes",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.",
     default=30,
 )
 def gcp_cloud_function_trigger(
     service_account_key_file: str,
     project: str,
     location: str,
-    function_name: List[str],
+    function_names: List[str],
     payload: Optional[str],
-    wait_for_completion: bool,
+    wait: bool,
     timeout_minutes: int,
 ) -> None:
     """
     Invoke Google Cloud Functions by name.
     """
-    click.echo(f"Invoking {len(function_name)} Cloud Function(s)...")
+    click.echo(f"Invoking {len(function_names)} Cloud Function(s)...")
 
     try:
         results = trigger_cloud_functions(
             service_account_key_file=service_account_key_file,
             project=project,
             location=location,
-            function_names=function_name,
+            function_names=function_names,
             payload=payload,
-            wait_for_completion=wait_for_completion,
+            wait_for_completion=wait,
             timeout_minutes=timeout_minutes,
         )
 
