@@ -43,7 +43,9 @@ def _parse_notifications(notifications_json: Optional[dict]) -> Optional[BoltNot
     return BoltNotifications(
         email_notifications=_parse_notification_items(notifications_json.get("emailNotifications")),
         slack_notifications=_parse_notification_items(notifications_json.get("slackNotifications")),
-        ms_teams_notifications=_parse_notification_items(notifications_json.get("msTeamsNotifications")),
+        ms_teams_notifications=_parse_notification_items(
+            notifications_json.get("msTeamsNotifications")
+        ),
     )
 
 
