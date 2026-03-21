@@ -3,6 +3,7 @@ from typing import Final
 import click
 
 from paradime.cli.integrations.adf import adf_list_pipelines, adf_pipelines
+from paradime.cli.integrations.azure_pipeline import azure_pipeline_list, azure_pipeline_trigger
 from paradime.cli.integrations.airbyte import airbyte_list_connections, airbyte_sync
 from paradime.cli.integrations.airflow import airflow_list_dags, airflow_trigger
 from paradime.cli.integrations.aws_glue import (
@@ -110,3 +111,5 @@ run.add_command(gcp_datastream_trigger)
 run.add_command(matillion_pipeline)
 run.add_command(matillion_list_pipelines)
 run.add_command(matillion_list_projects)
+run.add_command(azure_pipeline_trigger)
+run.add_command(azure_pipeline_list)
