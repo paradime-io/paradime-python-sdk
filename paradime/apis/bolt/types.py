@@ -30,12 +30,14 @@ class BoltDeferredSchedule(BaseModel):
 class BoltNotificationItem(BaseModel):
     channel: Optional[str]
     events: Optional[List[str]]
+    template_slug: Optional[str]
+    template_name: Optional[str]
 
 
 class BoltNotifications(BaseModel):
-    emails: Optional[List[BoltNotificationItem]]
-    slack_channels: Optional[List[BoltNotificationItem]]
-    microsoft_teams: Optional[List[BoltNotificationItem]]
+    email_notifications: Optional[List[BoltNotificationItem]]
+    slack_notifications: Optional[List[BoltNotificationItem]]
+    ms_teams_notifications: Optional[List[BoltNotificationItem]]
 
 
 class BoltSchedule(BaseModel):

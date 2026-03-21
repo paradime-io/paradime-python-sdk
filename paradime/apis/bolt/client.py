@@ -30,6 +30,8 @@ def _parse_notification_items(items: Optional[list]) -> Optional[List[BoltNotifi
         BoltNotificationItem(
             channel=item.get("channel"),
             events=item.get("events"),
+            template_slug=item.get("templateSlug"),
+            template_name=item.get("templateName"),
         )
         for item in items
     ]
@@ -39,9 +41,9 @@ def _parse_notifications(notifications_json: Optional[dict]) -> Optional[BoltNot
     if notifications_json is None:
         return None
     return BoltNotifications(
-        emails=_parse_notification_items(notifications_json.get("emails")),
-        slack_channels=_parse_notification_items(notifications_json.get("slackChannels")),
-        microsoft_teams=_parse_notification_items(notifications_json.get("microsoftTeams")),
+        email_notifications=_parse_notification_items(notifications_json.get("emailNotifications")),
+        slack_notifications=_parse_notification_items(notifications_json.get("slackNotifications")),
+        ms_teams_notifications=_parse_notification_items(notifications_json.get("msTeamsNotifications")),
     )
 
 
@@ -160,17 +162,23 @@ class BoltClient:
                         emailOn
                         emailNotify
                         notifications {
-                            emails {
+                            emailNotifications {
                                 channel
                                 events
+                                templateSlug
+                                templateName
                             }
-                            slackChannels {
+                            slackNotifications {
                                 channel
                                 events
+                                templateSlug
+                                templateName
                             }
-                            microsoftTeams {
+                            msTeamsNotifications {
                                 channel
                                 events
+                                templateSlug
+                                templateName
                             }
                         }
                     }
