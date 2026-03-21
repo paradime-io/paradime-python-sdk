@@ -6,7 +6,7 @@ from typing import List
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.hightouch import (
     list_hightouch_sync_sequences,
     list_hightouch_syncs,
@@ -23,8 +23,8 @@ from paradime.core.scripts.hightouch import (
 )
 @click.option(
     "--sync-ids",
-    multiple=True,
-    help="The ID(s) of the sync(s) you want to trigger",
+    type=COMMA_LIST,
+    help="Comma-separated sync ID(s) to trigger",
     required=True,
 )
 @click.option(
@@ -62,7 +62,7 @@ def hightouch_sync(
     try:
         results = trigger_hightouch_syncs(
             api_token=api_token,
-            sync_ids=list(sync_ids),
+            sync_ids=sync_ids,
             full_resync=full_resync,
             wait_for_completion=wait,
             timeout_minutes=timeout,
@@ -109,8 +109,8 @@ def hightouch_sync(
 )
 @click.option(
     "--sync-sequence-ids",
-    multiple=True,
-    help="The ID(s) of the sync sequence(s) you want to trigger",
+    type=COMMA_LIST,
+    help="Comma-separated sync sequence ID(s) to trigger",
     required=True,
 )
 @click.option(
@@ -141,7 +141,7 @@ def hightouch_sync_sequence(
     try:
         results = trigger_hightouch_sync_sequences(
             api_token=api_token,
-            sync_sequence_ids=list(sync_sequence_ids),
+            sync_sequence_ids=sync_sequence_ids,
             wait_for_completion=wait,
             timeout_minutes=timeout,
         )

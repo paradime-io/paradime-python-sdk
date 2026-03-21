@@ -6,7 +6,7 @@ from typing import List
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.azure_data_factory import list_adf_pipelines, trigger_adf_pipeline_runs
 
 
@@ -43,8 +43,8 @@ from paradime.core.scripts.azure_data_factory import list_adf_pipelines, trigger
 )
 @click.option(
     "--pipeline-names",
-    multiple=True,
-    help="The name(s) of the pipeline(s) you want to trigger",
+    type=COMMA_LIST,
+    help="Comma-separated pipeline name(s) to trigger",
     required=True,
 )
 @click.option(
@@ -85,7 +85,7 @@ def adf_pipelines(
             subscription_id=subscription_id,
             resource_group=resource_group,
             factory_name=factory_name,
-            pipeline_names=list(pipeline_names),
+            pipeline_names=pipeline_names,
             wait_for_completion=wait,
             timeout_minutes=timeout,
         )

@@ -32,7 +32,7 @@ You are helping create a new integration for the Paradime Python SDK. When the u
 **Key patterns:**
 - Use `env_click_option` for all credentials/secrets
 - Use `@click.option` with `multiple=True` for resource IDs
-- Always include `--wait-for-completion` flag (default True)
+- Always include `--wait` flag (default True)
 - Always include `--timeout-minutes` (default 1440)
 - Exit with code 1 if any operations fail
 - Use `click.echo()` for user-facing messages

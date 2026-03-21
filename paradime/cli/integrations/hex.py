@@ -6,7 +6,7 @@ from typing import List
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.hex import list_hex_projects, trigger_hex_runs
 
 
@@ -24,8 +24,8 @@ from paradime.core.scripts.hex import list_hex_projects, trigger_hex_runs
 )
 @click.option(
     "--project-ids",
-    multiple=True,
-    help="The ID(s) of the project(s) you want to trigger",
+    type=COMMA_LIST,
+    help="Comma-separated project ID(s) to trigger",
     required=True,
 )
 @click.option(
@@ -81,7 +81,7 @@ def hex_trigger(
         results = trigger_hex_runs(
             api_token=api_token,
             base_url=base_url,
-            project_ids=list(project_ids),
+            project_ids=project_ids,
             input_params=input_params if input_params else None,
             update_published=update_published,
             wait_for_completion=wait,

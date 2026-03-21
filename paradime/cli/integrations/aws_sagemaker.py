@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
+from typing import List, Optional
 
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.aws_sagemaker import (
     list_sagemaker_pipelines,
     trigger_sagemaker_pipelines,
@@ -40,8 +40,8 @@ from paradime.core.scripts.aws_sagemaker import (
 )
 @click.option(
     "--pipeline-names",
-    multiple=True,
-    help="The name(s) of the SageMaker Pipeline(s) to start",
+    type=COMMA_LIST,
+    help="Comma-separated SageMaker Pipeline name(s) to start",
     required=True,
 )
 @click.option(
@@ -61,7 +61,7 @@ def aws_sagemaker_trigger(
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
     aws_region: Optional[str],
-    pipeline_names: tuple,
+    pipeline_names: List[str],
     wait: bool,
     timeout: int,
     json_output: bool,
@@ -76,14 +76,14 @@ def aws_sagemaker_trigger(
     - AWS_REGION
 
     Example:
-        paradime run aws-sagemaker-trigger --pipeline-names my-pipeline --pipeline-names another-pipeline
+        paradime run aws-sagemaker-trigger --pipeline-names my-pipeline,another-pipeline
     """
     if not json_output:
         console.header("AWS SageMaker — Trigger Pipelines")
 
     try:
         results = trigger_sagemaker_pipelines(
-            pipeline_names=list(pipeline_names),
+            pipeline_names=pipeline_names,
             region_name=aws_region,
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,

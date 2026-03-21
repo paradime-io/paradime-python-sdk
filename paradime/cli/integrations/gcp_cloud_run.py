@@ -3,7 +3,7 @@ from typing import List
 
 import click
 
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.gcp_cloud_run import list_cloud_run_jobs, trigger_cloud_run_jobs
 
 
@@ -24,42 +24,42 @@ from paradime.core.scripts.gcp_cloud_run import list_cloud_run_jobs, trigger_clo
     help="GCP region (e.g. 'us-central1').",
 )
 @click.option(
-    "--job-name",
-    multiple=True,
-    help="The name(s) of the Cloud Run Job(s) to trigger.",
+    "--job-names",
+    type=COMMA_LIST,
+    help="Comma-separated Cloud Run Job name(s) to trigger.",
     required=True,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for the job execution to complete before returning.",
     default=True,
 )
 @click.option(
     "--timeout-minutes",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.",
     default=1440,
 )
 def gcp_cloud_run_trigger(
     service_account_key_file: str,
     project: str,
     location: str,
-    job_name: List[str],
-    wait_for_completion: bool,
+    job_names: List[str],
+    wait: bool,
     timeout_minutes: int,
 ) -> None:
     """
     Trigger Cloud Run Jobs by name.
     """
-    click.echo(f"Triggering {len(job_name)} Cloud Run Job(s)...")
+    click.echo(f"Triggering {len(job_names)} Cloud Run Job(s)...")
 
     try:
         results = trigger_cloud_run_jobs(
             service_account_key_file=service_account_key_file,
             project=project,
             location=location,
-            job_names=list(job_name),
-            wait_for_completion=wait_for_completion,
+            job_names=job_names,
+            wait_for_completion=wait,
             timeout_minutes=timeout_minutes,
         )
 
