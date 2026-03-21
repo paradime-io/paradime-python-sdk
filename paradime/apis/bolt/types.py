@@ -27,6 +27,17 @@ class BoltDeferredSchedule(BaseModel):
     successful_run_only: bool
 
 
+class BoltNotificationItem(BaseModel):
+    channel: Optional[str]
+    events: Optional[List[str]]
+
+
+class BoltNotifications(BaseModel):
+    emails: Optional[List[BoltNotificationItem]]
+    slack_channels: Optional[List[BoltNotificationItem]]
+    microsoft_teams: Optional[List[BoltNotificationItem]]
+
+
 class BoltSchedule(BaseModel):
     name: str
     schedule: str
@@ -45,6 +56,7 @@ class BoltSchedule(BaseModel):
     slack_notify: Optional[List[str]]
     email_on: Optional[List[str]]
     email_notify: Optional[List[str]]
+    notifications: Optional[BoltNotifications]
 
 
 class BoltSchedules(BaseModel):

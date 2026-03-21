@@ -10,6 +10,8 @@ from paradime.apis.bolt.types import (
     BoltCommand,
     BoltCommandArtifact,
     BoltDeferredSchedule,
+    BoltNotificationItem,
+    BoltNotifications,
     BoltRun,
     BoltRunGitInfo,
     BoltRunState,
@@ -19,6 +21,28 @@ from paradime.apis.bolt.types import (
     BoltSchedules,
 )
 from paradime.client.api_client import APIClient
+
+
+def _parse_notification_items(items: Optional[list]) -> Optional[List[BoltNotificationItem]]:
+    if items is None:
+        return None
+    return [
+        BoltNotificationItem(
+            channel=item.get("channel"),
+            events=item.get("events"),
+        )
+        for item in items
+    ]
+
+
+def _parse_notifications(notifications_json: Optional[dict]) -> Optional[BoltNotifications]:
+    if notifications_json is None:
+        return None
+    return BoltNotifications(
+        emails=_parse_notification_items(notifications_json.get("emails")),
+        slack_channels=_parse_notification_items(notifications_json.get("slackChannels")),
+        microsoft_teams=_parse_notification_items(notifications_json.get("microsoftTeams")),
+    )
 
 
 class BoltClient:
@@ -135,6 +159,20 @@ class BoltClient:
                         slackNotify
                         emailOn
                         emailNotify
+                        notifications {
+                            emails {
+                                channel
+                                events
+                            }
+                            slackChannels {
+                                channel
+                                events
+                            }
+                            microsoftTeams {
+                                channel
+                                events
+                            }
+                        }
                     }
                     totalCount
                 }
@@ -187,6 +225,7 @@ class BoltClient:
                     slack_notify=schedule_json["slackNotify"],
                     email_on=schedule_json["emailOn"],
                     email_notify=schedule_json["emailNotify"],
+                    notifications=_parse_notifications(schedule_json.get("notifications")),
                 )
             )
 
