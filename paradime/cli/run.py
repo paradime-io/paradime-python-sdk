@@ -27,6 +27,7 @@ from paradime.cli.integrations.gcp_cloud_function import (
     gcp_cloud_function_list,
     gcp_cloud_function_trigger,
 )
+from paradime.cli.integrations.gcp_looker import gcp_looker_list_plans, gcp_looker_trigger
 from paradime.cli.integrations.gcp_cloud_run import gcp_cloud_run_list, gcp_cloud_run_trigger
 from paradime.cli.integrations.gcp_dataflow import gcp_dataflow_trigger
 from paradime.cli.integrations.gcp_dataproc import gcp_dataproc_list_clusters, gcp_dataproc_trigger
@@ -110,3 +111,5 @@ run.add_command(gcp_datastream_trigger)
 run.add_command(matillion_pipeline)
 run.add_command(matillion_list_pipelines)
 run.add_command(matillion_list_projects)
+run.add_command(gcp_looker_trigger)
+run.add_command(gcp_looker_list_plans)
