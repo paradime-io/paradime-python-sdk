@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+import itertools
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
+from rich.live import Live
+from rich.text import Text
 
 from paradime.cli import console
 from paradime.core.scripts.utils import handle_http_error
 
 BASE_URL = "https://api.github.com"
+
+# Braille spinner frames
+_BRAILLE_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
 
 def _get_headers(token: str) -> Dict[str, str]:
@@ -206,6 +213,76 @@ def _find_triggered_run(
         time.sleep(sleep_interval)
 
 
+def _fetch_jobs(*, headers: Dict[str, str], repo: str, run_id: int) -> List[Dict[str, Any]]:
+    """Fetch jobs (with steps) for a workflow run."""
+    try:
+        response = requests.get(
+            f"{BASE_URL}/repos/{repo}/actions/runs/{run_id}/jobs",
+            headers=headers,
+        )
+        if response.status_code == 200:
+            return response.json().get("jobs", [])
+    except requests.exceptions.RequestException:
+        pass
+    return []
+
+
+def _build_step_display(
+    *,
+    jobs: List[Dict[str, Any]],
+    workflow_id: str,
+    spinner_frame: str,
+) -> Text:
+    """Build a Rich Text renderable showing all job steps with status icons."""
+    lines = Text()
+
+    for job in jobs:
+        job_name = job.get("name", "unknown")
+        job_status = job.get("status", "queued")
+        job_conclusion = job.get("conclusion")
+
+        steps = job.get("steps", [])
+        if not steps:
+            icon = _step_icon(job_status, job_conclusion, spinner_frame)
+            lines.append("  ")
+            lines.append_text(icon)
+            lines.append(f"  {job_name}\n")
+            continue
+
+        for step in steps:
+            step_name = step.get("name", "unknown")
+            status = step.get("status", "queued")
+            conclusion = step.get("conclusion")
+
+            # Skip queued steps that haven't started
+            if status == "queued":
+                continue
+
+            icon = _step_icon(status, conclusion, spinner_frame)
+            lines.append("  ")
+            lines.append_text(icon)
+            lines.append(f"  {job_name} > {step_name}\n")
+
+    return lines
+
+
+def _step_icon(status: str, conclusion: Optional[str], spinner_frame: str) -> Text:
+    """Return a Rich Text icon for a step's status/conclusion."""
+    if status == "completed":
+        if conclusion == "success":
+            return Text("✓", style="bold green")
+        elif conclusion == "failure":
+            return Text("✗", style="bold red")
+        elif conclusion in ("skipped", "cancelled"):
+            return Text("⊘", style="dim")
+        else:
+            return Text("?", style="bold yellow")
+    elif status == "in_progress":
+        return Text(spinner_frame, style="cyan")
+    else:
+        return Text("○", style="dim")
+
+
 def _wait_for_run_completion(
     *,
     token: str,
@@ -218,75 +295,153 @@ def _wait_for_run_completion(
     headers = _get_headers(token)
     start_time = time.time()
     timeout_seconds = timeout_minutes * 60
-    sleep_interval = 10
-    counter = 0
+    api_interval = 10
+    spinner_interval = 0.1
+    spinner = itertools.cycle(_BRAILLE_FRAMES)
 
-    while True:
-        elapsed = time.time() - start_time
-        if elapsed > timeout_seconds:
-            raise Exception(
-                f"Timeout waiting for workflow '{workflow_id}' run {run_id} to complete "
-                f"after {timeout_minutes} minutes"
-            )
+    # Shared state between API polling and Live rendering
+    current_jobs: List[Dict[str, Any]] = []
+    run_completed = threading.Event()
+    run_result: List[str] = []  # single-element list to pass result from thread
+    lock = threading.Lock()
 
-        try:
-            response = requests.get(
-                f"{BASE_URL}/repos/{repo}/actions/runs/{run_id}",
-                headers=headers,
-            )
+    def _poll_api() -> None:
+        """Background thread that polls the GitHub API."""
+        nonlocal current_jobs
+        counter = 0
 
-            if response.status_code != 200:
-                raise Exception(
-                    f"Run status check failed with HTTP {response.status_code}"
+        while not run_completed.is_set():
+            elapsed = time.time() - start_time
+            if elapsed > timeout_seconds:
+                with lock:
+                    run_result.append("TIMEOUT")
+                run_completed.set()
+                return
+
+            try:
+                response = requests.get(
+                    f"{BASE_URL}/repos/{repo}/actions/runs/{run_id}",
+                    headers=headers,
                 )
 
-            run_data = response.json()
-            status = run_data.get("status", "unknown")
-            conclusion = run_data.get("conclusion")
+                if response.status_code != 200:
+                    with lock:
+                        run_result.append("ERROR")
+                    run_completed.set()
+                    return
 
-            elapsed_min = int(elapsed // 60)
-            elapsed_sec = int(elapsed % 60)
+                run_data = response.json()
+                status = run_data.get("status", "unknown")
+                conclusion = run_data.get("conclusion")
 
-            if counter == 0 or counter % 6 == 0:
-                if status == "in_progress":
-                    console.debug(
-                        f"[{workflow_id}] In progress... "
-                        f"({elapsed_min}m {elapsed_sec}s elapsed)"
-                    )
-                elif status == "queued":
-                    console.debug(
-                        f"[{workflow_id}] Queued... "
-                        f"({elapsed_min}m {elapsed_sec}s elapsed)"
-                    )
+                # Fetch jobs
+                jobs = _fetch_jobs(headers=headers, repo=repo, run_id=run_id)
+                with lock:
+                    current_jobs = jobs
 
-            if status == "completed":
-                run_url = f"https://github.com/{repo}/actions/runs/{run_id}"
+                elapsed_min = int(elapsed // 60)
+                elapsed_sec = int(elapsed % 60)
 
-                if conclusion == "success":
-                    console.debug(
-                        f"[{workflow_id}] Completed successfully "
-                        f"({elapsed_min}m {elapsed_sec}s)"
-                    )
-                    return f"SUCCESS (run {run_id}: {run_url})"
-                elif conclusion == "failure":
-                    console.error(f"[{workflow_id}] Workflow run failed")
-                    return f"FAILED (run {run_id}: {run_url})"
-                elif conclusion == "cancelled":
-                    console.debug(f"[{workflow_id}] Workflow run was cancelled")
-                    return f"CANCELLED (run {run_id}: {run_url})"
-                else:
-                    console.debug(
-                        f"[{workflow_id}] Completed with conclusion: {conclusion}"
-                    )
-                    return f"FAILED (run {run_id}, conclusion: {conclusion})"
+                if counter == 0 or counter % 6 == 0:
+                    if status == "in_progress":
+                        console.debug(
+                            f"[{workflow_id}] In progress... "
+                            f"({elapsed_min}m {elapsed_sec}s elapsed)"
+                        )
+                    elif status == "queued":
+                        console.debug(
+                            f"[{workflow_id}] Queued... "
+                            f"({elapsed_min}m {elapsed_sec}s elapsed)"
+                        )
 
-            counter += 1
-            time.sleep(sleep_interval)
+                if status == "completed":
+                    # Final fetch
+                    final_jobs = _fetch_jobs(headers=headers, repo=repo, run_id=run_id)
+                    with lock:
+                        current_jobs = final_jobs
 
-        except requests.exceptions.RequestException as e:
-            console.debug(f"[{workflow_id}] Network error: {str(e)[:50]}... Retrying.")
-            time.sleep(sleep_interval)
-            continue
+                    run_url = f"https://github.com/{repo}/actions/runs/{run_id}"
+                    if conclusion == "success":
+                        with lock:
+                            run_result.append(f"SUCCESS (run {run_id}: {run_url})")
+                    elif conclusion == "failure":
+                        with lock:
+                            run_result.append(f"FAILED (run {run_id}: {run_url})")
+                    elif conclusion == "cancelled":
+                        with lock:
+                            run_result.append(f"CANCELLED (run {run_id}: {run_url})")
+                    else:
+                        with lock:
+                            run_result.append(f"FAILED (run {run_id}, conclusion: {conclusion})")
+                    run_completed.set()
+                    return
+
+                counter += 1
+
+            except requests.exceptions.RequestException as e:
+                console.debug(f"[{workflow_id}] Network error: {str(e)[:50]}... Retrying.")
+
+            # Sleep in small increments so we can exit quickly
+            for _ in range(int(api_interval / 0.5)):
+                if run_completed.is_set():
+                    return
+                time.sleep(0.5)
+
+    poll_thread = threading.Thread(target=_poll_api, daemon=True)
+    poll_thread.start()
+
+    with Live(Text("  Waiting for workflow to start..."), console=console.console, refresh_per_second=10) as live:
+        while not run_completed.is_set():
+            frame = next(spinner)
+            with lock:
+                jobs_snapshot = list(current_jobs)
+
+            if jobs_snapshot:
+                display = _build_step_display(
+                    jobs=jobs_snapshot,
+                    workflow_id=workflow_id,
+                    spinner_frame=frame,
+                )
+                live.update(display)
+            else:
+                waiting = Text()
+                waiting.append(f"  {frame}", style="cyan")
+                waiting.append("  Waiting for workflow to start...")
+                live.update(waiting)
+
+            time.sleep(spinner_interval)
+
+    poll_thread.join(timeout=5)
+
+    # Print final static output of all steps
+    if current_jobs:
+        final_display = _build_step_display(
+            jobs=current_jobs,
+            workflow_id=workflow_id,
+            spinner_frame=" ",
+        )
+        console.console.print(final_display)
+
+    if not run_result:
+        raise Exception(
+            f"Timeout waiting for workflow '{workflow_id}' run {run_id} to complete "
+            f"after {timeout_minutes} minutes"
+        )
+
+    result = run_result[0]
+
+    if result == "TIMEOUT":
+        raise Exception(
+            f"Timeout waiting for workflow '{workflow_id}' run {run_id} to complete "
+            f"after {timeout_minutes} minutes"
+        )
+    elif result == "ERROR":
+        raise Exception(f"Run status check failed for workflow '{workflow_id}' run {run_id}")
+
+    if "FAILED" in result:
+        console.error(f"\\[{workflow_id}] Workflow run failed")
+
+    return result
 
 
 def list_github_workflows(
