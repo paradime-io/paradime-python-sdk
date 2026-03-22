@@ -1,0 +1,71 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECS",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:CreateCluster",
+        "ecs:DeleteCluster",
+        "ecs:RegisterTaskDefinition",
+        "ecs:DeregisterTaskDefinition",
+        "ecs:DeleteTaskDefinitions",
+        "ecs:ListTaskDefinitions",
+        "ecs:ListTasks",
+        "ecs:DescribeTasks",
+        "ecs:RunTask",
+        "ecs:StopTask",
+        "ecs:TagResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "IAMRole",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:TagRole",
+        "iam:PassRole"
+      ],
+      "Resource": "arn:aws:iam::*:role/paradime-test-ecs-execution-role"
+    },
+    {
+      "Sid": "DescribeNetworking",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeVpcs",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeSecurityGroups"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SageMaker",
+      "Effect": "Allow",
+      "Action": "sagemaker:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "Glue",
+      "Effect": "Allow",
+      "Action": "glue:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "Lambda",
+      "Effect": "Allow",
+      "Action": "lambda:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "StepFunctions",
+      "Effect": "Allow",
+      "Action": "states:*",
+      "Resource": "*"
+    }
+  ]
+}
