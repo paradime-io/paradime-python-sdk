@@ -5,6 +5,7 @@ import click
 from paradime.cli.integrations.adf import adf_list_pipelines, adf_pipelines
 from paradime.cli.integrations.airbyte import airbyte_list_connections, airbyte_sync
 from paradime.cli.integrations.airflow import airflow_list_dags, airflow_trigger
+from paradime.cli.integrations.aws_ecs import aws_ecs_list, aws_ecs_trigger
 from paradime.cli.integrations.aws_glue import (
     aws_glue_list_jobs,
     aws_glue_list_workflows,
@@ -112,6 +113,8 @@ run.add_command(gcp_datastream_trigger)
 run.add_command(matillion_pipeline)
 run.add_command(matillion_list_pipelines)
 run.add_command(matillion_list_projects)
+run.add_command(aws_ecs_trigger)
+run.add_command(aws_ecs_list)
 run.add_command(github_actions_trigger)
 run.add_command(github_actions_list)
 run.add_command(zapier_trigger)
