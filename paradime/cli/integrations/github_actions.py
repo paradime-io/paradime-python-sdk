@@ -7,10 +7,7 @@ import click
 
 from paradime.cli import console
 from paradime.cli.utils import COMMA_LIST, env_click_option
-from paradime.core.scripts.github_actions import (
-    list_github_workflows,
-    trigger_github_workflows,
-)
+from paradime.core.scripts.github_actions import list_github_workflows, trigger_github_workflows
 
 
 @click.command(context_settings=dict(max_content_width=160))

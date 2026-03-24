@@ -350,8 +350,7 @@ def _wait_for_run_completion(
                         )
                     elif status == "queued":
                         console.debug(
-                            f"[{workflow_id}] Queued... "
-                            f"({elapsed_min}m {elapsed_sec}s elapsed)"
+                            f"[{workflow_id}] Queued... " f"({elapsed_min}m {elapsed_sec}s elapsed)"
                         )
 
                 if status == "completed":
@@ -390,7 +389,9 @@ def _wait_for_run_completion(
     poll_thread = threading.Thread(target=_poll_api, daemon=True)
     poll_thread.start()
 
-    with Live(Text("  Waiting for workflow to start..."), console=console.console, refresh_per_second=10) as live:
+    with Live(
+        Text("  Waiting for workflow to start..."), console=console.console, refresh_per_second=10
+    ) as live:
         while not run_completed.is_set():
             frame = next(spinner)
             with lock:
