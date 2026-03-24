@@ -197,7 +197,7 @@ def _find_triggered_run(
             response = requests.get(
                 f"{BASE_URL}/repos/{repo}/actions/workflows/{workflow_id}/runs",
                 headers=headers,
-                params={"per_page": 5, "event": "workflow_dispatch"},
+                params={"per_page": "5", "event": "workflow_dispatch"},
             )
 
             if response.status_code == 200:
