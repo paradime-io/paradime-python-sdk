@@ -31,6 +31,7 @@ from paradime.cli.integrations.gcp_cloud_run import gcp_cloud_run_list, gcp_clou
 from paradime.cli.integrations.gcp_dataflow import gcp_dataflow_trigger
 from paradime.cli.integrations.gcp_dataproc import gcp_dataproc_list_clusters, gcp_dataproc_trigger
 from paradime.cli.integrations.gcp_datastream import gcp_datastream_list, gcp_datastream_trigger
+from paradime.cli.integrations.github_actions import github_actions_list, github_actions_trigger
 from paradime.cli.integrations.hex import hex_list_projects, hex_trigger
 from paradime.cli.integrations.hightouch import (
     hightouch_list_sync_sequences,
@@ -111,4 +112,6 @@ run.add_command(gcp_datastream_trigger)
 run.add_command(matillion_pipeline)
 run.add_command(matillion_list_pipelines)
 run.add_command(matillion_list_projects)
+run.add_command(github_actions_trigger)
+run.add_command(github_actions_list)
 run.add_command(zapier_trigger)
