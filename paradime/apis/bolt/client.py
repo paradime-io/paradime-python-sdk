@@ -10,6 +10,8 @@ from paradime.apis.bolt.types import (
     BoltCommand,
     BoltCommandArtifact,
     BoltDeferredSchedule,
+    BoltNotificationItem,
+    BoltNotifications,
     BoltRun,
     BoltRunGitInfo,
     BoltRunState,
@@ -19,6 +21,32 @@ from paradime.apis.bolt.types import (
     BoltSchedules,
 )
 from paradime.client.api_client import APIClient
+
+
+def _parse_notification_items(items: Optional[list]) -> Optional[List[BoltNotificationItem]]:
+    if items is None:
+        return None
+    return [
+        BoltNotificationItem(
+            channel=item.get("channel"),
+            events=item.get("events"),
+            template_slug=item.get("templateSlug"),
+            template_name=item.get("templateName"),
+        )
+        for item in items
+    ]
+
+
+def _parse_notifications(notifications_json: Optional[dict]) -> Optional[BoltNotifications]:
+    if notifications_json is None:
+        return None
+    return BoltNotifications(
+        email_notifications=_parse_notification_items(notifications_json.get("emailNotifications")),
+        slack_notifications=_parse_notification_items(notifications_json.get("slackNotifications")),
+        ms_teams_notifications=_parse_notification_items(
+            notifications_json.get("msTeamsNotifications")
+        ),
+    )
 
 
 class BoltClient:
@@ -135,6 +163,26 @@ class BoltClient:
                         slackNotify
                         emailOn
                         emailNotify
+                        notifications {
+                            emailNotifications {
+                                channel
+                                events
+                                templateSlug
+                                templateName
+                            }
+                            slackNotifications {
+                                channel
+                                events
+                                templateSlug
+                                templateName
+                            }
+                            msTeamsNotifications {
+                                channel
+                                events
+                                templateSlug
+                                templateName
+                            }
+                        }
                     }
                     totalCount
                 }
@@ -187,6 +235,7 @@ class BoltClient:
                     slack_notify=schedule_json["slackNotify"],
                     email_on=schedule_json["emailOn"],
                     email_notify=schedule_json["emailNotify"],
+                    notifications=_parse_notifications(schedule_json.get("notifications")),
                 )
             )
 
