@@ -43,7 +43,6 @@ from paradime.cli.integrations.matillion import (
     matillion_list_projects,
     matillion_pipeline,
 )
-from paradime.cli.integrations.zapier import zapier_trigger
 from paradime.cli.integrations.montecarlo import montecarlo_artifacts_import
 from paradime.cli.integrations.power_bi import power_bi_list_datasets, power_bi_refresh
 from paradime.cli.integrations.tableau import (
@@ -51,6 +50,7 @@ from paradime.cli.integrations.tableau import (
     tableau_list_workbooks,
     tableau_refresh,
 )
+from paradime.cli.integrations.zapier import zapier_trigger
 
 help_string: Final = (
     "\nTo set environment variables please go to https://app.paradime.io/settings/env-variables"

@@ -105,7 +105,9 @@ def _trigger_single_webhook(
             console.debug(f"[{webhook_url}] Success (request_id={request_id})")
             return {"status": "SUCCESS", "request_id": str(request_id)}
         else:
-            console.debug(f"[{webhook_url}] Failed with HTTP {response.status_code}: {response.text}")
+            console.debug(
+                f"[{webhook_url}] Failed with HTTP {response.status_code}: {response.text}"
+            )
             return {"status": "FAILED", "request_id": "—"}
 
     except Exception as e:
