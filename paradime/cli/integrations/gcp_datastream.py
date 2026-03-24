@@ -3,7 +3,7 @@ from typing import List
 
 import click
 
-from paradime.cli.utils import env_click_option
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.gcp_datastream import list_datastream_streams, trigger_datastream
 
 
@@ -24,9 +24,9 @@ from paradime.core.scripts.gcp_datastream import list_datastream_streams, trigge
     help="GCP region (e.g. 'us-central1').",
 )
 @click.option(
-    "--stream-name",
-    multiple=True,
-    help="The display name(s) of the Datastream stream(s) to manage.",
+    "--stream-names",
+    type=COMMA_LIST,
+    help="Comma-separated Datastream stream display name(s) to manage.",
     required=True,
 )
 @click.option(
@@ -36,38 +36,38 @@ from paradime.core.scripts.gcp_datastream import list_datastream_streams, trigge
     default="start",
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for the state change to complete before returning.",
     default=True,
 )
 @click.option(
     "--timeout-minutes",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.",
     default=60,
 )
 def gcp_datastream_trigger(
     service_account_key_file: str,
     project: str,
     location: str,
-    stream_name: List[str],
+    stream_names: List[str],
     action: str,
-    wait_for_completion: bool,
+    wait: bool,
     timeout_minutes: int,
 ) -> None:
     """
     Start, pause, or resume Datastream streams by display name.
     """
-    click.echo(f"{action.capitalize()}ing {len(stream_name)} Datastream stream(s)...")
+    click.echo(f"{action.capitalize()}ing {len(stream_names)} Datastream stream(s)...")
 
     try:
         results = trigger_datastream(
             service_account_key_file=service_account_key_file,
             project=project,
             location=location,
-            stream_names=list(stream_name),
+            stream_names=stream_names,
             action=action,
-            wait_for_completion=wait_for_completion,
+            wait_for_completion=wait,
             timeout_minutes=timeout_minutes,
         )
 

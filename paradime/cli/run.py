@@ -50,6 +50,7 @@ from paradime.cli.integrations.tableau import (
     tableau_list_workbooks,
     tableau_refresh,
 )
+from paradime.cli.integrations.zapier import zapier_trigger
 
 help_string: Final = (
     "\nTo set environment variables please go to https://app.paradime.io/settings/env-variables"
@@ -110,3 +111,4 @@ run.add_command(gcp_datastream_trigger)
 run.add_command(matillion_pipeline)
 run.add_command(matillion_list_pipelines)
 run.add_command(matillion_list_projects)
+run.add_command(zapier_trigger)

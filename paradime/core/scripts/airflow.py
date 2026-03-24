@@ -1,4 +1,5 @@
-import logging
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -6,10 +7,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
+from paradime.cli import console
 from paradime.core.scripts.utils import handle_http_error
-
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 def _get_gcp_bearer_token() -> str:
@@ -115,16 +114,8 @@ def trigger_airflow_dags(
     futures = []
     results = []
 
-    # Add visual separator and header
-    print(f"\n{'='*60}")
-    print("🚀 TRIGGERING AIRFLOW DAGS")
-    print(f"{'='*60}")
-
     with ThreadPoolExecutor() as executor:
         for i, dag_id in enumerate(set(dag_ids), 1):
-            print(f"\n[{i}/{len(set(dag_ids))}] 🔄 {dag_id}")
-            print(f"{'-'*40}")
-
             futures.append(
                 (
                     dag_id,
@@ -145,11 +136,6 @@ def trigger_airflow_dags(
                 )
             )
 
-        # Add separator for live progress section
-        print(f"\n{'='*60}")
-        print("⚡ LIVE PROGRESS")
-        print(f"{'='*60}")
-
         # Wait for completion and collect results
         dag_results = []
         for dag_id, future in futures:
@@ -159,27 +145,21 @@ def trigger_airflow_dags(
             dag_results.append((dag_id, response_txt))
             results.append(response_txt)
 
-        # Display results as simple table
-        print(f"\n{'='*80}")
-        print("📊 DAG RUN RESULTS")
-        print(f"{'='*80}")
-        print(f"{'DAG ID':<30} {'STATUS':<15}")
-        print(f"{'-'*30} {'-'*15}")
-
-        for dag_id, response_txt in dag_results:
-            # Format result with emoji
+        def _status_text(response_txt: str) -> str:
             if "SUCCESS" in response_txt:
-                status = "✅ SUCCESS"
+                return "SUCCESS"
             elif "FAILED" in response_txt:
-                status = "❌ FAILED"
+                return "FAILED"
             elif "RUNNING" in response_txt:
-                status = "🔄 RUNNING"
+                return "RUNNING"
             else:
-                status = "ℹ️ COMPLETED"
+                return "COMPLETED"
 
-            print(f"{dag_id:<30} {status:<15}")
-
-        print(f"{'='*80}\n")
+        console.table(
+            columns=["DAG ID", "Status"],
+            rows=[(dag_id, _status_text(response_txt)) for dag_id, response_txt in dag_results],
+            title="DAG Run Results",
+        )
 
     return results
 
@@ -231,10 +211,8 @@ def trigger_dag_run(
         bearer_token=bearer_token,
     )
 
-    timestamp = datetime.now().strftime("%H:%M:%S")
-
     # Check DAG status before attempting trigger
-    print(f"{timestamp} 🔍 [{dag_id}] Checking DAG status...")
+    console.debug(f"[{dag_id}] Checking DAG status...")
     try:
         dag_response = requests.get(
             f"{api_base}/dags/{dag_id}",
@@ -247,22 +225,18 @@ def trigger_dag_run(
             is_paused = dag_data.get("is_paused", False)
             is_active = dag_data.get("is_active", True)
 
-            print(f"{timestamp} 📊 [{dag_id}] Active: {is_active} | Paused: {is_paused}")
+            console.debug(f"[{dag_id}] Active: {is_active} | Paused: {is_paused}")
 
             # Handle paused DAGs
             if is_paused:
-                print(
-                    f"{timestamp} ⚠️  [{dag_id}] Warning: DAG is paused - run will queue until unpaused"
-                )
+                console.debug(f"[{dag_id}] Warning: DAG is paused - run will queue until unpaused")
 
             # Handle inactive DAGs
             if not is_active:
-                print(f"{timestamp} ⚠️  [{dag_id}] Warning: DAG is not active")
+                console.debug(f"[{dag_id}] Warning: DAG is not active")
 
     except Exception as e:
-        print(
-            f"{timestamp} ⚠️  [{dag_id}] Could not check status: {str(e)[:50]}... Proceeding anyway."
-        )
+        console.debug(f"[{dag_id}] Could not check status: {str(e)[:50]}... Proceeding anyway.")
 
     # Prepare DAG run payload
     # For Airflow v2 API, we need to provide a logical_date (execution_date)
@@ -275,7 +249,7 @@ def trigger_dag_run(
         "conf": dag_run_conf or {},
     }
 
-    print(f"{timestamp} 🚀 [{dag_id}] Triggering DAG run...")
+    console.debug(f"[{dag_id}] Triggering DAG run...")
     dag_run_response = requests.post(
         f"{api_base}/dags/{dag_id}/dagRuns",
         json=dag_run_payload,
@@ -291,16 +265,16 @@ def trigger_dag_run(
     dag_run_data = dag_run_response.json()
     dag_run_id = dag_run_data.get("dag_run_id")
 
-    print(f"{timestamp} ✅ [{dag_id}] DAG run triggered successfully (ID: {dag_run_id})")
+    console.debug(f"[{dag_id}] DAG run triggered successfully (ID: {dag_run_id})")
 
     # Show Airflow UI link
     ui_url = f"{base_url}/dags/{dag_id}/grid?dag_run_id={dag_run_id}"
-    print(f"{timestamp} 🔗 [{dag_id}] Airflow UI: {ui_url}")
+    console.debug(f"[{dag_id}] Airflow UI: {ui_url}")
 
     if not wait_for_completion:
         return f"DAG run triggered (ID: {dag_run_id})"
 
-    print(f"{timestamp} ⏳ [{dag_id}] Monitoring DAG run progress...")
+    console.debug(f"[{dag_id}] Monitoring DAG run progress...")
 
     # Wait for DAG run completion
     dag_run_status = _wait_for_dag_completion(
@@ -382,8 +356,6 @@ def _wait_for_dag_completion(
                 task_instances_data = task_instances_response.json()
                 task_instances = task_instances_data.get("task_instances", [])
 
-            # Log progress
-            timestamp = datetime.now().strftime("%H:%M:%S")
             elapsed_min = int(elapsed // 60)
             elapsed_sec = int(elapsed % 60)
 
@@ -399,13 +371,11 @@ def _wait_for_dag_completion(
                     state_summary = ", ".join(
                         [f"{count} {state}" for state, count in task_states.items()]
                     )
-                    print(
-                        f"{timestamp} 🔄 [{dag_id}] Running... ({state_summary}) ({elapsed_min}m {elapsed_sec}s elapsed)"
+                    console.debug(
+                        f"[{dag_id}] Running... ({state_summary}) ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
                 elif state == "queued":
-                    print(
-                        f"{timestamp} ⏳ [{dag_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)"
-                    )
+                    console.debug(f"[{dag_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)")
 
             # Display logs for completed tasks (only once per task)
             if show_logs:
@@ -429,13 +399,12 @@ def _wait_for_dag_completion(
 
             # Check if DAG run is complete
             if state in ["success", "failed"]:
-                timestamp = datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if state == "success":
-                    print(
-                        f"{timestamp} ✅ [{dag_id}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
+                    console.debug(
+                        f"[{dag_id}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
                     )
                     return f"SUCCESS (completed at run ID: {dag_run_id})"
                 elif state == "failed":
@@ -457,7 +426,7 @@ def _wait_for_dag_completion(
                                 )
                                 task_states_logged.add(task_key)
 
-                    print(f"{timestamp} ❌ [{dag_id}] DAG run failed")
+                    console.debug(f"[{dag_id}] DAG run failed")
                     return f"FAILED (run ID: {dag_run_id})"
 
             elif state in ["running", "queued"]:
@@ -471,8 +440,7 @@ def _wait_for_dag_completion(
             time.sleep(sleep_interval)
 
         except requests.exceptions.RequestException as e:
-            timestamp = datetime.now().strftime("%H:%M:%S")
-            print(f"{timestamp} ⚠️  [{dag_id}] Network error: {str(e)[:50]}... Retrying.")
+            console.debug(f"[{dag_id}] Network error: {str(e)[:50]}... Retrying.")
             time.sleep(sleep_interval)
             continue
 
@@ -499,8 +467,6 @@ def _fetch_and_display_task_logs(
         task_id: Task ID
         task_state: Task state (for display purposes)
     """
-    timestamp = datetime.now().strftime("%H:%M:%S")
-
     try:
         # Fetch task logs - try attempt 1 first
         task_try = 1
@@ -511,12 +477,7 @@ def _fetch_and_display_task_logs(
         )
 
         if logs_response.status_code == 200:
-            # Display logs with formatting
-            state_emoji = "✅" if task_state == "success" else "❌"
-            print(f"\n{timestamp} {state_emoji} [{dag_id}] Task '{task_id}' {task_state.upper()}")
-            print(f"{'-'*60}")
-            print("📝 TASK LOGS:")
-            print(f"{'-'*60}")
+            console.debug(f"[{dag_id}] Task '{task_id}' {task_state.upper()}")
 
             # Parse log content - Airflow v2 API returns JSON structured logs
             import json
@@ -559,33 +520,34 @@ def _fetch_and_display_task_logs(
                 if formatted_lines:
                     # Limit to last 100 lines for readability
                     if len(formatted_lines) > 100:
-                        print(f"... (showing last 100 lines of {len(formatted_lines)} total lines)")
+                        console.debug(
+                            f"... (showing last 100 lines of {len(formatted_lines)} total lines)"
+                        )
                         formatted_lines = formatted_lines[-100:]
 
                     for line in formatted_lines:
-                        print(f"  {line}")
+                        console.debug(f"  {line}")
                 else:
                     # Fallback to raw text if no structured logs found
-                    print(f"  {logs_response.text[:2000]}")
+                    console.debug(f"  {logs_response.text[:2000]}")
 
             except json.JSONDecodeError:
                 # Fallback to plain text parsing for older Airflow versions
                 log_lines = logs_response.text.split("\n")
                 if len(log_lines) > 100:
-                    print(f"... (showing last 100 lines of {len(log_lines)} total lines)")
+                    console.debug(f"... (showing last 100 lines of {len(log_lines)} total lines)")
                     log_lines = log_lines[-100:]
 
                 for line in log_lines:
                     if line.strip():
-                        print(f"  {line}")
+                        console.debug(f"  {line}")
 
-            print(f"{'-'*60}\n")
         else:
             # Log retrieval failed, just note the task state
-            print(f"{timestamp} ⚠️  [{dag_id}] Task '{task_id}' {task_state} (logs unavailable)")
+            console.debug(f"[{dag_id}] Task '{task_id}' {task_state} (logs unavailable)")
 
     except Exception as e:
-        print(f"{timestamp} ⚠️  [{dag_id}] Could not fetch logs for task '{task_id}': {str(e)[:50]}")
+        console.debug(f"[{dag_id}] Could not fetch logs for task '{task_id}': {str(e)[:50]}")
 
 
 def list_airflow_dags(
@@ -596,7 +558,8 @@ def list_airflow_dags(
     only_active: bool = True,
     use_gcp_auth: bool = False,
     bearer_token: Optional[str] = None,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all Airflow DAGs with their IDs and status.
 
@@ -607,6 +570,7 @@ def list_airflow_dags(
         only_active: Whether to only show active (non-paused) DAGs
         use_gcp_auth: Whether to use GCP Cloud Composer authentication
         bearer_token: Optional bearer token for token-based authentication
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Ensure base URL doesn't have trailing slash
     base_url = base_url.rstrip("/")
@@ -623,11 +587,15 @@ def list_airflow_dags(
 
     # Build URL and parameters
     params = {}
-    if only_active:
-        params["only_active"] = "true"
-        print("\n🔍 Listing active DAGs")
+    if not json_output:
+        if only_active:
+            params["only_active"] = "true"
+            console.info("Listing active DAGs")
+        else:
+            console.info("Listing all DAGs")
     else:
-        print("\n🔍 Listing all DAGs")
+        if only_active:
+            params["only_active"] = "true"
 
     dags_response = requests.get(
         f"{api_base}/dags",
@@ -641,37 +609,37 @@ def list_airflow_dags(
     dags_data = dags_response.json()
 
     if "dags" not in dags_data:
-        print("No DAGs found.")
-        return
+        if not json_output:
+            console.info("No DAGs found.")
+        return [] if json_output else None
 
     dags = dags_data["dags"]
 
-    print(f"\n{'='*80}")
-    print(f"📋 FOUND {len(dags)} DAG(S)")
-    print(f"{'='*80}")
-
-    for i, dag in enumerate(dags, 1):
+    rows = []
+    data = []
+    for dag in dags:
         dag_id = dag.get("dag_id", "Unknown")
         is_paused = dag.get("is_paused", False)
         is_active = dag.get("is_active", True)
-        description = dag.get("description", "No description")
-
-        # Get last DAG run info if available
         last_run = dag.get("last_parsed_time", "Never")
-
-        # Format status with emoji
-        paused_emoji = "⏸️" if is_paused else "▶️"
-        active_emoji = "✅" if is_active else "❌"
-
-        # Create UI link
         ui_url = f"{base_url}/dags/{dag_id}/grid"
+        rows.append((dag_id, str(is_active), str(is_paused), last_run, ui_url))
+        data.append(
+            {
+                "dag_id": dag_id,
+                "active": is_active,
+                "paused": is_paused,
+                "last_parsed": last_run,
+                "ui_url": ui_url,
+            }
+        )
 
-        print(f"\n[{i}/{len(dags)}] 🔄 {dag_id}")
-        print(f"{'-'*50}")
-        print(f"   Description: {description}")
-        print(f"   {paused_emoji} Paused: {is_paused}")
-        print(f"   {active_emoji} Active: {is_active}")
-        print(f"   📅 Last Parsed: {last_run}")
-        print(f"   🔗 UI: {ui_url}")
+    if json_output:
+        return data
 
-    print(f"\n{'='*80}\n")
+    console.table(
+        columns=["DAG ID", "Active", "Paused", "Last Parsed", "UI URL"],
+        rows=rows,
+        title="Airflow DAGs",
+    )
+    return None

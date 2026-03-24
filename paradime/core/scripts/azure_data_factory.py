@@ -1,14 +1,13 @@
-import logging
+from __future__ import annotations
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
 
 import requests
 
+from paradime.cli import console
 from paradime.core.scripts.utils import handle_http_error
-
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 def trigger_adf_pipeline_runs(
@@ -52,16 +51,8 @@ def trigger_adf_pipeline_runs(
     futures = []
     results = []
 
-    # Add visual separator and header
-    print(f"\n{'='*60}")
-    print("🚀 TRIGGERING AZURE DATA FACTORY PIPELINES")
-    print(f"{'='*60}")
-
     with ThreadPoolExecutor() as executor:
         for i, pipeline_name in enumerate(set(pipeline_names), 1):
-            print(f"\n[{i}/{len(set(pipeline_names))}] 🔌 {pipeline_name}")
-            print(f"{'-'*40}")
-
             futures.append(
                 (
                     pipeline_name,
@@ -79,11 +70,6 @@ def trigger_adf_pipeline_runs(
                 )
             )
 
-        # Add separator for live progress section
-        print(f"\n{'='*60}")
-        print("⚡ LIVE PROGRESS")
-        print(f"{'='*60}")
-
         # Wait for completion and collect results
         pipeline_results = []
         for pipeline_name, future in futures:
@@ -93,33 +79,27 @@ def trigger_adf_pipeline_runs(
             pipeline_results.append((pipeline_name, response_txt))
             results.append(response_txt)
 
-        # Display results as simple table
-        print(f"\n{'='*80}")
-        print("📊 PIPELINE RUN RESULTS")
-        print(f"{'='*80}")
-        print(f"{'PIPELINE':<40} {'STATUS':<15}")
-        print(f"{'-'*40} {'-'*15}")
-
-        for pipeline_name, response_txt in pipeline_results:
-            # Format result with emoji
+        def _status_text(response_txt: str) -> str:
             if "SUCCEEDED" in response_txt:
-                status = "✅ SUCCEEDED"
+                return "SUCCEEDED"
             elif "FAILED" in response_txt:
-                status = "❌ FAILED"
+                return "FAILED"
             elif "CANCELLED" in response_txt:
-                status = "🚫 CANCELLED"
+                return "CANCELLED"
             elif "CANCELLING" in response_txt:
-                status = "⚠️ CANCELLING"
+                return "CANCELLING"
             elif "QUEUED" in response_txt:
-                status = "⏳ QUEUED"
+                return "QUEUED"
             elif "IN_PROGRESS" in response_txt:
-                status = "🔄 IN PROGRESS"
+                return "IN PROGRESS"
             else:
-                status = "ℹ️ COMPLETED"
+                return "COMPLETED"
 
-            print(f"{pipeline_name:<40} {status:<15}")
-
-        print(f"{'='*80}\n")
+        console.table(
+            columns=["Pipeline", "Status"],
+            rows=[(pn, _status_text(response_txt)) for pn, response_txt in pipeline_results],
+            title="Pipeline Run Results",
+        )
 
     return results
 
@@ -151,9 +131,7 @@ def trigger_pipeline_run(
     Returns:
         Status message indicating run result
     """
-    import datetime
 
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     base_url = "https://management.azure.com"
     api_version = "2018-06-01"
 
@@ -166,7 +144,7 @@ def trigger_pipeline_run(
         f"?api-version={api_version}"
     )
 
-    print(f"{timestamp} 🚀 [{pipeline_name}] Triggering pipeline run...")
+    console.debug(f"[{pipeline_name}] Triggering pipeline run...")
 
     run_payload = parameters if parameters else {}
 
@@ -184,7 +162,7 @@ def trigger_pipeline_run(
     run_data = run_response.json()
     run_id = run_data.get("runId")
 
-    print(f"{timestamp} ✅ [{pipeline_name}] Pipeline run triggered (Run ID: {run_id})")
+    console.debug(f"[{pipeline_name}] Pipeline run triggered (Run ID: {run_id})")
 
     # Show Azure portal link
     portal_url = (
@@ -193,12 +171,12 @@ def trigger_pipeline_run(
         f"/resourceGroups/{resource_group}"
         f"/providers/Microsoft.DataFactory/factories/{factory_name}"
     )
-    print(f"{timestamp} 🔗 [{pipeline_name}] Portal: {portal_url}")
+    console.debug(f"[{pipeline_name}] Portal: {portal_url}")
 
     if not wait_for_completion:
         return f"Pipeline run triggered (Run ID: {run_id})"
 
-    print(f"{timestamp} ⏳ [{pipeline_name}] Monitoring pipeline run progress...")
+    console.debug(f"[{pipeline_name}] Monitoring pipeline run progress...")
 
     # Wait for run completion
     run_status = _wait_for_pipeline_completion(
@@ -307,11 +285,8 @@ def _wait_for_pipeline_completion(
                         f"Last HTTP status: {run_response.status_code}"
                     )
 
-                import datetime
-
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(
-                    f"{timestamp} ⚠️  [{pipeline_name}] HTTP {run_response.status_code} error. "
+                console.debug(
+                    f"[{pipeline_name}] HTTP {run_response.status_code} error. "
                     f"Retrying... ({consecutive_failures}/{max_consecutive_failures})"
                 )
                 time.sleep(sleep_interval * min(consecutive_failures, 3))
@@ -325,50 +300,44 @@ def _wait_for_pipeline_completion(
 
             # Log progress every 6 checks (30 seconds)
             if counter == 0 or counter % 6 == 0:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if run_status == "InProgress":
-                    print(
-                        f"{timestamp} 🔄 [{pipeline_name}] Pipeline running... "
+                    console.debug(
+                        f"[{pipeline_name}] Pipeline running... "
                         f"({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
                 elif run_status == "Queued":
-                    print(
-                        f"{timestamp} ⏳ [{pipeline_name}] Pipeline queued... "
+                    console.debug(
+                        f"[{pipeline_name}] Pipeline queued... "
                         f"({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
 
             # Check if run is complete
             if run_status in ["Succeeded", "Failed", "Cancelled"]:
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
                 elapsed_min = int(elapsed // 60)
                 elapsed_sec = int(elapsed % 60)
 
                 if run_status == "Succeeded":
-                    print(
-                        f"{timestamp} ✅ [{pipeline_name}] Pipeline completed successfully "
+                    console.debug(
+                        f"[{pipeline_name}] Pipeline completed successfully "
                         f"({elapsed_min}m {elapsed_sec}s)"
                     )
                     return f"SUCCEEDED (run ID: {run_id})"
                 elif run_status == "Failed":
                     message = run_data.get("message", "No error message available")
-                    print(f"{timestamp} ❌ [{pipeline_name}] Pipeline failed: {message}")
+                    console.error(f"[{pipeline_name}] Pipeline failed: {message}")
                     return f"FAILED (run ID: {run_id})"
                 elif run_status == "Cancelled":
-                    print(f"{timestamp} 🚫 [{pipeline_name}] Pipeline cancelled")
+                    console.debug(f"[{pipeline_name}] Pipeline cancelled")
                     return f"CANCELLED (run ID: {run_id})"
 
             elif run_status == "Cancelling":
-                import datetime
 
-                timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-                print(f"{timestamp} ⚠️  [{pipeline_name}] Pipeline is being cancelled...")
+                console.debug(f"[{pipeline_name}] Pipeline is being cancelled...")
 
             elif run_status in ["InProgress", "Queued"]:
                 # Still running, continue waiting
@@ -388,11 +357,8 @@ def _wait_for_pipeline_completion(
                     f"Last error: {str(e)[:100]}"
                 )
 
-            import datetime
-
-            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-            print(
-                f"{timestamp} ⚠️  [{pipeline_name}] Network error: {str(e)[:50]}... "
+            console.debug(
+                f"[{pipeline_name}] Network error: {str(e)[:50]}... "
                 f"Retrying... ({consecutive_failures}/{max_consecutive_failures})"
             )
             time.sleep(sleep_interval * min(consecutive_failures, 3))
@@ -407,7 +373,8 @@ def list_adf_pipelines(
     subscription_id: str,
     resource_group: str,
     factory_name: str,
-) -> None:
+    json_output: bool = False,
+) -> list | None:
     """
     List all pipelines in an Azure Data Factory.
 
@@ -418,6 +385,7 @@ def list_adf_pipelines(
         subscription_id: Azure subscription ID
         resource_group: Azure resource group name
         factory_name: Azure Data Factory name
+        json_output: Whether to return data as a list of dicts instead of printing a table
     """
     # Get authentication token
     access_token = _get_access_token(tenant_id, client_id, client_secret)
@@ -436,7 +404,8 @@ def list_adf_pipelines(
         f"/pipelines?api-version={api_version}"
     )
 
-    print(f"\n🔍 Listing pipelines for factory: {factory_name}")
+    if not json_output:
+        console.info(f"Listing pipelines for factory: {factory_name}")
 
     pipelines_response = requests.get(pipelines_url, headers=headers)
 
@@ -445,30 +414,38 @@ def list_adf_pipelines(
     pipelines_data = pipelines_response.json()
 
     if "value" not in pipelines_data or not pipelines_data["value"]:
-        print("No pipelines found.")
-        return
+        if not json_output:
+            console.info("No pipelines found.")
+        return [] if json_output else None
 
     pipelines = pipelines_data["value"]
 
-    print(f"\n{'='*80}")
-    print(f"📋 FOUND {len(pipelines)} PIPELINE(S)")
-    print(f"{'='*80}")
-
-    for i, pipeline in enumerate(pipelines, 1):
+    rows = []
+    data = []
+    for pipeline in pipelines:
         name = pipeline.get("name", "Unknown")
         pipeline_type = pipeline.get("type", "Unknown")
         description = pipeline.get("properties", {}).get("description", "")
         activities = pipeline.get("properties", {}).get("activities", [])
         pipeline_parameters = pipeline.get("properties", {}).get("parameters", {})
+        param_names = ", ".join(pipeline_parameters.keys()) if pipeline_parameters else ""
+        rows.append((name, pipeline_type, str(len(activities)), param_names, description))
+        data.append(
+            {
+                "name": name,
+                "type": pipeline_type,
+                "activities": len(activities),
+                "parameters": param_names,
+                "description": description,
+            }
+        )
 
-        print(f"\n[{i}/{len(pipelines)}] 🔌 {name}")
-        print(f"{'-'*50}")
-        print(f"   Type: {pipeline_type}")
-        if description:
-            print(f"   Description: {description}")
-        print(f"   Activities: {len(activities)}")
-        if pipeline_parameters:
-            param_names = list(pipeline_parameters.keys())
-            print(f"   Parameters: {', '.join(param_names)}")
+    if json_output:
+        return data
 
-    print(f"\n{'='*80}\n")
+    console.table(
+        columns=["Name", "Type", "Activities", "Parameters", "Description"],
+        rows=rows,
+        title=f"ADF Pipelines ({factory_name})",
+    )
+    return None
