@@ -206,9 +206,7 @@ def _poll_task(
     while True:
         elapsed = time.time() - start_time
         if elapsed > timeout_seconds:
-            console.error(
-                f"[{task_definition}] Timeout after {timeout_minutes} minutes"
-            )
+            console.error(f"[{task_definition}] Timeout after {timeout_minutes} minutes")
             return "FAILED", task_arn
 
         try:
@@ -231,17 +229,14 @@ def _poll_task(
                     console.debug(f"[{task_definition}] Stopped reason: {stopped_reason}")
 
                 # A task is successful if all containers exited with code 0
-                all_success = all(
-                    c.get("exitCode") == 0 for c in containers if "exitCode" in c
-                )
+                all_success = all(c.get("exitCode") == 0 for c in containers if "exitCode" in c)
 
                 if all_success and containers:
                     console.debug(f"[{task_definition}] Task completed successfully")
                     return "SUCCESS", task_arn
                 else:
                     exit_codes = [
-                        f"{c.get('name', '?')}={c.get('exitCode', '?')}"
-                        for c in containers
+                        f"{c.get('name', '?')}={c.get('exitCode', '?')}" for c in containers
                     ]
                     console.error(
                         f"[{task_definition}] Task failed. Exit codes: {', '.join(exit_codes)}. "
