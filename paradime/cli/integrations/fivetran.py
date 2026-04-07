@@ -6,7 +6,12 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import COMMA_LIST, env_click_option
+from paradime.cli.utils import (
+    COMMA_LIST,
+    deprecated_alias_option,
+    env_click_option,
+    resolve_deprecated_option,
+)
 from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fivetran_sync
 
 
@@ -25,8 +30,9 @@ from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fiv
     "--connector-ids",
     type=COMMA_LIST,
     help="Comma-separated connector ID(s) to sync",
-    required=True,
+    required=False,
 )
+@deprecated_alias_option("connector-id", "connector-ids", type=COMMA_LIST, default=None)
 @click.option(
     "--force",
     is_flag=True,
@@ -48,7 +54,8 @@ from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fiv
 def fivetran_sync(
     api_key: str,
     api_secret: str,
-    connector_ids: List[str],
+    connector_ids: Optional[List[str]],
+    connector_id: Optional[List[str]],
     force: bool,
     wait: bool,
     timeout: int,
@@ -57,6 +64,12 @@ def fivetran_sync(
     """
     Trigger sync for Fivetran connectors.
     """
+    connector_ids = resolve_deprecated_option(
+        connector_ids, connector_id, "connector-ids", "connector-id"
+    )
+    if not connector_ids:
+        raise click.UsageError("Must specify --connector-ids")
+
     if not json_output:
         console.header("Fivetran — Trigger Connector Syncs")
 

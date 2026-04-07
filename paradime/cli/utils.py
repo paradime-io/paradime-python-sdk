@@ -38,3 +38,49 @@ def env_click_option(option_name: str, env_var: Optional[str], **kwargs: Any) ->
         help=help,
         **kwargs,
     )
+
+
+def deprecated_alias_option(old_name: str, new_name: str, **kwargs: Any) -> Callable:
+    """Add a hidden deprecated alias for a renamed CLI option.
+
+    The old option name is added as a hidden click option. The value is
+    stored under a parameter name derived from old_name (with dashes replaced
+    by underscores).
+    """
+    return click.option(
+        f"--{old_name}",
+        hidden=True,
+        expose_value=True,
+        **kwargs,
+    )
+
+
+def resolve_deprecated_option(
+    new_value: Any,
+    old_value: Any,
+    new_flag: str,
+    old_flag: str,
+) -> Any:
+    """Merge a new option value with its deprecated alias.
+
+    If both are provided, raise a UsageError. If only the old one is provided,
+    return it. Otherwise return the new value.
+    """
+    old_set = _is_set(old_value)
+    new_set = _is_set(new_value)
+
+    if old_set and new_set:
+        raise click.UsageError(
+            f"Cannot specify both --{old_flag} and --{new_flag}. Use --{new_flag}."
+        )
+    if old_set:
+        return old_value
+    return new_value
+
+
+def _is_set(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, (list, tuple)) and len(value) == 0:
+        return False
+    return True
