@@ -6,7 +6,12 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import COMMA_LIST, deprecated_alias_option, env_click_option, resolve_deprecated_option
+from paradime.cli.utils import (
+    COMMA_LIST,
+    deprecated_alias_option,
+    env_click_option,
+    resolve_deprecated_option,
+)
 from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fivetran_sync
 
 
@@ -59,7 +64,9 @@ def fivetran_sync(
     """
     Trigger sync for Fivetran connectors.
     """
-    connector_ids = resolve_deprecated_option(connector_ids, connector_id, "connector-ids", "connector-id")
+    connector_ids = resolve_deprecated_option(
+        connector_ids, connector_id, "connector-ids", "connector-id"
+    )
     if not connector_ids:
         raise click.UsageError("Must specify --connector-ids")
 

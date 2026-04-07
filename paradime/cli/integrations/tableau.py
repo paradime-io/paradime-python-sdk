@@ -6,7 +6,12 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import COMMA_LIST, deprecated_alias_option, env_click_option, resolve_deprecated_option
+from paradime.cli.utils import (
+    COMMA_LIST,
+    deprecated_alias_option,
+    env_click_option,
+    resolve_deprecated_option,
+)
 from paradime.core.scripts.tableau import (
     list_tableau_datasources,
     list_tableau_workbooks,
@@ -83,8 +88,12 @@ def tableau_refresh(
     """
     Trigger a Tableau refresh for workbooks or data sources.
     """
-    workbook_names = resolve_deprecated_option(workbook_names, workbook_name, "workbook-names", "workbook-name")
-    datasource_names = resolve_deprecated_option(datasource_names, datasource_name, "datasource-names", "datasource-name")
+    workbook_names = resolve_deprecated_option(
+        workbook_names, workbook_name, "workbook-names", "workbook-name"
+    )
+    datasource_names = resolve_deprecated_option(
+        datasource_names, datasource_name, "datasource-names", "datasource-name"
+    )
 
     if not workbook_names and not datasource_names:
         raise click.UsageError("Must specify either --workbook-name or --datasource-name")

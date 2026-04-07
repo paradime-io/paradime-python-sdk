@@ -6,7 +6,12 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import COMMA_LIST, deprecated_alias_option, env_click_option, resolve_deprecated_option
+from paradime.cli.utils import (
+    COMMA_LIST,
+    deprecated_alias_option,
+    env_click_option,
+    resolve_deprecated_option,
+)
 from paradime.core.scripts.airbyte import list_airbyte_connections, trigger_airbyte_jobs
 
 
@@ -79,7 +84,9 @@ def airbyte_sync(
     """
     Trigger sync or reset jobs for Airbyte connections.
     """
-    connection_ids = resolve_deprecated_option(connection_ids, connection_id, "connection-ids", "connection-id")
+    connection_ids = resolve_deprecated_option(
+        connection_ids, connection_id, "connection-ids", "connection-id"
+    )
     if not connection_ids:
         raise click.UsageError("Must specify --connection-ids")
 

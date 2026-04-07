@@ -40,9 +40,7 @@ def env_click_option(option_name: str, env_var: Optional[str], **kwargs: Any) ->
     )
 
 
-def deprecated_alias_option(
-    old_name: str, new_name: str, **kwargs: Any
-) -> Callable:
+def deprecated_alias_option(old_name: str, new_name: str, **kwargs: Any) -> Callable:
     """Add a hidden deprecated alias for a renamed CLI option.
 
     The old option name is added as a hidden click option. The value is
