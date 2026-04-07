@@ -6,7 +6,7 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import COMMA_LIST, env_click_option
+from paradime.cli.utils import COMMA_LIST, deprecated_alias_option, env_click_option, resolve_deprecated_option
 from paradime.core.scripts.airbyte import list_airbyte_connections, trigger_airbyte_jobs
 
 
@@ -37,8 +37,9 @@ from paradime.core.scripts.airbyte import list_airbyte_connections, trigger_airb
     "--connection-ids",
     type=COMMA_LIST,
     help="Comma-separated connection ID(s) to run jobs for",
-    required=True,
+    required=False,
 )
+@deprecated_alias_option("connection-id", "connection-ids", type=COMMA_LIST, default=None)
 @click.option(
     "--job-type",
     type=click.Choice(["sync", "reset"]),
@@ -67,7 +68,8 @@ def airbyte_sync(
     client_secret: str,
     base_url: str,
     use_server_auth: bool,
-    connection_ids: List[str],
+    connection_ids: Optional[List[str]],
+    connection_id: Optional[List[str]],
     job_type: str,
     workspace_id: Optional[str],
     wait: bool,
@@ -77,6 +79,10 @@ def airbyte_sync(
     """
     Trigger sync or reset jobs for Airbyte connections.
     """
+    connection_ids = resolve_deprecated_option(connection_ids, connection_id, "connection-ids", "connection-id")
+    if not connection_ids:
+        raise click.UsageError("Must specify --connection-ids")
+
     if not json_output:
         console.header(f"Airbyte — {job_type.capitalize()} Jobs")
 

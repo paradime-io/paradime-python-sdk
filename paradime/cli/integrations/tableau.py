@@ -6,7 +6,7 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import COMMA_LIST, env_click_option
+from paradime.cli.utils import COMMA_LIST, deprecated_alias_option, env_click_option, resolve_deprecated_option
 from paradime.core.scripts.tableau import (
     list_tableau_datasources,
     list_tableau_workbooks,
@@ -37,6 +37,8 @@ from paradime.core.scripts.tableau import (
     help="Comma-separated data source name(s) or UUID(s) to refresh",
     required=False,
 )
+@deprecated_alias_option("workbook-name", "workbook-names", type=COMMA_LIST, default=None)
+@deprecated_alias_option("datasource-name", "datasource-names", type=COMMA_LIST, default=None)
 @env_click_option(
     "host",
     "TABLEAU_HOST",
@@ -69,6 +71,8 @@ def tableau_refresh(
     site_name: str,
     workbook_names: Optional[List[str]],
     datasource_names: Optional[List[str]],
+    workbook_name: Optional[List[str]],
+    datasource_name: Optional[List[str]],
     host: str,
     personal_access_token_secret: str,
     personal_access_token_name: str,
@@ -79,6 +83,9 @@ def tableau_refresh(
     """
     Trigger a Tableau refresh for workbooks or data sources.
     """
+    workbook_names = resolve_deprecated_option(workbook_names, workbook_name, "workbook-names", "workbook-name")
+    datasource_names = resolve_deprecated_option(datasource_names, datasource_name, "datasource-names", "datasource-name")
+
     if not workbook_names and not datasource_names:
         raise click.UsageError("Must specify either --workbook-name or --datasource-name")
 

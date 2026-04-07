@@ -6,7 +6,7 @@ from typing import List, Optional
 import click
 
 from paradime.cli import console
-from paradime.cli.utils import COMMA_LIST, env_click_option
+from paradime.cli.utils import COMMA_LIST, deprecated_alias_option, env_click_option, resolve_deprecated_option
 from paradime.core.scripts.power_bi import (
     get_access_token,
     get_power_bi_datasets,
@@ -41,6 +41,7 @@ from paradime.core.scripts.power_bi import (
     help="Comma-separated dataset name(s) to refresh",
     type=COMMA_LIST,
 )
+@deprecated_alias_option("dataset-name", "dataset-names", type=COMMA_LIST, default=None)
 @env_click_option(
     "refresh-request-body-b64",
     "POWER_BI_REFRESH_REQUEST_BODY_B64",
@@ -54,12 +55,15 @@ def power_bi_refresh(
     client_secret: str,
     group_id: str,
     dataset_names: List[str],
+    dataset_name: Optional[List[str]],
     refresh_request_body_b64: Optional[str],
     json_output: bool,
 ) -> None:
     """
     Trigger a Power BI refresh for a specific dataset.
     """
+    dataset_names = resolve_deprecated_option(dataset_names, dataset_name, "dataset-names", "dataset-name")
+
     if not json_output:
         console.header(f"Power BI — Refresh Datasets (group {group_id})")
 
