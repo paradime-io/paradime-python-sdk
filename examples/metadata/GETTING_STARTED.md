@@ -12,8 +12,8 @@ Install the Paradime Python SDK with metadata support:
 # Using pip
 pip install "paradime-io"
 
-# Using poetry
-poetry add "paradime-io"
+# Using uv
+uv add "paradime-io"
 ```
 
 ### 2. API Credentials

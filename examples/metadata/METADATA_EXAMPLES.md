@@ -169,11 +169,9 @@ Dataset discovery, documentation analysis, and lineage exploration.
 
 ### Prerequisites
 
-1. Install the Paradime Python SDK with metadata dependencies:
+1. Install the Paradime Python SDK:
 ```bash
-poetry add "paradime-io[metadata]"
-# or
-pip install "paradime-io[metadata]"
+pip install "paradime-io"
 ```
 
 2. Set up your Paradime API credentials:
@@ -205,9 +203,9 @@ python examples/metadata/quality_monitoring.py
 python examples/metadata/discovery_insights.py
 ```
 
-Or with poetry:
+Or with uv:
 ```bash
-poetry run python examples/metadata/performance_analysis.py
+uv run python examples/metadata/performance_analysis.py
 ```
 
 ### Configuration
@@ -300,7 +298,7 @@ for schedule in schedules:
 
 1. **Schedule Not Found**: Verify your schedule name exists in your Paradime workspace
 2. **Empty Results**: Ensure your dbt project has run recently and generated metadata
-3. **Missing Dependencies**: Install with `poetry add "paradime-io[metadata]"`
+3. **Missing Dependencies**: Install with `pip install "paradime-io"`
 
 ### Getting Help
 

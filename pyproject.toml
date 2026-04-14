@@ -1,63 +1,66 @@
-[tool.poetry]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
 name = "paradime-io"
 version = "5.0.0"
 description = "Paradime - Python SDK"
-authors = ["Bhuvan Singla <bhuvan@paradime.io>", "Maximilian Mitchell <max@paradime.io>"]
+authors = [
+    { name = "Bhuvan Singla", email = "bhuvan@paradime.io" },
+    { name = "Maximilian Mitchell", email = "max@paradime.io" },
+]
 readme = "README.md"
-packages = [
-	{ include = "paradime", from = "." },
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=1.10.14,<3.0.0",
+    "requests>=2.31.0,<3.0.0",
+    "click>=8.1.7,<9.0.0",
+    "croniter>=6.0.0,<7.0.0",
+    "pyyaml>=6.0.1,<7.0.0",
+    "python-dotenv>=1.0.1,<2.0.0",
+    "packaging>=22.0",
+    "msal>=1.31.0,<2.0.0",
+    "rich>=14.0.0,<15.0.0",
+    "dbt-artifacts-parser>=0.12.0,<0.13.0",
+    "duckdb>=1.0.0,<2.0.0",
+    "polars>=0.20.0,<0.21.0",
+    "pyarrow>=18.0.0,<19.0.0",
+    "numpy>=1.26.0",
+    "tenacity>=9.0.0,<10.0.0",
+    "boto3>=1.35.0,<2.0.0",
+    "google-cloud-bigquery-datatransfer>=3.15.0,<4.0.0",
+    "google-cloud-functions>=1.16.0,<2.0.0",
+    "google-cloud-run>=0.10.0,<0.11.0",
+    "google-cloud-dataflow-client>=0.8.0,<0.9.0",
+    "google-cloud-dataproc>=5.9.0,<6.0.0",
+    "google-cloud-datastream>=1.9.0,<2.0.0",
+    "google-auth>=2.29.0,<3.0.0",
 ]
 
-[tool.poetry.scripts]
-paradime = 'paradime.cli.cli:cli'
+[project.scripts]
+paradime = "paradime.cli.cli:cli"
 
-[tool.poetry.dependencies]
-python = ">=3.11"
-pydantic = ">=1.10.14,<3.0.0"
-requests = "^2.31.0"
-click = "^8.1.7"
-croniter = "^6.0.0"
-pyyaml = "^6.0.1"
-python-dotenv = "^1.0.1"
-packaging = ">=22.0"
-msal = "^1.31.0"
-rich = "^14.0.0"
-dbt-artifacts-parser = "^0.12.0"
-duckdb = "^1.0.0"
-polars = "^0.20.0"
-pyarrow = "^18.0.0"
-numpy = ">=1.26.0"
-tenacity = "^9.0.0"
-boto3 = "^1.35.0"
-google-cloud-bigquery-datatransfer = "^3.15.0"
-google-cloud-functions = "^1.16.0"
-google-cloud-run = "^0.10.0"
-google-cloud-dataflow-client = "^0.8.0"
-google-cloud-dataproc = "^5.9.0"
-google-cloud-datastream = "^1.9.0"
-google-auth = "^2.29.0"
+[dependency-groups]
+dev = [
+    "types-requests>=2.31.0,<3.0.0",
+    "types-protobuf>=5.26.0,<6.0.0",
+    "mypy>=1.8.0,<2.0.0",
+    "black>=24.2.0,<25.0.0",
+    "isort>=5.13.2,<6.0.0",
+    "ruff>=0.3.5,<0.4.0",
+    "flake8>=7.1.0,<8.0.0",
+]
 
-
-[tool.poetry.group.dev.dependencies]
-types-requests = "^2.31.0"
-types-protobuf = "^5.26.0"
-mypy = "^1.8.0"
-black = "^24.2.0"
-isort = "^5.13.2"
-ruff = "^0.3.5"
-flake8 = "^7.1.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
+[tool.hatch.build.targets.wheel]
+packages = ["paradime"]
 
 [tool.mypy]
 disallow_untyped_defs = true
 strict_optional = true
 show_error_codes = true
 plugins = ["pydantic.mypy"]
-exclude = ["tests"]
+exclude = ["tests", ".venv"]
 warn_redundant_casts = true
 warn_unused_ignores = false
 no_implicit_reexport = true
@@ -70,6 +73,11 @@ use_parentheses = true
 line_length = 100
 combine_as_imports = true
 src_paths = ["paradime"]
+skip_glob = [".venv/*"]
 
 [tool.black]
 line-length = 100
+extend-exclude = ".venv"
+
+[tool.ruff]
+exclude = [".venv"]
