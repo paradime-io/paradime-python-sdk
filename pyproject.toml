@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "paradime-io"
-version = "5.0.0"
+version = "5.1.0"
 description = "Paradime - Python SDK"
 authors = [
     { name = "Bhuvan Singla", email = "bhuvan@paradime.io" },
