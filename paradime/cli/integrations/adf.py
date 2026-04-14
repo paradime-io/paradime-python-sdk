@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import sys
 from typing import List
 
 import click
 
-from paradime.cli.utils import env_click_option
+from paradime.cli import console
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.azure_data_factory import list_adf_pipelines, trigger_adf_pipeline_runs
 
 
@@ -40,21 +43,22 @@ from paradime.core.scripts.azure_data_factory import list_adf_pipelines, trigger
 )
 @click.option(
     "--pipeline-names",
-    multiple=True,
-    help="The name(s) of the pipeline(s) you want to trigger",
+    type=COMMA_LIST,
+    help="Comma-separated pipeline name(s) to trigger",
     required=True,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     default=True,
     help="Wait for pipeline runs to complete before returning. Shows progress and final status.",
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for pipeline completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
     default=1440,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def adf_pipelines(
     tenant_id: str,
     client_id: str,
@@ -63,16 +67,15 @@ def adf_pipelines(
     resource_group: str,
     factory_name: str,
     pipeline_names: List[str],
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
+    json_output: bool,
 ) -> None:
     """
     Trigger runs for Azure Data Factory pipelines.
     """
-    click.echo(
-        f"Starting runs for {len(pipeline_names)} Azure Data Factory pipeline(s) "
-        f"in factory {factory_name}..."
-    )
+    if not json_output:
+        console.header(f"Azure Data Factory — {factory_name}")
 
     try:
         results = trigger_adf_pipeline_runs(
@@ -82,10 +85,19 @@ def adf_pipelines(
             subscription_id=subscription_id,
             resource_group=resource_group,
             factory_name=factory_name,
-            pipeline_names=list(pipeline_names),
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
+            pipeline_names=pipeline_names,
+            wait_for_completion=wait,
+            timeout_minutes=timeout,
         )
+
+        if json_output:
+            failed = [r for r in results if "FAILED" in r or "CANCELLED" in r or "CANCELLING" in r]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any runs failed or were cancelled
         failed_runs = [
@@ -94,11 +106,14 @@ def adf_pipelines(
             if "FAILED" in result or "CANCELLED" in result or "CANCELLING" in result
         ]
         if failed_runs:
+            console.error(f"{len(failed_runs)} pipeline run(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Azure Data Factory pipeline run failed: {str(e)}")
-        raise click.Abort()
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
+        console.error(f"Azure Data Factory pipeline run failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -132,6 +147,7 @@ def adf_pipelines(
     "ADF_FACTORY_NAME",
     help="Your Azure Data Factory name.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def adf_list_pipelines(
     tenant_id: str,
     client_id: str,
@@ -139,17 +155,22 @@ def adf_list_pipelines(
     subscription_id: str,
     resource_group: str,
     factory_name: str,
+    json_output: bool,
 ) -> None:
     """
     List all available pipelines in an Azure Data Factory.
     """
-    click.echo(f"Listing pipelines in Azure Data Factory {factory_name}...")
+    if not json_output:
+        console.info(f"Listing pipelines in Azure Data Factory {factory_name}…")
 
-    list_adf_pipelines(
+    result = list_adf_pipelines(
         tenant_id=tenant_id,
         client_id=client_id,
         client_secret=client_secret,
         subscription_id=subscription_id,
         resource_group=resource_group,
         factory_name=factory_name,
+        json_output=json_output,
     )
+    if json_output and result is not None:
+        console.json_out(result)

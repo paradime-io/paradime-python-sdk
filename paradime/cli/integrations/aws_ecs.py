@@ -7,23 +7,20 @@ import click
 
 from paradime.cli import console
 from paradime.cli.utils import COMMA_LIST, env_click_option
-from paradime.core.scripts.aws_sagemaker import (
-    list_sagemaker_pipelines,
-    trigger_sagemaker_pipelines,
-)
+from paradime.core.scripts.aws_ecs import list_ecs_task_definitions, trigger_ecs_tasks
 
 
 @click.command(context_settings=dict(max_content_width=160))
 @env_click_option(
     "aws-access-key-id",
     "AWS_ACCESS_KEY_ID",
-    help="AWS Access Key ID for authentication. Can also use AWS credential chain.",
+    help="AWS Access Key ID for authentication.",
     required=False,
 )
 @env_click_option(
     "aws-secret-access-key",
     "AWS_SECRET_ACCESS_KEY",
-    help="AWS Secret Access Key for authentication. Can also use AWS credential chain.",
+    help="AWS Secret Access Key for authentication.",
     required=False,
 )
 @env_click_option(
@@ -35,19 +32,47 @@ from paradime.core.scripts.aws_sagemaker import (
 @env_click_option(
     "aws-region",
     "AWS_REGION",
-    help="AWS region name (e.g., us-east-1, us-west-2). Defaults to default region from AWS config.",
+    help="AWS region name (e.g., us-east-1).",
     required=False,
 )
 @click.option(
-    "--pipeline-names",
-    type=COMMA_LIST,
-    help="Comma-separated SageMaker Pipeline name(s) to start",
+    "--cluster",
+    help="ECS cluster name or ARN.",
     required=True,
 )
 @click.option(
+    "--task-definitions",
+    type=COMMA_LIST,
+    help="Comma-separated task definition name(s) or ARN(s) to run",
+    required=True,
+)
+@click.option(
+    "--launch-type",
+    type=click.Choice(["FARGATE", "EC2"], case_sensitive=False),
+    help="Launch type for the task.",
+    default="FARGATE",
+)
+@click.option(
+    "--subnets",
+    type=COMMA_LIST,
+    help="Comma-separated subnet ID(s) for awsvpc network mode.",
+    required=False,
+)
+@click.option(
+    "--security-groups",
+    type=COMMA_LIST,
+    help="Comma-separated security group ID(s) for awsvpc network mode.",
+    required=False,
+)
+@click.option(
+    "--assign-public-ip/--no-assign-public-ip",
+    default=False,
+    help="Assign public IP to the task (Fargate only).",
+)
+@click.option(
     "--wait/--no-wait",
-    help="Wait for pipeline executions to complete before returning",
     default=True,
+    help="Wait for tasks to complete before returning",
 )
 @click.option(
     "--timeout",
@@ -56,18 +81,23 @@ from paradime.core.scripts.aws_sagemaker import (
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
-def aws_sagemaker_trigger(
+def aws_ecs_trigger(
     aws_access_key_id: Optional[str],
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
     aws_region: Optional[str],
-    pipeline_names: List[str],
+    cluster: str,
+    task_definitions: List[str],
+    launch_type: str,
+    subnets: Optional[List[str]],
+    security_groups: Optional[List[str]],
+    assign_public_ip: bool,
     wait: bool,
     timeout: int,
     json_output: bool,
 ) -> None:
     """
-    Trigger one or more AWS SageMaker Pipelines.
+    Run one or more AWS ECS tasks.
 
     AWS credentials are read from environment variables or AWS credential chain:
     - AWS_ACCESS_KEY_ID
@@ -76,24 +106,30 @@ def aws_sagemaker_trigger(
     - AWS_REGION
 
     Example:
-        paradime run aws-sagemaker-trigger --pipeline-names my-pipeline,another-pipeline
+        paradime run aws-ecs-trigger --cluster my-cluster --task-definitions my-task-def
+        paradime run aws-ecs-trigger --cluster my-cluster --task-definitions task1,task2 --subnets subnet-abc
     """
     if not json_output:
-        console.header("AWS SageMaker — Trigger Pipelines")
+        console.header("AWS ECS \u2014 Run Tasks")
 
     try:
-        results = trigger_sagemaker_pipelines(
-            pipeline_names=pipeline_names,
+        results = trigger_ecs_tasks(
+            cluster=cluster,
+            task_definitions=task_definitions,
+            launch_type=launch_type,
+            subnets=subnets,
+            security_groups=security_groups,
+            assign_public_ip=assign_public_ip,
+            wait=wait,
+            timeout_minutes=timeout,
             region_name=aws_region,
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             aws_session_token=aws_session_token,
-            wait_for_completion=wait,
-            timeout_minutes=timeout,
         )
 
         if json_output:
-            failed = [r for r in results if "FAILED" in r or "ERROR" in r]
+            failed = [r for r in results if r == "FAILED"]
             console.json_out(
                 {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
             )
@@ -101,30 +137,29 @@ def aws_sagemaker_trigger(
                 sys.exit(1)
             return
 
-        # Check if any pipeline executions failed
-        failed_pipelines = [result for result in results if "FAILED" in result or "ERROR" in result]
-        if failed_pipelines:
-            console.error(f"{len(failed_pipelines)} pipeline execution(s) failed.")
+        failed_tasks = [r for r in results if r == "FAILED"]
+        if failed_tasks:
+            console.error(f"{len(failed_tasks)} task(s) failed.")
             sys.exit(1)
 
     except Exception as e:
         if json_output:
             console.json_out({"error": str(e), "success": False})
             sys.exit(1)
-        console.error(f"SageMaker Pipeline trigger failed: {e}", exit_code=1)
+        console.error(f"ECS task run failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
 @env_click_option(
     "aws-access-key-id",
     "AWS_ACCESS_KEY_ID",
-    help="AWS Access Key ID for authentication. Can also use AWS credential chain.",
+    help="AWS Access Key ID for authentication.",
     required=False,
 )
 @env_click_option(
     "aws-secret-access-key",
     "AWS_SECRET_ACCESS_KEY",
-    help="AWS Secret Access Key for authentication. Can also use AWS credential chain.",
+    help="AWS Secret Access Key for authentication.",
     required=False,
 )
 @env_click_option(
@@ -136,11 +171,11 @@ def aws_sagemaker_trigger(
 @env_click_option(
     "aws-region",
     "AWS_REGION",
-    help="AWS region name (e.g., us-east-1, us-west-2). Defaults to default region from AWS config.",
+    help="AWS region name (e.g., us-east-1).",
     required=False,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
-def aws_sagemaker_list(
+def aws_ecs_list(
     aws_access_key_id: Optional[str],
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
@@ -148,7 +183,7 @@ def aws_sagemaker_list(
     json_output: bool,
 ) -> None:
     """
-    List all AWS SageMaker Pipelines with their status.
+    List active AWS ECS task definitions.
 
     AWS credentials are read from environment variables or AWS credential chain:
     - AWS_ACCESS_KEY_ID
@@ -157,13 +192,13 @@ def aws_sagemaker_list(
     - AWS_REGION
 
     Example:
-        paradime run aws-sagemaker-list
+        paradime run aws-ecs-list
     """
     if not json_output:
-        console.info("Listing SageMaker Pipelines…")
+        console.info("Listing ECS task definitions\u2026")
 
     try:
-        result = list_sagemaker_pipelines(
+        result = list_ecs_task_definitions(
             region_name=aws_region,
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
@@ -173,4 +208,4 @@ def aws_sagemaker_list(
         if json_output and result is not None:
             console.json_out(result)
     except Exception as e:
-        console.error(f"Failed to list SageMaker Pipelines: {e}", exit_code=1)
+        console.error(f"Failed to list ECS task definitions: {e}", exit_code=1)

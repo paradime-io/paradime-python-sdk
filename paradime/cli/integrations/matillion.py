@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import sys
 from typing import List
 
 import click
 
-from paradime.cli.utils import env_click_option
+from paradime.cli import console
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.matillion import (
     list_matillion_pipelines,
     list_matillion_projects,
@@ -28,14 +31,14 @@ from paradime.core.scripts.matillion import (
     help="Your Matillion OAuth client secret. Generate this in your Matillion account settings.",
 )
 @click.option(
-    "--project-name",
+    "--project-names",
     help="The Matillion project name",
     required=True,
 )
 @click.option(
     "--pipeline-names",
-    multiple=True,
-    help="The name(s) of the pipeline(s) you want to execute",
+    type=COMMA_LIST,
+    help="Comma-separated pipeline name(s) to execute",
     required=True,
 )
 @click.option(
@@ -44,53 +47,68 @@ from paradime.core.scripts.matillion import (
     required=True,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for pipeline executions to complete before returning",
     default=True,
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for execution completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
     default=1440,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def matillion_pipeline(
     base_url: str,
     client_id: str,
     client_secret: str,
-    project_name: str,
+    project_names: str,
     pipeline_names: List[str],
     environment: str,
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
+    json_output: bool,
 ) -> None:
     """
     Trigger execution for Matillion Data Productivity Cloud pipelines.
     """
-    click.echo(f"Starting execution for {len(pipeline_names)} Matillion pipeline(s)...")
+    if not json_output:
+        console.header("Matillion — Trigger Pipeline Executions")
 
     try:
         results = trigger_matillion_pipeline(
             base_url=base_url,
             client_id=client_id,
             client_secret=client_secret,
-            project_name=project_name,
-            pipeline_names=list(pipeline_names),
+            project_name=project_names,
+            pipeline_names=pipeline_names,
             environment=environment,
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
+            wait_for_completion=wait,
+            timeout_minutes=timeout,
         )
+
+        if json_output:
+            failed = [r for r in results if "FAILED" in r or "CANCELLED" in r]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any executions failed or were cancelled
         failed_executions = [
             result for result in results if "FAILED" in result or "CANCELLED" in result
         ]
         if failed_executions:
+            console.error(f"{len(failed_executions)} pipeline execution(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Matillion pipeline execution failed: {str(e)}")
-        raise click.Abort()
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
+        console.error(f"Matillion pipeline execution failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -119,25 +137,31 @@ def matillion_pipeline(
     help="The Matillion environment name to filter pipelines by",
     required=True,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def matillion_list_pipelines(
     base_url: str,
     client_id: str,
     client_secret: str,
     project_name: str,
     environment: str,
+    json_output: bool,
 ) -> None:
     """
     List all available Matillion Data Productivity Cloud published pipelines.
     """
-    click.echo(f"Listing Matillion pipelines for environment {environment}...")
+    if not json_output:
+        console.info(f"Listing Matillion pipelines for environment {environment}…")
 
-    list_matillion_pipelines(
+    result = list_matillion_pipelines(
         base_url=base_url,
         client_id=client_id,
         client_secret=client_secret,
         project_name=project_name,
         environment=environment,
+        json_output=json_output,
     )
+    if json_output and result is not None:
+        console.json_out(result)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -156,18 +180,24 @@ def matillion_list_pipelines(
     "MATILLION_CLIENT_SECRET",
     help="Your Matillion OAuth client secret. Generate this in your Matillion account settings.",
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def matillion_list_projects(
     base_url: str,
     client_id: str,
     client_secret: str,
+    json_output: bool,
 ) -> None:
     """
     List all available Matillion Data Productivity Cloud projects.
     """
-    click.echo("Listing all Matillion projects...")
+    if not json_output:
+        console.info("Listing all Matillion projects…")
 
-    list_matillion_projects(
+    result = list_matillion_projects(
         base_url=base_url,
         client_id=client_id,
         client_secret=client_secret,
+        json_output=json_output,
     )
+    if json_output and result is not None:
+        console.json_out(result)

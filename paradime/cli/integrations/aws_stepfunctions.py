@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import sys
-from typing import Optional
+from typing import List, Optional
 
 import click
 
-from paradime.cli.utils import env_click_option
+from paradime.cli import console
+from paradime.cli.utils import COMMA_LIST, env_click_option
 from paradime.core.scripts.aws_stepfunctions import (
     list_stepfunctions_state_machines,
     trigger_stepfunctions_executions,
@@ -37,8 +40,8 @@ from paradime.core.scripts.aws_stepfunctions import (
 )
 @click.option(
     "--state-machine-arns",
-    multiple=True,
-    help="The ARN(s) of the Step Functions state machine(s) to execute",
+    type=COMMA_LIST,
+    help="Comma-separated Step Functions state machine ARN(s) to execute",
     required=True,
 )
 @click.option(
@@ -48,25 +51,27 @@ from paradime.core.scripts.aws_stepfunctions import (
     required=False,
 )
 @click.option(
-    "--wait-for-completion/--no-wait-for-completion",
+    "--wait/--no-wait",
     help="Wait for executions to complete before returning",
     default=True,
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for execution completion (in minutes). Only used with --wait-for-completion.",
+    help="Maximum time to wait in minutes.",
     default=1440,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def aws_stepfunctions_trigger(
     aws_access_key_id: Optional[str],
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
     aws_region: Optional[str],
-    state_machine_arns: tuple,
+    state_machine_arns: List[str],
     input_data: Optional[str],
-    wait_for_completion: bool,
-    timeout_minutes: int,
+    wait: bool,
+    timeout: int,
+    json_output: bool,
 ) -> None:
     """
     Trigger one or more AWS Step Functions state machine executions.
@@ -79,11 +84,12 @@ def aws_stepfunctions_trigger(
 
     Example:
         paradime run aws-stepfunctions-trigger --state-machine-arns arn:aws:states:us-east-1:123456789012:stateMachine:MyStateMachine
-        paradime run aws-stepfunctions-trigger --state-machine-arns arn:... --input-data '{"key":"value"}'
+        paradime run aws-stepfunctions-trigger --state-machine-arns arn:...,arn:... --input-data '{"key":"value"}'
     """
     import json
 
-    click.echo(f"Starting {len(state_machine_arns)} Step Functions execution(s)...")
+    if not json_output:
+        console.header("AWS Step Functions — Trigger Executions")
 
     # Parse input data if provided
     input_dict = None
@@ -91,31 +97,42 @@ def aws_stepfunctions_trigger(
         try:
             input_dict = json.loads(input_data)
         except json.JSONDecodeError as e:
-            click.echo(f"❌ Invalid JSON input data: {str(e)}")
-            raise click.Abort()
+            console.error(f"Invalid JSON input data: {e}", exit_code=1)
 
     try:
         results = trigger_stepfunctions_executions(
-            state_machine_arns=list(state_machine_arns),
+            state_machine_arns=state_machine_arns,
             input_data=input_dict,
             region_name=aws_region,
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             aws_session_token=aws_session_token,
-            wait_for_completion=wait_for_completion,
-            timeout_minutes=timeout_minutes,
+            wait_for_completion=wait,
+            timeout_minutes=timeout,
         )
+
+        if json_output:
+            failed = [r for r in results if "FAILED" in r or "ERROR" in r]
+            console.json_out(
+                {"results": results, "failed_count": len(failed), "success": len(failed) == 0}
+            )
+            if failed:
+                sys.exit(1)
+            return
 
         # Check if any executions failed
         failed_executions = [
             result for result in results if "FAILED" in result or "ERROR" in result
         ]
         if failed_executions:
+            console.error(f"{len(failed_executions)} execution(s) failed.")
             sys.exit(1)
 
     except Exception as e:
-        click.echo(f"❌ Step Functions execution failed: {str(e)}")
-        raise click.Abort()
+        if json_output:
+            console.json_out({"error": str(e), "success": False})
+            sys.exit(1)
+        console.error(f"Step Functions execution failed: {e}", exit_code=1)
 
 
 @click.command(context_settings=dict(max_content_width=160))
@@ -143,11 +160,13 @@ def aws_stepfunctions_trigger(
     help="AWS region name (e.g., us-east-1, us-west-2). Defaults to default region from AWS config.",
     required=False,
 )
+@click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def aws_stepfunctions_list(
     aws_access_key_id: Optional[str],
     aws_secret_access_key: Optional[str],
     aws_session_token: Optional[str],
     aws_region: Optional[str],
+    json_output: bool,
 ) -> None:
     """
     List all AWS Step Functions state machines with their status.
@@ -161,15 +180,18 @@ def aws_stepfunctions_list(
     Example:
         paradime run aws-stepfunctions-list
     """
-    click.echo("Listing Step Functions state machines...")
+    if not json_output:
+        console.info("Listing Step Functions state machines…")
 
     try:
-        list_stepfunctions_state_machines(
+        result = list_stepfunctions_state_machines(
             region_name=aws_region,
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
             aws_session_token=aws_session_token,
+            json_output=json_output,
         )
+        if json_output and result is not None:
+            console.json_out(result)
     except Exception as e:
-        click.echo(f"❌ Failed to list Step Functions state machines: {str(e)}")
-        raise click.Abort()
+        console.error(f"Failed to list Step Functions state machines: {e}", exit_code=1)
