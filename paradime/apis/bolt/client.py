@@ -523,6 +523,7 @@ class BoltClient:
         schedule_name: str,
         artifact_path: str,
         command_index: Optional[int] = None,
+        exclude_failed_runs: bool = True,
         max_runs: int = 50,
     ) -> str:
         """
@@ -559,7 +560,7 @@ class BoltClient:
             # Find the artifact in this run
             for command in commands_to_look:
                 # Skip commands that did not complete successfully
-                if command.return_code != 0:
+                if command.return_code != 0 and exclude_failed_runs:
                     continue
 
                 # Find the artifact in this command
