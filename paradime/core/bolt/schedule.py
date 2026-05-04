@@ -25,7 +25,11 @@ class DeferredSchedule(ParadimeScheduleBase):
     enabled: bool
     deferred_schedule_name: Optional[str]
     deferred_manifest_schedule: Optional[str]
-    successful_run_only: Optional[bool] = True
+    # `successful_runs_only` is the canonical name used by the JSON schema and the
+    # UI. `successful_run_only` is kept for backwards compatibility with existing
+    # YAML files.
+    successful_runs_only: Optional[bool] = None
+    successful_run_only: Optional[bool] = None
 
     @root_validator()
     @classmethod
@@ -38,8 +42,14 @@ class DeferredSchedule(ParadimeScheduleBase):
             raise ValueError("Missing deferred_schedule_name")
         values["deferred_schedule_name"] = deferred_schedule_name
 
-        # successful_run_only should default to true if not set
-        values["successful_run_only"] = bool(values.get("successful_run_only", True))
+        # accept either spelling; prefer the plural canonical form. Default True.
+        plural = values.get("successful_runs_only")
+        singular = values.get("successful_run_only")
+        resolved = plural if plural is not None else singular
+        if resolved is None:
+            resolved = True
+        values["successful_runs_only"] = bool(resolved)
+        values["successful_run_only"] = bool(resolved)
         return values
 
 
@@ -99,6 +109,70 @@ class Notifications(BaseModel):
     microsoft_teams: Optional[List[NotificationItem]]
 
 
+class IntegrationBase(BaseModel):
+    """Base for integration items.
+
+    Validation is intentionally permissive: enum-like fields (state, severity,
+    mode, visibility, urgency, ...) are accepted regardless of casing because
+    the UI and the backend tolerate both, and the goal of `verify` is to catch
+    typos, not to enforce a specific spelling.
+    """
+
+    class Config:
+        extra = Extra.allow
+
+
+class IncidentIOIntegration(IntegrationBase):
+    status_id: Optional[str] = None
+    status: Optional[str] = None
+    type_id: Optional[str] = None
+    type: Optional[str] = None
+    mode: Optional[str] = None
+    severity_id: Optional[str] = None
+    severity: Optional[str] = None
+    visibility: Optional[str] = None
+
+
+class PagerDutyIntegration(IntegrationBase):
+    from_email: Optional[str] = None
+    service_id: Optional[str] = None
+    service_name: Optional[str] = None
+    priority_id: Optional[str] = None
+    priority_name: Optional[str] = None
+    urgency: Optional[str] = None
+    incident_type_name: Optional[str] = None
+    incident_type_display_name: Optional[str] = None
+    escalation_policy_id: Optional[str] = None
+    escalation_policy_name: Optional[str] = None
+    assignee_ids: Optional[List[str]] = None
+    assignee_names: Optional[List[str]] = None
+
+
+class DatadogIntegration(IntegrationBase):
+    severity: Optional[str] = None
+    severity_name: Optional[str] = None
+    state: Optional[str] = None
+    state_name: Optional[str] = None
+    customer_impacted: Optional[bool] = None
+    commander_user_id: Optional[str] = None
+    commander_user_name: Optional[str] = None
+    notification_handles: Optional[List[str]] = None
+
+
+class NewRelicIntegration(IntegrationBase):
+    environment: Optional[str] = None
+
+
+class Integrations(BaseModel):
+    incident_io: Optional[List[IncidentIOIntegration]] = None
+    pagerduty: Optional[List[PagerDutyIntegration]] = None
+    datadog: Optional[List[DatadogIntegration]] = None
+    new_relic: Optional[List[NewRelicIntegration]] = None
+
+    class Config:
+        extra = Extra.allow
+
+
 class ParadimeSchedule(ParadimeScheduleBase):
     name: str
     schedule: str
@@ -118,6 +192,7 @@ class ParadimeSchedule(ParadimeScheduleBase):
     email_on: List[str] = [""]
 
     notifications: Optional[Notifications] = None
+    integrations: Optional[Integrations] = None
     sla_minutes: Optional[int] = None
 
     turbo_ci: Optional[DeferredSchedule] = None
@@ -156,15 +231,10 @@ def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
     if len(schedule_names) > len(set(schedule_names)):
         return "Schedule names are not unique."
 
-    # check only one turbo ci config
-    found_turbo_ci = False
+    # check turbo ci / deferred references resolve to existing schedules
+    # (multiple turbo CI configs are supported)
     for schedule in schedules.schedules:
         if schedule.turbo_ci and schedule.turbo_ci.enabled:
-            if found_turbo_ci:
-                return "There should only be one Turbo CI config."
-            else:
-                found_turbo_ci = True
-
             if schedule.turbo_ci.deferred_schedule_name not in schedule_names:
                 return f"Turbo CI schedule error: '{schedule.turbo_ci.deferred_schedule_name}' does not refer to another schedule name"
 
