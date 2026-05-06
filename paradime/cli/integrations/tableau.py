@@ -62,7 +62,8 @@ from paradime.core.scripts.tableau import (
 @click.option(
     "--wait/--no-wait",
     default=True,
-    help="Wait for the refresh job to complete before returning. Shows progress and final status.",
+    envvar="TABLEAU_REFRESH_WAIT",
+    help="Wait for the refresh job to complete before returning. Shows progress and final status.\n\n [env: TABLEAU_REFRESH_WAIT]",
 )
 @env_click_option(
     "timeout",
