@@ -3,12 +3,226 @@ from __future__ import annotations
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Optional
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Union
 
 import requests
 
 from paradime.cli import console
 from paradime.core.scripts.utils import handle_http_error
+
+
+@dataclass(frozen=True)
+class TableauPathName:
+    """Fully-qualified Tableau workbook or data source identifier.
+
+    Use this when a plain name is ambiguous (e.g. multiple workbooks with the
+    same leaf name in different projects) and a UUID is impractical.
+
+    Args:
+        project_path: Slash-separated project hierarchy. Leading and trailing
+            slashes are tolerated (e.g. ``"Explore/Samples/TestNested/Nested2"``
+            or ``"/Explore/Samples/"``). An empty string targets the
+            top-level "Default" project tier.
+        name: Exact workbook / data source name (the leaf).
+
+    Example:
+        TableauPathName(project_path="Explore/Samples", name="World Indicators")
+    """
+
+    project_path: str
+    name: str
+
+
+WorkbookIdentifier = Union[str, TableauPathName]
+DatasourceIdentifier = Union[str, TableauPathName]
+
+
+def _normalise_project_path(path: str) -> str:
+    """Strip leading/trailing whitespace and slashes from a project path."""
+    return path.strip().strip("/")
+
+
+class _TableauProjectTree:
+    """Lazy resolver mapping a slash-separated project path to a project LUID.
+
+    Tableau's REST workbook/datasource filter ``projectName:eq:<leaf>`` only
+    matches the leaf name, so projects with the same leaf in different parent
+    chains are indistinguishable without walking the project tree. This class
+    fetches every project once (paginated), then resolves a path by matching
+    the full chain of parent names.
+
+    The instance is intended to be constructed once per refresh invocation and
+    shared across all path-based lookups for that invocation.
+    """
+
+    def __init__(
+        self,
+        *,
+        host: str,
+        auth_token: str,
+        site_id: str,
+        api_version: str,
+    ) -> None:
+        self._host = host
+        self._auth_token = auth_token
+        self._site_id = site_id
+        self._api_version = api_version
+        self._projects_by_id: Optional[Dict[str, dict]] = None
+        self._segments_by_id: Dict[str, List[str]] = {}
+        self._path_cache: Dict[str, str] = {}
+
+    def resolve(self, project_path: str) -> str:
+        """Return the LUID of the project at the given path.
+
+        Raises:
+            KeyError: No project matches the path.
+            ValueError: The path is ambiguous (matches more than one project).
+        """
+        normalised = _normalise_project_path(project_path)
+        if normalised in self._path_cache:
+            return self._path_cache[normalised]
+
+        self._ensure_loaded()
+        target_segments = normalised.split("/") if normalised else []
+
+        candidates = [
+            luid
+            for luid in (self._projects_by_id or {})
+            if self._segments_for(luid) == target_segments
+        ]
+
+        if not candidates:
+            raise KeyError(
+                f"Tableau project path not found: {project_path!r}. "
+                f"Verify the path matches the Tableau project hierarchy exactly."
+            )
+        if len(candidates) > 1:
+            raise ValueError(
+                f"Tableau project path {project_path!r} is ambiguous "
+                f"(matches {len(candidates)} projects). Please report this bug."
+            )
+
+        self._path_cache[normalised] = candidates[0]
+        return candidates[0]
+
+    def _segments_for(self, luid: str) -> List[str]:
+        """Return the project's path as a list of segments from root to leaf."""
+        if luid in self._segments_by_id:
+            return self._segments_by_id[luid]
+
+        chain: List[str] = []
+        current: Optional[str] = luid
+        guard = 0
+        while current is not None:
+            project = (self._projects_by_id or {}).get(current)
+            if project is None:
+                break
+            chain.append(project.get("name", ""))
+            current = project.get("parentProjectId") or None
+            guard += 1
+            if guard > 1024:
+                # Defensive: should never happen unless Tableau returns a cycle.
+                break
+        chain.reverse()
+        self._segments_by_id[luid] = chain
+        return chain
+
+    def _ensure_loaded(self) -> None:
+        if self._projects_by_id is not None:
+            return
+
+        self._projects_by_id = {}
+        page_number = 1
+        while True:
+            response = requests.get(
+                f"{self._host}/api/{self._api_version}/sites/{self._site_id}/projects",
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Tableau-Auth": self._auth_token,
+                },
+                params={"pageSize": 1000, "pageNumber": page_number},
+            )
+            handle_http_error(response, "Error listing Tableau projects:")
+
+            payload = response.json()
+            project_block = payload.get("projects", {}) or {}
+            page = project_block.get("project", []) or []
+            if isinstance(page, dict):
+                page = [page]
+
+            for project in page:
+                luid = project.get("id")
+                if luid:
+                    self._projects_by_id[luid] = project
+
+            try:
+                total_available = int(payload.get("pagination", {}).get("totalAvailable", 0))
+            except (TypeError, ValueError):
+                total_available = 0
+
+            if not page or len(self._projects_by_id) >= total_available:
+                break
+            page_number += 1
+
+
+def _find_resource_in_project(
+    *,
+    host: str,
+    auth_token: str,
+    site_id: str,
+    api_version: str,
+    project_luid: str,
+    resource_name: str,
+    resource_kind: str,  # "workbooks" or "datasources"
+) -> str:
+    """Look up a workbook / datasource UUID by name, scoped to a single project.
+
+    Tableau enforces unique workbook (and datasource) names within a project,
+    so post-filtering a name match by ``project.id`` yields at most one hit.
+    """
+    if resource_kind not in ("workbooks", "datasources"):
+        raise ValueError(f"Unsupported resource_kind: {resource_kind!r}")
+
+    response = requests.get(
+        f"{host}/api/{api_version}/sites/{site_id}/{resource_kind}",
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Tableau-Auth": auth_token,
+        },
+        params={"filter": f"name:eq:{resource_name}"},
+    )
+    handle_http_error(
+        response,
+        f"Error searching for {resource_kind[:-1]} by name '{resource_name}':",
+    )
+
+    payload = response.json()
+    container = payload.get(resource_kind, {}) or {}
+    items = container.get(resource_kind[:-1], []) or []
+    if isinstance(items, dict):
+        items = [items]
+
+    matches = [
+        item
+        for item in items
+        if isinstance(item.get("project"), dict) and item["project"].get("id") == project_luid
+    ]
+
+    if not matches:
+        raise Exception(
+            f"No {resource_kind[:-1]} named {resource_name!r} found in the resolved "
+            f"Tableau project (LUID: {project_luid}). Verify the project path and name."
+        )
+    if len(matches) > 1:
+        # Tableau enforces uniqueness within a project; this should be unreachable.
+        raise Exception(
+            f"Multiple {resource_kind} named {resource_name!r} in the same project — "
+            f"please report this."
+        )
+    return matches[0]["id"]
 
 
 def trigger_tableau_refresh(
@@ -17,7 +231,7 @@ def trigger_tableau_refresh(
     personal_access_token_name: str,
     personal_access_token_secret: str,
     site_name: str,
-    workbook_names: List[str],  # Can now be names OR UUIDs
+    workbook_names: List[WorkbookIdentifier],  # str (name or UUID) or TableauPathName
     api_version: str,
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
@@ -37,12 +251,30 @@ def trigger_tableau_refresh(
     # Extract token to use for subsequent calls
     auth_token: str = auth_response.json()["credentials"]["token"]
     site_id: str = auth_response.json()["credentials"]["site"]["id"]
+
+    # Build a single project tree if any path-based identifiers are supplied,
+    # so the /projects fetch is amortised across all workbooks in this call.
+    has_path_ids = any(isinstance(w, TableauPathName) for w in workbook_names)
+    project_tree: Optional[_TableauProjectTree] = (
+        _TableauProjectTree(
+            host=host,
+            auth_token=auth_token,
+            site_id=site_id,
+            api_version=api_version,
+        )
+        if has_path_ids
+        else None
+    )
+
+    # Deduplicate while preserving identifier kind (TableauPathName is hashable).
+    unique_workbooks = list({w: None for w in workbook_names}.keys())
+
     # call refresh for the workbooks async
     futures = []
     results = []
     with ThreadPoolExecutor() as executor:
-        for workbook_name in set(workbook_names):
-            console.debug(f"Refreshing Tableau workbook: {workbook_name}")
+        for workbook_name in unique_workbooks:
+            console.debug(f"Refreshing Tableau workbook: {_describe_identifier(workbook_name)}")
             futures.append(
                 (
                     workbook_name,
@@ -53,6 +285,7 @@ def trigger_tableau_refresh(
                         site_id=site_id,
                         api_version=api_version,
                         workbook_name=workbook_name,
+                        project_tree=project_tree,
                         wait_for_completion=wait_for_completion,
                         timeout_minutes=timeout_minutes,
                     ),
@@ -63,8 +296,19 @@ def trigger_tableau_refresh(
             future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
             response_txt = future.result(timeout=future_timeout)
             results.append(response_txt)
-            console.debug(f"Refreshed Tableau workbook: {workbook_name} - {response_txt}")
+            console.debug(
+                f"Refreshed Tableau workbook: "
+                f"{_describe_identifier(workbook_name)} - {response_txt}"
+            )
     return results
+
+
+def _describe_identifier(identifier: Union[str, TableauPathName]) -> str:
+    """Render an identifier for log messages."""
+    if isinstance(identifier, TableauPathName):
+        path = _normalise_project_path(identifier.project_path)
+        return f"{path}/{identifier.name}" if path else identifier.name
+    return identifier
 
 
 def trigger_workbook_refresh(
@@ -73,10 +317,46 @@ def trigger_workbook_refresh(
     auth_token: str,
     site_id: str,
     api_version: str,
-    workbook_name: str,  # Can be name OR UUID
+    workbook_name: WorkbookIdentifier,  # str (name or UUID) or TableauPathName
+    project_tree: Optional[_TableauProjectTree] = None,
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
 ) -> str:
+    # Path+name dispatch: resolve the project, then look up the workbook by
+    # name scoped to that project's LUID. This avoids the leaf-collision
+    # problem that motivated the feature.
+    workbook_uuid: Optional[str] = None
+    if isinstance(workbook_name, TableauPathName):
+        if project_tree is None:
+            project_tree = _TableauProjectTree(
+                host=host,
+                auth_token=auth_token,
+                site_id=site_id,
+                api_version=api_version,
+            )
+        display_name = _describe_identifier(workbook_name)
+        console.debug(f"Resolving Tableau workbook by path: {display_name}")
+        project_luid = project_tree.resolve(workbook_name.project_path)
+        workbook_uuid = _find_resource_in_project(
+            host=host,
+            auth_token=auth_token,
+            site_id=site_id,
+            api_version=api_version,
+            project_luid=project_luid,
+            resource_name=workbook_name.name,
+            resource_kind="workbooks",
+        )
+        return _refresh_workbook(
+            host=host,
+            auth_token=auth_token,
+            site_id=site_id,
+            api_version=api_version,
+            workbook_uuid=workbook_uuid,
+            display_name=display_name,
+            wait_for_completion=wait_for_completion,
+            timeout_minutes=timeout_minutes,
+        )
+
     workbook_uuid = None
 
     def _is_uuid_format(value: str) -> bool:
@@ -186,7 +466,29 @@ def trigger_workbook_refresh(
             f"Could not find workbook with name or UUID '{workbook_name}'. Please check that the workbook exists and you have permission to access it."
         )
 
-    # Refresh the workbook
+    return _refresh_workbook(
+        host=host,
+        auth_token=auth_token,
+        site_id=site_id,
+        api_version=api_version,
+        workbook_uuid=workbook_uuid,
+        display_name=workbook_name,
+        wait_for_completion=wait_for_completion,
+        timeout_minutes=timeout_minutes,
+    )
+
+
+def _refresh_workbook(
+    *,
+    host: str,
+    auth_token: str,
+    site_id: str,
+    api_version: str,
+    workbook_uuid: str,
+    display_name: str,
+    wait_for_completion: bool,
+    timeout_minutes: int,
+) -> str:
     refresh_trigger = requests.post(
         f"{host}/api/{api_version}/sites/{site_id}/workbooks/{workbook_uuid}/refresh",
         json={},
@@ -198,23 +500,22 @@ def trigger_workbook_refresh(
     )
     handle_http_error(
         refresh_trigger,
-        f"Error triggering refresh for workbook '{workbook_name}' (UUID: {workbook_uuid}):",
+        f"Error triggering refresh for workbook '{display_name}' (UUID: {workbook_uuid}):",
     )
 
     if not wait_for_completion:
         return refresh_trigger.text
 
-    # Extract job ID from response to monitor completion
     job_id = _extract_job_id_from_response(refresh_trigger.text)
     if not job_id:
         console.debug(
-            f"Could not extract job ID from refresh response for workbook '{workbook_name}'. Cannot monitor completion."
+            f"Could not extract job ID from refresh response for workbook '{display_name}'. "
+            f"Cannot monitor completion."
         )
         return refresh_trigger.text
 
-    console.debug(f"Monitoring refresh job {job_id} for workbook '{workbook_name}'...")
+    console.debug(f"Monitoring refresh job {job_id} for workbook '{display_name}'...")
 
-    # Wait for job completion
     job_status = _wait_for_job_completion(
         host=host,
         auth_token=auth_token,
@@ -222,7 +523,7 @@ def trigger_workbook_refresh(
         api_version=api_version,
         job_id=job_id,
         resource_type="Workbook",
-        resource_name=workbook_name,
+        resource_name=display_name,
         timeout_minutes=timeout_minutes,
     )
 
@@ -389,7 +690,7 @@ def trigger_tableau_datasource_refresh(
     personal_access_token_name: str,
     personal_access_token_secret: str,
     site_name: str,
-    datasource_names: List[str],  # Can now be names OR UUIDs
+    datasource_names: List[DatasourceIdentifier],  # str (name or UUID) or TableauPathName
     api_version: str,
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
@@ -409,12 +710,29 @@ def trigger_tableau_datasource_refresh(
     # Extract token to use for subsequent calls
     auth_token: str = auth_response.json()["credentials"]["token"]
     site_id: str = auth_response.json()["credentials"]["site"]["id"]
+
+    has_path_ids = any(isinstance(d, TableauPathName) for d in datasource_names)
+    project_tree: Optional[_TableauProjectTree] = (
+        _TableauProjectTree(
+            host=host,
+            auth_token=auth_token,
+            site_id=site_id,
+            api_version=api_version,
+        )
+        if has_path_ids
+        else None
+    )
+
+    unique_datasources = list({d: None for d in datasource_names}.keys())
+
     # call refresh for the datasources async
     futures = []
     results = []
     with ThreadPoolExecutor() as executor:
-        for datasource_name in set(datasource_names):
-            console.debug(f"Refreshing Tableau data source: {datasource_name}")
+        for datasource_name in unique_datasources:
+            console.debug(
+                f"Refreshing Tableau data source: {_describe_identifier(datasource_name)}"
+            )
             futures.append(
                 (
                     datasource_name,
@@ -425,6 +743,7 @@ def trigger_tableau_datasource_refresh(
                         site_id=site_id,
                         api_version=api_version,
                         datasource_name=datasource_name,
+                        project_tree=project_tree,
                         wait_for_completion=wait_for_completion,
                         timeout_minutes=timeout_minutes,
                     ),
@@ -435,7 +754,10 @@ def trigger_tableau_datasource_refresh(
             future_timeout = (timeout_minutes * 60 + 120) if wait_for_completion else 120
             response_txt = future.result(timeout=future_timeout)
             results.append(response_txt)
-            console.debug(f"Refreshed Tableau data source: {datasource_name} - {response_txt}")
+            console.debug(
+                f"Refreshed Tableau data source: "
+                f"{_describe_identifier(datasource_name)} - {response_txt}"
+            )
     return results
 
 
@@ -445,10 +767,43 @@ def trigger_datasource_refresh(
     auth_token: str,
     site_id: str,
     api_version: str,
-    datasource_name: str,  # Can be name OR UUID
+    datasource_name: DatasourceIdentifier,  # str (name or UUID) or TableauPathName
+    project_tree: Optional[_TableauProjectTree] = None,
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
 ) -> str:
+    datasource_uuid: Optional[str] = None
+    if isinstance(datasource_name, TableauPathName):
+        if project_tree is None:
+            project_tree = _TableauProjectTree(
+                host=host,
+                auth_token=auth_token,
+                site_id=site_id,
+                api_version=api_version,
+            )
+        display_name = _describe_identifier(datasource_name)
+        console.debug(f"Resolving Tableau data source by path: {display_name}")
+        project_luid = project_tree.resolve(datasource_name.project_path)
+        datasource_uuid = _find_resource_in_project(
+            host=host,
+            auth_token=auth_token,
+            site_id=site_id,
+            api_version=api_version,
+            project_luid=project_luid,
+            resource_name=datasource_name.name,
+            resource_kind="datasources",
+        )
+        return _refresh_datasource(
+            host=host,
+            auth_token=auth_token,
+            site_id=site_id,
+            api_version=api_version,
+            datasource_uuid=datasource_uuid,
+            display_name=display_name,
+            wait_for_completion=wait_for_completion,
+            timeout_minutes=timeout_minutes,
+        )
+
     datasource_uuid = None
 
     def _is_uuid_format(value: str) -> bool:
@@ -568,7 +923,29 @@ def trigger_datasource_refresh(
             f"Could not find data source with name or UUID '{datasource_name}'. Please check that the data source exists and you have permission to access it."
         )
 
-    # Refresh the data source
+    return _refresh_datasource(
+        host=host,
+        auth_token=auth_token,
+        site_id=site_id,
+        api_version=api_version,
+        datasource_uuid=datasource_uuid,
+        display_name=datasource_name,
+        wait_for_completion=wait_for_completion,
+        timeout_minutes=timeout_minutes,
+    )
+
+
+def _refresh_datasource(
+    *,
+    host: str,
+    auth_token: str,
+    site_id: str,
+    api_version: str,
+    datasource_uuid: str,
+    display_name: str,
+    wait_for_completion: bool,
+    timeout_minutes: int,
+) -> str:
     refresh_trigger = requests.post(
         f"{host}/api/{api_version}/sites/{site_id}/datasources/{datasource_uuid}/refresh",
         json={},
@@ -580,23 +957,22 @@ def trigger_datasource_refresh(
     )
     handle_http_error(
         refresh_trigger,
-        f"Error triggering refresh for data source '{datasource_name}' (UUID: {datasource_uuid}):",
+        f"Error triggering refresh for data source '{display_name}' (UUID: {datasource_uuid}):",
     )
 
     if not wait_for_completion:
         return refresh_trigger.text
 
-    # Extract job ID from response to monitor completion
     job_id = _extract_job_id_from_response(refresh_trigger.text)
     if not job_id:
         console.debug(
-            f"Could not extract job ID from refresh response for data source '{datasource_name}'. Cannot monitor completion."
+            f"Could not extract job ID from refresh response for data source '{display_name}'. "
+            f"Cannot monitor completion."
         )
         return refresh_trigger.text
 
-    console.debug(f"Monitoring refresh job {job_id} for data source '{datasource_name}'...")
+    console.debug(f"Monitoring refresh job {job_id} for data source '{display_name}'...")
 
-    # Wait for job completion
     job_status = _wait_for_job_completion(
         host=host,
         auth_token=auth_token,
@@ -604,7 +980,7 @@ def trigger_datasource_refresh(
         api_version=api_version,
         job_id=job_id,
         resource_type="Data source",
-        resource_name=datasource_name,
+        resource_name=display_name,
         timeout_minutes=timeout_minutes,
     )
 
