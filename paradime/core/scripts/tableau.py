@@ -325,6 +325,7 @@ def trigger_workbook_refresh(
     # Path+name dispatch: resolve the project, then look up the workbook by
     # name scoped to that project's LUID. This avoids the leaf-collision
     # problem that motivated the feature.
+    workbook_uuid: Optional[str] = None
     if isinstance(workbook_name, TableauPathName):
         if project_tree is None:
             project_tree = _TableauProjectTree(
@@ -771,6 +772,7 @@ def trigger_datasource_refresh(
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
 ) -> str:
+    datasource_uuid: Optional[str] = None
     if isinstance(datasource_name, TableauPathName):
         if project_tree is None:
             project_tree = _TableauProjectTree(
