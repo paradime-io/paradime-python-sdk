@@ -149,9 +149,9 @@ class DinoaiAgentsClient:
             }
         """
 
-        response = self.client._call_gql(
-            query, {"id": agent_session_id, "message": message}
-        )["sendDinoaiAgentMessage"]
+        response = self.client._call_gql(query, {"id": agent_session_id, "message": message})[
+            "sendDinoaiAgentMessage"
+        ]
 
         return DinoaiAgentTriggerResult(
             ok=response["ok"],
@@ -209,9 +209,7 @@ class DinoaiAgentsClient:
 
             if run.status == DinoaiAgentRunStatus.FAILED:
                 last_content = run.messages[-1].content if run.messages else "no messages"
-                error_message = (
-                    f"[ERROR] DinoAI agent run failed. Last message: {last_content}"
-                )
+                error_message = f"[ERROR] DinoAI agent run failed. Last message: {last_content}"
                 logger.info(error_message)
                 raise DinoaiAgentRunFailedException(error_message)
 

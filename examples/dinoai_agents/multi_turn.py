@@ -8,6 +8,7 @@ Flow:
   4. Send a follow-up message.
   5. Wait for the agent to finish again, then print the new messages.
 """
+
 import os
 import time
 
@@ -26,6 +27,7 @@ POLL_INTERVAL = 5  # seconds
 
 
 # ── Helper: poll until the agent finishes, streaming new messages ─────────────
+
 
 def wait_for_turn(session_id: str, seen: int = 0) -> tuple:
     """
