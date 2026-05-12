@@ -2,6 +2,7 @@ from paradime.apis.audit_log.client import AuditLogClient
 from paradime.apis.bolt.client import BoltClient
 from paradime.apis.catalog.client import CatalogClient
 from paradime.apis.custom_integration.client import CustomIntegrationClient
+from paradime.apis.dinoai_agents.client import DinoaiAgentsClient
 from paradime.apis.lineage_diff.client import LineageDiffClient
 from paradime.apis.metadata.client import MetadataClient
 from paradime.apis.users.client import UsersClient
@@ -18,6 +19,7 @@ class Paradime(APIClient):
         bolt (BoltClient): The bolt API client.
         catalog (CatalogClient): The catalog API client.
         custom_integration (CustomIntegrationClient): The custom integration API client.
+        dinoai_agents (DinoaiAgentsClient): The DinoAI programmable agents API client.
         lineage_diff (LineageDiffClient): The lineage diff API client.
         metadata (MetadataClient): The metadata API client.
         users (UsersClient): The users API client.
@@ -33,6 +35,7 @@ class Paradime(APIClient):
     bolt: BoltClient
     catalog: CatalogClient
     custom_integration: CustomIntegrationClient
+    dinoai_agents: DinoaiAgentsClient
     lineage_diff: LineageDiffClient
     metadata: MetadataClient
     users: UsersClient
@@ -45,6 +48,7 @@ class Paradime(APIClient):
         self.bolt = BoltClient(client=self)
         self.catalog = CatalogClient(client=self)
         self.custom_integration = CustomIntegrationClient(client=self)
+        self.dinoai_agents = DinoaiAgentsClient(client=self)
         self.lineage_diff = LineageDiffClient(client=self)
         self.metadata = MetadataClient(bolt_client=self.bolt)
         self.users = UsersClient(client=self)
