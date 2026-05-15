@@ -517,6 +517,63 @@ class BoltClient:
 
         self.client._call_gql(query=query, variables={"runId": int(run_id)})
 
+    def retry_run(self, run_id: int) -> int:
+        """
+        Retries a failed Bolt run by re-running only the failed commands.
+
+        The first failed dbt command is substituted with `dbt retry` when supported,
+        re-running just the failed models. Infrastructure commands (git clone, dbt deps)
+        are skipped.
+
+        Args:
+            run_id (int): The ID of the failed run to retry.
+
+        Returns:
+            int: The ID of the newly created retry run.
+        """
+
+        query = """
+            mutation RetryBoltRun($scheduleRunId: Int!) {
+                retryBoltRun(scheduleRunId: $scheduleRunId) {
+                    runId
+                }
+            }
+        """
+
+        response_json = self.client._call_gql(
+            query=query, variables={"scheduleRunId": int(run_id)}
+        )["retryBoltRun"]
+
+        return response_json["runId"]
+
+    def retry_run_all(self, run_id: int) -> int:
+        """
+        Retries a Bolt run by re-running ALL original commands.
+
+        Every command from the original run is re-executed verbatim, except
+        infrastructure commands (git clone, dbt deps).
+
+        Args:
+            run_id (int): The ID of the run to retry.
+
+        Returns:
+            int: The ID of the newly created retry run.
+        """
+
+        query = """
+            mutation RetryAllBoltRun($scheduleRunId: Int!) {
+                retryAllBoltRun(scheduleRunId: $scheduleRunId) {
+                    runId
+                }
+            }
+        """
+
+        response_json = self.client._call_gql(
+            query=query, variables={"scheduleRunId": int(run_id)}
+        )["retryAllBoltRun"]
+
+        return response_json["runId"]
+
     def get_latest_artifact_url(
         self,
         *,

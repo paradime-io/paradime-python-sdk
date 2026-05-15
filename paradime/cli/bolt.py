@@ -126,6 +126,50 @@ def run(
 
 @click.command()
 @click.option(
+    "--all",
+    "retry_all",
+    is_flag=True,
+    help="Retry ALL commands from the original run (default: failed commands only).",
+)
+@click.option("--wait", help="Wait for the retry run to finish", is_flag=True)
+@click.option("--json", help="JSON formatted response", is_flag=True)
+@click.argument("run_id", type=int)
+def retry(retry_all: bool, wait: bool, json: bool, run_id: int) -> None:
+    """
+    Retry a failed Paradime Bolt run.
+    """
+    if not json:
+        print_version()
+
+    client = get_cli_client_or_exit()
+    try:
+        new_run_id = (
+            client.bolt.retry_run_all(run_id) if retry_all else client.bolt.retry_run(run_id)
+        )
+    except ParadimeAPIException as e:
+        print_error_table(f"Failed to retry run: {e}", is_json=json)
+        sys.exit(1)
+
+    print_run_started(new_run_id, json)
+
+    if wait:
+        while True:
+            status = client.bolt.get_run_status(new_run_id)
+            if not status:
+                print_error_table("Unable to fetch status from bolt.", is_json=json)
+                sys.exit(1)
+
+            print_run_status(status.value, json)
+            if status is not BoltRunState.RUNNING:
+                break
+            time.sleep(WAIT_SLEEP)
+
+        if status is not BoltRunState.SUCCESS:
+            sys.exit(1)
+
+
+@click.command()
+@click.option(
     "--path",
     help="Path to paradime_schedules.yml file.",
     show_default=True,
@@ -211,6 +255,7 @@ def bolt() -> None:
 
 # bolt
 bolt.add_command(run)
+bolt.add_command(retry)
 bolt.add_command(schedule)
 bolt.add_command(verify)
 bolt.add_command(artifact)
