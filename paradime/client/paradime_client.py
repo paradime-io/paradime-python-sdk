@@ -8,6 +8,7 @@ from paradime.apis.metadata.client import MetadataClient
 from paradime.apis.users.client import UsersClient
 from paradime.apis.workspaces.client import WorkspacesClient
 from paradime.client.api_client import APIClient
+from paradime.version_check import check_for_new_version
 
 
 class Paradime(APIClient):
@@ -43,6 +44,8 @@ class Paradime(APIClient):
 
     def __init__(self, *, api_key: str, api_secret: str, api_endpoint: str):
         super().__init__(api_key=api_key, api_secret=api_secret, api_endpoint=api_endpoint)
+
+        check_for_new_version()
 
         self.audit_log = AuditLogClient(client=self)
         self.bolt = BoltClient(client=self)
