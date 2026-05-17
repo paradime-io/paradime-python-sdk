@@ -1,4 +1,5 @@
-from typing import List, Optional
+import time
+from typing import Iterator, List, Optional
 
 import requests
 
@@ -9,7 +10,10 @@ from paradime.apis.bolt.exception import (
 from paradime.apis.bolt.types import (
     BoltCommand,
     BoltCommandArtifact,
+    BoltCommandLogs,
     BoltDeferredSchedule,
+    BoltLogLine,
+    BoltLogStream,
     BoltNotificationItem,
     BoltNotifications,
     BoltRun,
@@ -23,7 +27,9 @@ from paradime.apis.bolt.types import (
 from paradime.client.api_client import APIClient
 
 
-def _parse_notification_items(items: Optional[list]) -> Optional[List[BoltNotificationItem]]:
+def _parse_notification_items(
+    items: Optional[list],
+) -> Optional[List[BoltNotificationItem]]:
     if items is None:
         return None
     return [
@@ -37,12 +43,18 @@ def _parse_notification_items(items: Optional[list]) -> Optional[List[BoltNotifi
     ]
 
 
-def _parse_notifications(notifications_json: Optional[dict]) -> Optional[BoltNotifications]:
+def _parse_notifications(
+    notifications_json: Optional[dict],
+) -> Optional[BoltNotifications]:
     if notifications_json is None:
         return None
     return BoltNotifications(
-        email_notifications=_parse_notification_items(notifications_json.get("emailNotifications")),
-        slack_notifications=_parse_notification_items(notifications_json.get("slackNotifications")),
+        email_notifications=_parse_notification_items(
+            notifications_json.get("emailNotifications")
+        ),
+        slack_notifications=_parse_notification_items(
+            notifications_json.get("slackNotifications")
+        ),
         ms_teams_notifications=_parse_notification_items(
             notifications_json.get("msTeamsNotifications")
         ),
@@ -223,8 +235,12 @@ class BoltClient:
                     turbo_ci=(
                         BoltDeferredSchedule(
                             enabled=schedule_json["turboCi"]["enabled"],
-                            deferred_schedule_name=schedule_json["turboCi"]["deferredScheduleName"],
-                            successful_run_only=schedule_json["turboCi"]["successfulRunOnly"],
+                            deferred_schedule_name=schedule_json["turboCi"][
+                                "deferredScheduleName"
+                            ],
+                            successful_run_only=schedule_json["turboCi"][
+                                "successfulRunOnly"
+                            ],
                         )
                         if schedule_json["turboCi"]
                         else None
@@ -235,7 +251,9 @@ class BoltClient:
                     slack_notify=schedule_json["slackNotify"],
                     email_on=schedule_json["emailOn"],
                     email_notify=schedule_json["emailNotify"],
-                    notifications=_parse_notifications(schedule_json.get("notifications")),
+                    notifications=_parse_notifications(
+                        schedule_json.get("notifications")
+                    ),
                 )
             )
 
@@ -381,9 +399,9 @@ class BoltClient:
             }
         """
 
-        response_json = self.client._call_gql(query=query, variables={"runId": int(run_id)})[
-            "boltRunStatus"
-        ]
+        response_json = self.client._call_gql(
+            query=query, variables={"runId": int(run_id)}
+        )["boltRunStatus"]
 
         return BoltRunState.from_str(response_json["state"])
 
@@ -414,9 +432,9 @@ class BoltClient:
             }
         """
 
-        response_json = self.client._call_gql(query=query, variables={"runId": int(run_id)})[
-            "boltRunStatus"
-        ]
+        response_json = self.client._call_gql(
+            query=query, variables={"runId": int(run_id)}
+        )["boltRunStatus"]
 
         commands: List[BoltCommand] = []
         for command_json in response_json["commands"]:
@@ -433,6 +451,74 @@ class BoltClient:
             )
 
         return sorted(commands, key=lambda command: command.id)
+
+    def get_command_logs(self, command_id: int, cursor: str = "0:0") -> BoltCommandLogs:
+        """
+        Fetches a single batch of stdout/stderr log lines for a Bolt command.
+
+        Use this for one-shot polling. For automatic looping until the command
+        finishes, prefer `stream_command_logs`.
+
+        Args:
+            command_id (int): The ID of the command.
+            cursor (str): Opaque cursor returned by the previous call. Use the
+                default `"0:0"` for the first call to fetch from the beginning.
+
+        Returns:
+            BoltCommandLogs: New lines, the cursor to pass to the next call,
+            and a `finished` flag that flips to True once the command exits.
+        """
+
+        query = """
+            query boltCommandLogs($commandId: Int!, $cursor: String) {
+                boltCommandLogs(commandId: $commandId, cursor: $cursor) {
+                    lines { stream line }
+                    cursor
+                    finished
+                }
+            }
+        """
+
+        response_json = self.client._call_gql(
+            query=query, variables={"commandId": int(command_id), "cursor": cursor}
+        )["boltCommandLogs"]
+
+        return BoltCommandLogs(
+            lines=[
+                BoltLogLine(stream=BoltLogStream(item["stream"]), line=item["line"])
+                for item in response_json["lines"]
+            ],
+            cursor=response_json["cursor"],
+            finished=response_json["finished"],
+        )
+
+    def stream_command_logs(
+        self, command_id: int, poll_interval: float = 2.0
+    ) -> Iterator[BoltLogLine]:
+        """
+        Yields log lines for a Bolt command as they arrive, stopping when the
+        command finishes.
+
+        Args:
+            command_id (int): The ID of the command.
+            poll_interval (float): Seconds to wait between empty polls. Default 2.0.
+
+        Yields:
+            BoltLogLine: Each log line, in arrival order within a poll batch.
+                stdout lines for the batch precede stderr lines (approximate
+                interleaving — true cross-stream ordering is not recorded).
+        """
+
+        cursor = "0:0"
+        while True:
+            batch = self.get_command_logs(command_id, cursor=cursor)
+            for line in batch.lines:
+                yield line
+            if batch.finished:
+                return
+            cursor = batch.cursor
+            if not batch.lines:
+                time.sleep(poll_interval)
 
     def list_command_artifacts(self, command_id: int) -> List[BoltCommandArtifact]:
         """
@@ -596,7 +682,9 @@ class BoltClient:
         """
 
         # Get the latest runs for the schedule
-        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=max_runs).runs
+        latest_runs = self.list_runs(
+            schedule_name=schedule_name, offset=0, limit=max_runs
+        ).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
@@ -643,7 +731,10 @@ class BoltClient:
         return artifact_url
 
     def get_latest_manifest_json(
-        self, schedule_name: str, command_index: Optional[int] = None, max_runs: int = 50
+        self,
+        schedule_name: str,
+        command_index: Optional[int] = None,
+        max_runs: int = 50,
     ) -> dict:
         """
         Retrieves the latest manifest JSON for a given schedule.
@@ -667,7 +758,10 @@ class BoltClient:
         return requests.get(manifest_url).json()
 
     def _get_latest_run_results_json(
-        self, schedule_name: str, command_index: Optional[int] = None, merge: bool = False
+        self,
+        schedule_name: str,
+        command_index: Optional[int] = None,
+        merge: bool = False,
     ) -> dict:
         """
         Retrieves the latest run_results JSON for a given schedule.
@@ -693,7 +787,9 @@ class BoltClient:
             return requests.get(run_results_url).json()
 
         # Get the latest runs for the schedule
-        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=1).runs
+        latest_runs = self.list_runs(
+            schedule_name=schedule_name, offset=0, limit=1
+        ).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
@@ -748,7 +844,10 @@ class BoltClient:
         return merge_run_results(all_run_results)
 
     def _get_latest_sources_json(
-        self, schedule_name: str, command_index: Optional[int] = None, merge: bool = False
+        self,
+        schedule_name: str,
+        command_index: Optional[int] = None,
+        merge: bool = False,
     ) -> dict:
         """
         Retrieves the latest sources JSON for a given schedule.
@@ -770,7 +869,9 @@ class BoltClient:
             )
             return requests.get(sources_url).json()
 
-        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=1).runs
+        latest_runs = self.list_runs(
+            schedule_name=schedule_name, offset=0, limit=1
+        ).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
@@ -828,17 +929,23 @@ class BoltClient:
         artifacts = {}
 
         try:
-            artifacts["manifest"] = self.get_latest_manifest_json(schedule_name, max_runs=max_runs)
+            artifacts["manifest"] = self.get_latest_manifest_json(
+                schedule_name, max_runs=max_runs
+            )
         except BoltScheduleArtifactNotFoundException:
             pass
 
         try:
-            artifacts["run_results"] = self._get_latest_run_results_json(schedule_name, merge=True)
+            artifacts["run_results"] = self._get_latest_run_results_json(
+                schedule_name, merge=True
+            )
         except BoltScheduleArtifactNotFoundException:
             pass
 
         try:
-            artifacts["sources"] = self._get_latest_sources_json(schedule_name, merge=True)
+            artifacts["sources"] = self._get_latest_sources_json(
+                schedule_name, merge=True
+            )
         except BoltScheduleArtifactNotFoundException:
             pass
 
