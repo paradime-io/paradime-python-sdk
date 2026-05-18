@@ -11,6 +11,7 @@ from paradime.cli.run import run
 from paradime.cli.version import version
 from paradime.client.paradime_cli_client import get_credentials_path
 from paradime.version import get_sdk_version
+from paradime.version_check import check_for_new_version
 
 
 @click.group(invoke_without_command=True)
@@ -24,6 +25,7 @@ def cli(ctx: click.Context) -> None:
         load_dotenv(dotenv_path=credentials_path)
 
     _show_welcome()
+    check_for_new_version()
 
 
 def _show_welcome() -> None:
