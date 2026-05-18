@@ -88,10 +88,7 @@ def _is_newer(latest: str, current: str) -> bool:
 
 
 def _emit_upgrade_notice(current: str, latest: str) -> None:
-    message = (
-        f"A new version of the Paradime SDK is available: {current} -> {latest}. "
-        f"Upgrade with: pip install --upgrade paradime-io"
-    )
+    message = f"A new version of the Paradime SDK is available: {current} -> {latest}."
     if sys.stderr.isatty():
         print(f"\033[1;33m⚠ {message}\033[0m", file=sys.stderr)
     else:
