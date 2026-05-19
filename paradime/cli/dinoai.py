@@ -1,7 +1,7 @@
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Set
 
 import click
 from prompt_toolkit import PromptSession
@@ -17,7 +17,6 @@ from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.client.paradime_client import Paradime
 
 _POLL_INTERVAL = 2  # seconds
-_SETTLE_GRACE = 15  # seconds — wait for backend status to transition on follow-ups
 
 
 @click.command()
@@ -44,16 +43,22 @@ def dinoai(
     """
     client = get_cli_client_or_exit()
     session_id: Optional[str] = session
-    seen = 0
+    # Track rendered messages by ts to dedup across poll iterations and turns,
+    # even if the backend re-orders or re-emits the run.messages list.
+    rendered: Set[str] = set()
 
     # Resume: replay existing history so the user has context
     if session_id:
         with console.spinner("Loading session…"):
             run = client.dinoai_agents.get_run(agent_session_id=session_id)
         console.console.print(_session_panel(agent, session_id))
+        last_content: Optional[str] = None
         for msg in run.messages:
+            if msg.content == last_content:
+                continue
             _render_message(msg.role, msg.content)
-        seen = len(run.messages)
+            rendered.add(msg.ts)
+            last_content = msg.content
 
     # Piped stdin — read message from stdin if not provided
     if not sys.stdin.isatty() and not message:
@@ -66,7 +71,7 @@ def dinoai(
             agent=agent,
             message=message,
             session_id=session_id,
-            seen=seen,
+            rendered=rendered,
         )
         return
 
@@ -89,12 +94,12 @@ def dinoai(
             break
 
         try:
-            new_session_id, seen = _send(
+            new_session_id = _send(
                 client,
                 agent=agent,
                 message=user_input,
                 session_id=session_id,
-                seen=seen,
+                rendered=rendered,
             )
             # Show session panel once, when the session is first established
             if session_id is None:
@@ -115,8 +120,8 @@ def _send(
     agent: Optional[str],
     message: str,
     session_id: Optional[str],
-    seen: int,
-) -> Tuple[str, int]:
+    rendered: Set[str],
+) -> str:
     new_session = session_id is None
     if session_id is None:
         result = client.dinoai_agents.trigger_run(
@@ -131,64 +136,77 @@ def _send(
     if new_session:
         console.console.print(f"[dim]Session {session_id}[/]")
 
-    seen = _poll(client, session_id=session_id, seen=seen)
-    return session_id, seen
+    _poll(client, session_id=session_id, rendered=rendered)
+    return session_id
 
 
-def _poll(client: Paradime, *, session_id: str, seen: int) -> int:
+def _poll(client: Paradime, *, session_id: str, rendered: Set[str]) -> None:
     """Poll until COMPLETED or FAILED, streaming new messages to the console.
 
-    A grace period prevents bailing out on a stale COMPLETED status carried over
-    from the previous turn — after a follow-up message the backend may take a
-    moment to transition the run back to QUEUED/RUNNING.
+    Dedup is done by ts (message timestamp), tracked across all turns — this is
+    resilient to backend re-ordering or re-emission of the messages list.
+
+    The break condition requires an actual agent message to have streamed in —
+    we don't trust a stale COMPLETED status carrying over from the previous
+    turn. The user can Ctrl-C if a run hangs server-side; the chat continues.
 
     Ctrl-C aborts the current turn without killing the chat — the run continues
     server-side and can be rejoined with `--session <id>`.
     """
     start = time.monotonic()
-    status_text = "QUEUED"
+    display_status = "QUEUED"
     new_agent_messages = 0
-    last_rendered: Optional[str] = None
+    last_content: Optional[str] = None
     try:
-        with console.spinner(_spinner_label(status_text, start)) as status:
+        with console.spinner(_spinner_label(display_status, start)) as status:
             while True:
                 run = client.dinoai_agents.get_run(agent_session_id=session_id)
-                status_text = run.status.value
 
-                for msg in run.messages[seen:]:
+                for msg in run.messages:
+                    if msg.ts in rendered:
+                        last_content = msg.content
+                        continue
                     if msg.role.lower() == "user":
+                        rendered.add(msg.ts)
+                        last_content = msg.content
                         continue
                     # Agents sometimes emit the same content twice (e.g. once via a
                     # send_api_message tool call, then again as a final assistant
-                    # turn). Skip the duplicate so the user sees it only once.
-                    if msg.content == last_rendered:
+                    # turn). Skip if content matches the previous message.
+                    if msg.content == last_content:
+                        rendered.add(msg.ts)
                         continue
                     _render_message(msg.role, msg.content)
-                    last_rendered = msg.content
+                    rendered.add(msg.ts)
+                    last_content = msg.content
                     new_agent_messages += 1
-                seen = len(run.messages)
 
                 is_terminal = run.status in (
                     DinoaiAgentRunStatus.COMPLETED,
                     DinoaiAgentRunStatus.FAILED,
                 )
-                past_grace = (time.monotonic() - start) > _SETTLE_GRACE
 
-                if is_terminal and (new_agent_messages > 0 or past_grace):
+                if is_terminal and new_agent_messages > 0:
                     if run.status == DinoaiAgentRunStatus.FAILED:
                         last = run.messages[-1].content if run.messages else "no details"
                         console.error(f"Run failed: {last}")
                     break
 
-                status.update(_spinner_label(status_text, start))
+                # If the status is still terminal but no agent message has streamed
+                # yet, we're seeing a stale carry-over from the previous turn —
+                # show "WAITING" instead of "COMPLETED" so it doesn't look frozen.
+                if is_terminal:
+                    display_status = "WAITING"
+                else:
+                    display_status = run.status.value
+
+                status.update(_spinner_label(display_status, start))
                 time.sleep(_POLL_INTERVAL)
     except KeyboardInterrupt:
         console.console.print(
-            f"[muted]↩ aborted local view — run still {status_text} server-side. "
+            f"[muted]↩ aborted local view — run still {display_status} server-side. "
             f"Rejoin with: paradime dinoai --session {session_id}[/]"
         )
-
-    return seen
 
 
 def _spinner_label(status_text: str, start: float) -> str:
