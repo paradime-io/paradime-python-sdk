@@ -24,14 +24,10 @@ _SETTLE_GRACE = 15  # seconds — wait for backend status to transition on follo
 @click.option("--agent", "-a", default=None, help="Named agent (.dinoai/agents/<name>.yml).")
 @click.option("--message", "-m", default=None, help="Opening message.")
 @click.option("--session", "-s", default=None, help="Resume an existing session by ID.")
-@click.option("--slack-channel", default=None, help="Override Slack channel for this run.")
-@click.option("--slack-thread", default=None, help="Override Slack thread for this run.")
 def dinoai(
     agent: Optional[str],
     message: Optional[str],
     session: Optional[str],
-    slack_channel: Optional[str],
-    slack_thread: Optional[str],
 ) -> None:
     """
     Talk to your data with a DinoAI programmable agent.
@@ -70,8 +66,6 @@ def dinoai(
             agent=agent,
             message=message,
             session_id=session_id,
-            slack_channel=slack_channel,
-            slack_thread=slack_thread,
             seen=seen,
         )
         return
@@ -100,8 +94,6 @@ def dinoai(
                 agent=agent,
                 message=user_input,
                 session_id=session_id,
-                slack_channel=slack_channel,
-                slack_thread=slack_thread,
                 seen=seen,
             )
             # Show session panel once, when the session is first established
@@ -123,8 +115,6 @@ def _send(
     agent: Optional[str],
     message: str,
     session_id: Optional[str],
-    slack_channel: Optional[str],
-    slack_thread: Optional[str],
     seen: int,
 ) -> Tuple[str, int]:
     new_session = session_id is None
@@ -132,8 +122,6 @@ def _send(
         result = client.dinoai_agents.trigger_run(
             agent=agent,
             message=message,
-            slack_channel=slack_channel,
-            slack_thread=slack_thread,
         )
         session_id = result.agent_session_id
     else:
@@ -158,8 +146,9 @@ def _poll(client: Paradime, *, session_id: str, seen: int) -> int:
     server-side and can be rejoined with `--session <id>`.
     """
     start = time.monotonic()
-    initial_seen = seen
     status_text = "QUEUED"
+    new_agent_messages = 0
+    last_rendered: Optional[str] = None
     try:
         with console.spinner(_spinner_label(status_text, start)) as status:
             while True:
@@ -167,18 +156,25 @@ def _poll(client: Paradime, *, session_id: str, seen: int) -> int:
                 status_text = run.status.value
 
                 for msg in run.messages[seen:]:
-                    if msg.role.lower() != "user":
-                        _render_message(msg.role, msg.content)
+                    if msg.role.lower() == "user":
+                        continue
+                    # Agents sometimes emit the same content twice (e.g. once via a
+                    # send_api_message tool call, then again as a final assistant
+                    # turn). Skip the duplicate so the user sees it only once.
+                    if msg.content == last_rendered:
+                        continue
+                    _render_message(msg.role, msg.content)
+                    last_rendered = msg.content
+                    new_agent_messages += 1
                 seen = len(run.messages)
 
                 is_terminal = run.status in (
                     DinoaiAgentRunStatus.COMPLETED,
                     DinoaiAgentRunStatus.FAILED,
                 )
-                has_new_content = seen > initial_seen
                 past_grace = (time.monotonic() - start) > _SETTLE_GRACE
 
-                if is_terminal and (has_new_content or past_grace):
+                if is_terminal and (new_agent_messages > 0 or past_grace):
                     if run.status == DinoaiAgentRunStatus.FAILED:
                         last = run.messages[-1].content if run.messages else "no details"
                         console.error(f"Run failed: {last}")
