@@ -36,6 +36,9 @@ def dinoai(
     """
     Talk to your data with a DinoAI programmable agent.
 
+    Passing --message runs a single turn and exits (no interactive loop).
+    Omit --message to drop into the interactive prompt.
+
     \b
     Examples:
       paradime dinoai
@@ -56,20 +59,25 @@ def dinoai(
             _render_message(msg.role, msg.content)
         seen = len(run.messages)
 
-    # Non-interactive (piped stdin or scripting)
+    # Piped stdin — read message from stdin if not provided
+    if not sys.stdin.isatty() and not message:
+        message = sys.stdin.read().strip()
+
+    # Run-once mode: --message provided (or piped via stdin) → fire one turn and exit
+    if message:
+        _send(
+            client,
+            agent=agent,
+            message=message,
+            session_id=session_id,
+            slack_channel=slack_channel,
+            slack_thread=slack_thread,
+            seen=seen,
+        )
+        return
+
+    # No message and no TTY — nothing to do
     if not sys.stdin.isatty():
-        if not message:
-            message = sys.stdin.read().strip()
-        if message:
-            session_id, _ = _send(
-                client,
-                agent=agent,
-                message=message,
-                session_id=session_id,
-                slack_channel=slack_channel,
-                slack_thread=slack_thread,
-                seen=seen,
-            )
         return
 
     # Interactive loop
@@ -77,12 +85,9 @@ def dinoai(
     history_path.parent.mkdir(parents=True, exist_ok=True)
     prompt_session: PromptSession = PromptSession(history=FileHistory(str(history_path)))
 
-    prefill = message or ""
-
     while True:
         try:
-            user_input = prompt_session.prompt("> ", default=prefill)
-            prefill = ""
+            user_input = prompt_session.prompt("> ")
         except (KeyboardInterrupt, EOFError):
             break
 
