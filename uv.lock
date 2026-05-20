@@ -916,7 +916,7 @@ wheels = [
 
 [[package]]
 name = "paradime-io"
-version = "5.5.0"
+version = "5.6.0"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },

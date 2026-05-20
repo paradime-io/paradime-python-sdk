@@ -64,11 +64,9 @@ class DinoaiAgentsClient:
 
         slack: Optional[dict] = None
         if slack_channel is not None or slack_thread is not None:
-            slack = {}
-            if slack_channel is not None:
-                slack["channel"] = slack_channel
-            if slack_thread is not None:
-                slack["thread"] = slack_thread
+            if slack_channel is None or slack_thread is None:
+                raise ValueError("slack_channel and slack_thread must be provided together")
+            slack = {"channel": slack_channel, "threadTs": slack_thread}
 
         variables = {
             "agent": agent,
