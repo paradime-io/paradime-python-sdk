@@ -3,11 +3,7 @@ from typing import Any, Dict
 import requests
 
 from paradime.client.api_exception import ParadimeAPIException
-from paradime.client.runtime import (
-    detect_runtime,
-    get_python_version,
-    is_telemetry_enabled,
-)
+from paradime.client.runtime import detect_runtime, get_python_version, is_telemetry_enabled
 from paradime.version import get_sdk_version
 
 
