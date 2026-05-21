@@ -3,6 +3,7 @@ from typing import Any, Dict
 import requests
 
 from paradime.client.api_exception import ParadimeAPIException
+from paradime.client.runtime import detect_runtime, get_python_version, is_telemetry_enabled
 from paradime.version import get_sdk_version
 
 
@@ -38,12 +39,18 @@ class APIClient:
             dict: The request headers.
         """
 
-        return {
+        headers: Dict[str, str] = {
             "Content-Type": "application/json",
             "X-API-KEY": self.api_key,
             "X-API-SECRET": self.api_secret,
             "X-PYTHON-SDK-VERSION": get_sdk_version(),
         }
+
+        if is_telemetry_enabled():
+            headers["X-PYTHON-VERSION"] = get_python_version()
+            headers["X-PARADIME-RUNTIME"] = detect_runtime()
+
+        return headers
 
     def _raise_for_gql_response_body_errors(self, response: requests.Response) -> None:
         """
