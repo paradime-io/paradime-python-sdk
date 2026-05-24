@@ -61,8 +61,45 @@ def schedule() -> None:
     pass
 
 
+@click.command(name="retry")
+@click.option("--wait", help="Wait for the retry run to finish", is_flag=True)
+@click.option("--json", help="JSON formatted response", is_flag=True)
+@click.argument("schedule_name")
+def schedule_retry(wait: bool, json: bool, schedule_name: str) -> None:
+    """
+    Retry the latest failed run of a Paradime Bolt schedule.
+    """
+    if not json:
+        print_version()
+
+    client = get_cli_client_or_exit()
+    try:
+        new_run_id = client.bolt.retry_schedule_from_failure(schedule_name)
+    except ParadimeAPIException as e:
+        print_error_table(f"Failed to retry schedule: {e}", is_json=json)
+        sys.exit(1)
+
+    print_run_started(new_run_id, json)
+
+    if wait:
+        while True:
+            status = client.bolt.get_run_status(new_run_id)
+            if not status:
+                print_error_table("Unable to fetch status from bolt.", is_json=json)
+                sys.exit(1)
+
+            print_run_status(status.value, json)
+            if status is not BoltRunState.RUNNING:
+                break
+            time.sleep(WAIT_SLEEP)
+
+        if status is not BoltRunState.SUCCESS:
+            sys.exit(1)
+
+
 schedule.add_command(unsuspend)
 schedule.add_command(suspend)
+schedule.add_command(schedule_retry)
 
 
 @click.command()

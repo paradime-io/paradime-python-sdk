@@ -660,6 +660,34 @@ class BoltClient:
 
         return response_json["runId"]
 
+    def retry_schedule_from_failure(self, schedule_name: str) -> int:
+        """
+        Retries the latest failed run of a Bolt schedule, by schedule name.
+
+        Resumes from the failed command of the most recent run of the given schedule,
+        without needing to know its run ID.
+
+        Args:
+            schedule_name (str): The name of the schedule whose latest failed run to retry.
+
+        Returns:
+            int: The ID of the newly created retry run.
+        """
+
+        query = """
+            mutation RetryBoltRunFromFailure($scheduleName: String!) {
+                retryBoltRunFromFailure(scheduleName: $scheduleName) {
+                    runId
+                }
+            }
+        """
+
+        response_json = self.client._call_gql(
+            query=query, variables={"scheduleName": schedule_name}
+        )["retryBoltRunFromFailure"]
+
+        return response_json["runId"]
+
     def get_latest_artifact_url(
         self,
         *,
