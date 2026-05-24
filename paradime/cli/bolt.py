@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 import sys
 import time
 from pathlib import Path
-from typing import Final, List, Optional
+from typing import TYPE_CHECKING, Final, List, Optional
+
+if TYPE_CHECKING:
+    from paradime.client.paradime_client import Paradime
 
 import click
 import requests
@@ -24,7 +29,7 @@ WAIT_SLEEP: Final = 10
 WAIT_SLEEP_STREAMING: Final = 2
 
 
-def _wait_with_logs(client, run_id: int, is_json: bool) -> None:
+def _wait_with_logs(client: "Paradime", run_id: int, is_json: bool) -> None:
     """Wait for a run to finish while streaming live logs for each command."""
     from rich.panel import Panel
 
