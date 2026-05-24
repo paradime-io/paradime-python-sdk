@@ -18,7 +18,12 @@ from paradime.cli.rich_text_output import (
 from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
-from paradime.core.bolt.schedule import SCHEDULE_FILE_NAME, is_valid_schedule_at_path
+from paradime.core.bolt.schedule import (
+    SCHEDULE_FILE_NAME,
+    _get_schedules,
+    get_slug_format_warnings,
+    is_valid_schedule_at_path,
+)
 
 WAIT_SLEEP: Final = 10
 
@@ -217,10 +222,21 @@ def verify(path: str) -> None:
     Verify the paradime_schedules.yml file.
     """
     print_version()
-    error_string = is_valid_schedule_at_path(Path(path))
+    schedule_path = Path(path)
+    error_string = is_valid_schedule_at_path(schedule_path)
     if error_string:
         print_error_table(error_string, is_json=False)
         sys.exit(1)
+
+    # Non-blocking slug-format nudges. New schedules should use slug-format
+    # names; existing non-slug names continue to deploy via backend grandfathering.
+    try:
+        schedules = _get_schedules(schedule_path)
+    except Exception:
+        schedules = None
+    if schedules:
+        for warning in get_slug_format_warnings(schedules):
+            click.secho(f"warning: {warning}", fg="yellow")
 
 
 @click.command()
