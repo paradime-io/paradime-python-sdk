@@ -21,6 +21,61 @@ from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.core.bolt.schedule import SCHEDULE_FILE_NAME, is_valid_schedule_at_path
 
 WAIT_SLEEP: Final = 10
+WAIT_SLEEP_STREAMING: Final = 2
+
+
+def _wait_with_logs(client, run_id: int, is_json: bool) -> None:
+    """Wait for a run to finish while streaming live logs for each command."""
+    from rich.panel import Panel
+
+    from paradime.cli.console import console as rich_console
+
+    seen_command_ids: set = set()
+    while True:
+        status = client.bolt.get_run_status(run_id)
+        if not status:
+            print_error_table("Unable to fetch status from bolt.", is_json=is_json)
+            sys.exit(1)
+
+        # Stream logs for any new commands that have appeared
+        try:
+            commands = client.bolt.list_run_commands(run_id)
+        except ParadimeAPIException:
+            commands = []
+
+        for cmd in commands:
+            if cmd.id in seen_command_ids:
+                continue
+            seen_command_ids.add(cmd.id)
+            if not is_json:
+                rich_console.print()
+                rich_console.print(
+                    Panel(
+                        f"[bold]{cmd.command}[/]",
+                        title=f"[muted]Command {cmd.id}[/]",
+                        border_style="brand",
+                        padding=(0, 1),
+                    )
+                )
+            for log_line in client.bolt.stream_command_logs(cmd.id):
+                if not is_json:
+                    click.echo(f"{log_line.line}", nl=False)
+
+        if status is not BoltRunState.RUNNING:
+            print_run_status(status.value, is_json)
+            break
+
+        if not is_json:
+            with rich_console.status(
+                f"[muted]Current run status: {status.value}[/]", spinner="dots"
+            ):
+                time.sleep(WAIT_SLEEP_STREAMING)
+        else:
+            print_run_status(status.value, is_json)
+            time.sleep(WAIT_SLEEP_STREAMING)
+
+    if status is not BoltRunState.SUCCESS:
+        sys.exit(1)
 
 
 @click.command()
@@ -82,19 +137,7 @@ def schedule_retry(wait: bool, json: bool, schedule_name: str) -> None:
     print_run_started(new_run_id, json)
 
     if wait:
-        while True:
-            status = client.bolt.get_run_status(new_run_id)
-            if not status:
-                print_error_table("Unable to fetch status from bolt.", is_json=json)
-                sys.exit(1)
-
-            print_run_status(status.value, json)
-            if status is not BoltRunState.RUNNING:
-                break
-            time.sleep(WAIT_SLEEP)
-
-        if status is not BoltRunState.SUCCESS:
-            sys.exit(1)
+        _wait_with_logs(client, new_run_id, is_json=json)
 
 
 schedule.add_command(unsuspend)
@@ -146,19 +189,7 @@ def run(
     print_run_started(run_id, json)
 
     if wait:
-        while True:
-            status = client.bolt.get_run_status(run_id)
-            if not status:
-                print_error_table("Unable to fetch status from bolt.", is_json=json)
-                sys.exit(1)
-
-            print_run_status(status.value, json)
-            if status is not BoltRunState.RUNNING:
-                break
-            time.sleep(WAIT_SLEEP)
-
-        if status is not BoltRunState.SUCCESS:
-            sys.exit(1)
+        _wait_with_logs(client, run_id, is_json=json)
 
 
 @click.command()
@@ -190,19 +221,7 @@ def retry(retry_all: bool, wait: bool, json: bool, run_id: int) -> None:
     print_run_started(new_run_id, json)
 
     if wait:
-        while True:
-            status = client.bolt.get_run_status(new_run_id)
-            if not status:
-                print_error_table("Unable to fetch status from bolt.", is_json=json)
-                sys.exit(1)
-
-            print_run_status(status.value, json)
-            if status is not BoltRunState.RUNNING:
-                break
-            time.sleep(WAIT_SLEEP)
-
-        if status is not BoltRunState.SUCCESS:
-            sys.exit(1)
+        _wait_with_logs(client, new_run_id, is_json=json)
 
 
 @click.command()
