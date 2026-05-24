@@ -49,12 +49,8 @@ def _parse_notifications(
     if notifications_json is None:
         return None
     return BoltNotifications(
-        email_notifications=_parse_notification_items(
-            notifications_json.get("emailNotifications")
-        ),
-        slack_notifications=_parse_notification_items(
-            notifications_json.get("slackNotifications")
-        ),
+        email_notifications=_parse_notification_items(notifications_json.get("emailNotifications")),
+        slack_notifications=_parse_notification_items(notifications_json.get("slackNotifications")),
         ms_teams_notifications=_parse_notification_items(
             notifications_json.get("msTeamsNotifications")
         ),
@@ -235,12 +231,8 @@ class BoltClient:
                     turbo_ci=(
                         BoltDeferredSchedule(
                             enabled=schedule_json["turboCi"]["enabled"],
-                            deferred_schedule_name=schedule_json["turboCi"][
-                                "deferredScheduleName"
-                            ],
-                            successful_run_only=schedule_json["turboCi"][
-                                "successfulRunOnly"
-                            ],
+                            deferred_schedule_name=schedule_json["turboCi"]["deferredScheduleName"],
+                            successful_run_only=schedule_json["turboCi"]["successfulRunOnly"],
                         )
                         if schedule_json["turboCi"]
                         else None
@@ -251,9 +243,7 @@ class BoltClient:
                     slack_notify=schedule_json["slackNotify"],
                     email_on=schedule_json["emailOn"],
                     email_notify=schedule_json["emailNotify"],
-                    notifications=_parse_notifications(
-                        schedule_json.get("notifications")
-                    ),
+                    notifications=_parse_notifications(schedule_json.get("notifications")),
                 )
             )
 
@@ -399,9 +389,9 @@ class BoltClient:
             }
         """
 
-        response_json = self.client._call_gql(
-            query=query, variables={"runId": int(run_id)}
-        )["boltRunStatus"]
+        response_json = self.client._call_gql(query=query, variables={"runId": int(run_id)})[
+            "boltRunStatus"
+        ]
 
         return BoltRunState.from_str(response_json["state"])
 
@@ -432,9 +422,9 @@ class BoltClient:
             }
         """
 
-        response_json = self.client._call_gql(
-            query=query, variables={"runId": int(run_id)}
-        )["boltRunStatus"]
+        response_json = self.client._call_gql(query=query, variables={"runId": int(run_id)})[
+            "boltRunStatus"
+        ]
 
         commands: List[BoltCommand] = []
         for command_json in response_json["commands"]:
@@ -710,9 +700,7 @@ class BoltClient:
         """
 
         # Get the latest runs for the schedule
-        latest_runs = self.list_runs(
-            schedule_name=schedule_name, offset=0, limit=max_runs
-        ).runs
+        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=max_runs).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
@@ -815,9 +803,7 @@ class BoltClient:
             return requests.get(run_results_url).json()
 
         # Get the latest runs for the schedule
-        latest_runs = self.list_runs(
-            schedule_name=schedule_name, offset=0, limit=1
-        ).runs
+        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=1).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
@@ -897,9 +883,7 @@ class BoltClient:
             )
             return requests.get(sources_url).json()
 
-        latest_runs = self.list_runs(
-            schedule_name=schedule_name, offset=0, limit=1
-        ).runs
+        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=1).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
@@ -957,23 +941,17 @@ class BoltClient:
         artifacts = {}
 
         try:
-            artifacts["manifest"] = self.get_latest_manifest_json(
-                schedule_name, max_runs=max_runs
-            )
+            artifacts["manifest"] = self.get_latest_manifest_json(schedule_name, max_runs=max_runs)
         except BoltScheduleArtifactNotFoundException:
             pass
 
         try:
-            artifacts["run_results"] = self._get_latest_run_results_json(
-                schedule_name, merge=True
-            )
+            artifacts["run_results"] = self._get_latest_run_results_json(schedule_name, merge=True)
         except BoltScheduleArtifactNotFoundException:
             pass
 
         try:
-            artifacts["sources"] = self._get_latest_sources_json(
-                schedule_name, merge=True
-            )
+            artifacts["sources"] = self._get_latest_sources_json(schedule_name, merge=True)
         except BoltScheduleArtifactNotFoundException:
             pass
 
