@@ -1,4 +1,8 @@
+import re
+import secrets
 import shlex
+import string
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Union
@@ -11,6 +15,47 @@ from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
 VALID_ON_EVENTS = ("failed", "passed", "sla")
+
+# Schedule slug format. Mirrors paradb's ScheduleNotificationTemplate slug shape
+# (alphanumeric random prefix + slugified display name) and the format used by
+# the paradime-backend slug validator; keep these constants in sync across repos.
+SLUG_REGEX = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SLUG_MAX_LENGTH = 80
+SLUG_RANDOM_PREFIX_LENGTH = 6
+_SLUG_PREFIX_ALPHABET = string.ascii_lowercase + string.digits
+_SLUG_SUFFIX_MAX_LENGTH = SLUG_MAX_LENGTH - SLUG_RANDOM_PREFIX_LENGTH - 1
+
+DISPLAY_NAME_MAX_LENGTH = 128
+
+
+def is_valid_slug(name: str) -> bool:
+    return bool(name) and len(name) <= SLUG_MAX_LENGTH and SLUG_REGEX.fullmatch(name) is not None
+
+
+def slugify_display_name(text: str) -> str:
+    if not text:
+        return ""
+    folded = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").lower()
+    out: List[str] = []
+    prev_hyphen = False
+    for ch in folded:
+        if ch.isalnum():
+            out.append(ch)
+            prev_hyphen = False
+        elif not prev_hyphen:
+            out.append("-")
+            prev_hyphen = True
+    return "".join(out).strip("-")[:_SLUG_SUFFIX_MAX_LENGTH]
+
+
+def mint_schedule_slug(display_name: str) -> str:
+    """Mint `<6-char alnum prefix>-<slugify(display_name)>`. Matches the backend
+    convention so a CLI-minted slug is indistinguishable from a server-minted one."""
+    prefix = "".join(
+        secrets.choice(_SLUG_PREFIX_ALPHABET) for _ in range(SLUG_RANDOM_PREFIX_LENGTH)
+    )
+    suffix = slugify_display_name(display_name) or "schedule"
+    return f"{prefix}-{suffix}"
 
 
 class ParadimeScheduleBase(BaseModel):
@@ -175,6 +220,7 @@ class Integrations(BaseModel):
 
 class ParadimeSchedule(ParadimeScheduleBase):
     name: str
+    display_name: Optional[str] = None
     schedule: str
     timezone: Optional[str] = None
     environment: str
@@ -206,6 +252,18 @@ class ParadimeSchedule(ParadimeScheduleBase):
 
     suspended: Optional[bool] = False
 
+    @validator("display_name")
+    def validate_display_name(cls, display_name: Optional[str]) -> Optional[str]:
+        if display_name is None:
+            return None
+        if "\n" in display_name or "\r" in display_name:
+            raise ValueError("display_name must not contain newlines")
+        if len(display_name) > DISPLAY_NAME_MAX_LENGTH:
+            raise ValueError(
+                f"display_name must be {DISPLAY_NAME_MAX_LENGTH} characters or fewer"
+            )
+        return display_name
+
 
 class ParadimeSchedules(ParadimeScheduleBase):
     version: int = 1
@@ -215,6 +273,25 @@ class ParadimeSchedules(ParadimeScheduleBase):
 @dataclass(frozen=True)
 class Command:
     as_list: List[str]
+
+
+def get_slug_format_warnings(schedules: ParadimeSchedules) -> List[str]:
+    """Names that aren't slug-format yet — informational only.
+
+    The backend grandfathers existing names so deploys keep working, but new
+    schedule names should match the slug format. Surface this as a nudge from
+    `verify` without failing it.
+    """
+    warnings: List[str] = []
+    for schedule in schedules.schedules:
+        if not is_valid_slug(schedule.name):
+            suggested = mint_schedule_slug(schedule.display_name or schedule.name)
+            warnings.append(
+                f"{schedule.name!r} is not in slug format. "
+                f"For new schedules, use a slug like {suggested!r} "
+                f"(lowercase, alphanumeric, hyphen-separated)."
+            )
+    return warnings
 
 
 def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
