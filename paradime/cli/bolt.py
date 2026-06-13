@@ -264,7 +264,7 @@ def verify(path: str) -> None:
                 pass  # If we can't fetch, we'll mint everything
 
             changed = mint_slugs_in_yaml_files(
-                mint_fn=client.bolt.mint_schedule_slugs,
+                mint_fn=client.bolt.create_schedule_slugs,
                 root=root,
                 existing_names=existing_names,
             )

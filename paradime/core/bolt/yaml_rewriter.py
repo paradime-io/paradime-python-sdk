@@ -50,7 +50,7 @@ def mint_slugs_in_yaml_files(
 
     Args:
         mint_fn: Callable that takes a list of display names and returns slugs.
-                 Typically ``client.bolt.mint_schedule_slugs``.
+                 Typically ``client.bolt.create_schedule_slugs``.
         root: Project root directory containing ``.bolt/`` or ``paradime_schedules.yml``.
         existing_names: Schedule names already deployed in the workspace. These
                         are grandfathered and will not be rewritten, even if they
