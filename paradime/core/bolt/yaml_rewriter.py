@@ -111,8 +111,8 @@ def mint_slugs_in_yaml_files(
 
     # Mint slugs from the backend
     minted_slugs = mint_fn(names_needing_slugs)
-    for display_name, slug in zip(names_needing_slugs, minted_slugs):
-        name_to_slug[display_name] = slug
+    for display_name, minted in zip(names_needing_slugs, minted_slugs):
+        name_to_slug[display_name] = minted
 
     # --- Pass 2: rewrite all files ---
     files_changed = 0
@@ -129,10 +129,10 @@ def mint_slugs_in_yaml_files(
             if name and not is_valid_slug(str(name)) and str(name) not in grandfathered:
                 old_name = str(name)
                 display = entry.get("display_name") or old_name
-                slug = name_to_slug.get(str(display), name_to_slug.get(old_name))
+                slug: str | None = name_to_slug.get(str(display)) or name_to_slug.get(old_name)
                 if slug and slug != old_name:
                     if "display_name" not in entry:
-                        entry.insert(1, "display_name", old_name)
+                        entry.insert(1, "display_name", old_name)  # type: ignore[attr-defined]
                     entry["name"] = slug
                     changed = True
 
