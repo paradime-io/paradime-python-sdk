@@ -259,9 +259,7 @@ class ParadimeSchedule(ParadimeScheduleBase):
         if "\n" in display_name or "\r" in display_name:
             raise ValueError("display_name must not contain newlines")
         if len(display_name) > DISPLAY_NAME_MAX_LENGTH:
-            raise ValueError(
-                f"display_name must be {DISPLAY_NAME_MAX_LENGTH} characters or fewer"
-            )
+            raise ValueError(f"display_name must be {DISPLAY_NAME_MAX_LENGTH} characters or fewer")
         return display_name
 
 
