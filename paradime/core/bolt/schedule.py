@@ -1,8 +1,6 @@
 import re
 import secrets
 import shlex
-import string
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Optional, Union
@@ -16,14 +14,11 @@ from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
 VALID_ON_EVENTS = ("failed", "passed", "sla")
 
-# Schedule slug format. Mirrors paradb's ScheduleNotificationTemplate slug shape
-# (alphanumeric random prefix + slugified display name) and the format used by
-# the paradime-backend slug validator; keep these constants in sync across repos.
+# Schedule slug format. Mirrors paradb's schedule slug shape:
+# <first-24-chars-of-name-normalised>-<6-random-hex-chars>.
+# Keep in sync with the paradime-backend slug validator.
 SLUG_REGEX = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SLUG_MAX_LENGTH = 80
-SLUG_RANDOM_PREFIX_LENGTH = 6
-_SLUG_PREFIX_ALPHABET = string.ascii_lowercase + string.digits
-_SLUG_SUFFIX_MAX_LENGTH = SLUG_MAX_LENGTH - SLUG_RANDOM_PREFIX_LENGTH - 1
 
 DISPLAY_NAME_MAX_LENGTH = 128
 
@@ -32,30 +27,20 @@ def is_valid_slug(name: str) -> bool:
     return bool(name) and len(name) <= SLUG_MAX_LENGTH and SLUG_REGEX.fullmatch(name) is not None
 
 
-def slugify_display_name(text: str) -> str:
-    if not text:
-        return ""
-    folded = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").lower()
-    out: List[str] = []
-    prev_hyphen = False
-    for ch in folded:
-        if ch.isalnum():
-            out.append(ch)
-            prev_hyphen = False
-        elif not prev_hyphen:
-            out.append("-")
-            prev_hyphen = True
-    return "".join(out).strip("-")[:_SLUG_SUFFIX_MAX_LENGTH]
-
-
 def mint_schedule_slug(display_name: str) -> str:
-    """Mint `<6-char alnum prefix>-<slugify(display_name)>`. Matches the backend
-    convention so a CLI-minted slug is indistinguishable from a server-minted one."""
-    prefix = "".join(
-        secrets.choice(_SLUG_PREFIX_ALPHABET) for _ in range(SLUG_RANDOM_PREFIX_LENGTH)
-    )
-    suffix = slugify_display_name(display_name) or "schedule"
-    return f"{prefix}-{suffix}"
+    """Mint ``<first-24-chars-normalised>-<6-hex>``.
+
+    Same format as the backend's ``mint_schedule_slug`` in paradb. Used locally
+    for suggestion text only; the ``paradime bolt mint`` command calls the backend
+    to mint the canonical slug.
+    """
+    normalised = display_name.lower()
+    normalised = re.sub(r"[^a-z0-9]", "-", normalised)
+    normalised = re.sub(r"-+", "-", normalised)
+    normalised = normalised.strip("-")
+    normalised = normalised[:24]
+    hex_suffix = secrets.token_hex(3)
+    return f"{normalised}-{hex_suffix}"
 
 
 class ParadimeScheduleBase(BaseModel):
@@ -286,8 +271,8 @@ def get_slug_format_warnings(schedules: ParadimeSchedules) -> List[str]:
             suggested = mint_schedule_slug(schedule.display_name or schedule.name)
             warnings.append(
                 f"{schedule.name!r} is not in slug format. "
-                f"For new schedules, use a slug like {suggested!r} "
-                f"(lowercase, alphanumeric, hyphen-separated)."
+                f"Run `paradime bolt mint` to auto-generate slugs, "
+                f"or use a slug like {suggested!r}."
             )
     return warnings
 

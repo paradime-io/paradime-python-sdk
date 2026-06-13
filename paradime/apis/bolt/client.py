@@ -925,3 +925,26 @@ class BoltClient:
 
         # Default to False for unknown commands
         return False
+
+    def mint_schedule_slugs(self, display_names: List[str]) -> List[str]:
+        """Mint slugs for a list of display names via the backend.
+
+        Args:
+            display_names: Human-readable schedule names to mint slugs for.
+
+        Returns:
+            List of minted slugs in the same order as the input display names.
+        """
+        query = """
+            mutation mintScheduleSlugs($displayNames: [String!]!) {
+                mintScheduleSlugs(displayNames: $displayNames) {
+                    ok
+                    slugs
+                }
+            }
+        """
+        response = self.client._call_gql(
+            query=query,
+            variables={"displayNames": display_names},
+        )["mintScheduleSlugs"]
+        return response["slugs"]

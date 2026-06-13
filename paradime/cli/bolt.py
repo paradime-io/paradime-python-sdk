@@ -23,7 +23,9 @@ from paradime.core.bolt.schedule import (
     _get_schedules,
     get_slug_format_warnings,
     is_valid_schedule_at_path,
+    is_valid_slug,
 )
+from paradime.core.bolt.yaml_rewriter import mint_slugs_in_yaml_files
 
 WAIT_SLEEP: Final = 10
 
@@ -213,13 +215,24 @@ def retry(retry_all: bool, wait: bool, json: bool, run_id: int) -> None:
 @click.command()
 @click.option(
     "--path",
-    help="Path to paradime_schedules.yml file.",
+    help="Path to paradime_schedules.yml file or project root containing .bolt/ directory.",
     show_default=True,
     default=SCHEDULE_FILE_NAME,
 )
 def verify(path: str) -> None:
     """
-    Verify the paradime_schedules.yml file.
+    Verify schedule YAML files and mint slugs for new schedules.
+
+    Validates the schedule configuration, then checks for schedules whose
+    ``name`` is not a valid slug. For those, calls the Paradime backend to
+    mint slugs and rewrites the YAML in place — moving the current ``name``
+    to ``display_name`` and inserting the minted slug as ``name``.
+
+    Also resolves cross-references in ``deferred_schedule``, ``turbo_ci``,
+    and ``schedule_trigger`` sections to use the minted slugs.
+
+    Supports both the flat ``paradime_schedules.yml`` layout and the modular
+    ``.bolt/`` folder layout.
     """
     print_version()
     schedule_path = Path(path)
@@ -228,15 +241,48 @@ def verify(path: str) -> None:
         print_error_table(error_string, is_json=False)
         sys.exit(1)
 
-    # Non-blocking slug-format nudges. New schedules should use slug-format
-    # names; existing non-slug names continue to deploy via backend grandfathering.
+    # Check for non-slug names and mint slugs via the backend
     try:
         schedules = _get_schedules(schedule_path)
     except Exception:
         schedules = None
-    if schedules:
-        for warning in get_slug_format_warnings(schedules):
-            click.secho(f"warning: {warning}", fg="yellow")
+
+    has_non_slugs = schedules and any(not is_valid_slug(s.name) for s in schedules.schedules)
+
+    if has_non_slugs:
+        try:
+            client = get_cli_client_or_exit()
+            root = schedule_path.parent if schedule_path.is_file() else schedule_path
+
+            # Fetch existing schedule names from the backend so we don't
+            # rewrite names that are already deployed (grandfathered).
+            existing_names: set[str] = set()
+            try:
+                all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
+                existing_names = {s.name for s in all_schedules.schedules}
+            except Exception:
+                pass  # If we can't fetch, we'll mint everything
+
+            changed = mint_slugs_in_yaml_files(
+                mint_fn=client.bolt.mint_schedule_slugs,
+                root=root,
+                existing_names=existing_names,
+            )
+            if changed:
+                click.secho(f"Minted slugs in {changed} file(s).", fg="green")
+        except (ParadimeAPIException, ParadimeException) as e:
+            click.secho(
+                f"Could not mint slugs (API unavailable): {e}\n"
+                f"Non-slug schedule names will be grandfathered by the backend on deploy.",
+                fg="yellow",
+            )
+        except Exception:
+            # Fall back to warnings if minting fails for any reason
+            if schedules:
+                for warning in get_slug_format_warnings(schedules):
+                    click.secho(f"warning: {warning}", fg="yellow")
+    else:
+        click.secho("All schedules verified.", fg="green")
 
 
 @click.command()
