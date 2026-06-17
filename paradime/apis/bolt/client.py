@@ -1,4 +1,5 @@
 import time
+import warnings
 from typing import Iterator, List, Optional
 
 import requests
@@ -37,7 +38,9 @@ def _resolve_slug_or_schedule_name(
 
     Both arguments accept a slug — ``schedule_name`` is the deprecated alias
     kept for backwards compatibility with existing callers. Exactly one of the
-    two must be provided; ``ValueError`` is raised otherwise.
+    two must be provided; ``ValueError`` is raised otherwise. When the caller
+    uses the deprecated ``schedule_name`` kwarg, a ``DeprecationWarning`` is
+    emitted pointing at their call site.
 
     Mirrors the GraphQL XOR check on the public API. The resolved value is sent
     on the wire as the new ``slug`` field, which both new and old backends
@@ -47,6 +50,13 @@ def _resolve_slug_or_schedule_name(
         raise ValueError(
             f"`{method}` requires exactly one of `slug` or `schedule_name` (deprecated). "
             "Both fields accept a schedule slug."
+        )
+    if schedule_name is not None:
+        warnings.warn(
+            f"Passing `schedule_name=` to `{method}` is deprecated; use `slug=` instead. "
+            "Both kwargs accept a schedule slug.",
+            DeprecationWarning,
+            stacklevel=3,
         )
     return slug or schedule_name  # type: ignore[return-value]
 

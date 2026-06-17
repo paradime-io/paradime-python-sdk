@@ -84,17 +84,17 @@ def _wait_with_logs(client: "Paradime", run_id: int, is_json: bool) -> None:
 
 
 @click.command()
-@click.argument("schedule_name")
-def unsuspend(schedule_name: str) -> None:
+@click.argument("slug")
+def unsuspend(slug: str) -> None:
     """
     Enable a suspended Paradime Bolt schedule.
 
-    SCHEDULE_NAME is the schedule's slug (the identifier returned by
-    createBoltSchedule and shown in the Bolt UI).
+    SLUG is the schedule's slug (the identifier returned by createBoltSchedule
+    and shown in the Bolt UI).
     """
     client = get_cli_client_or_exit()
     client.bolt.suspend_schedule(
-        slug=schedule_name,
+        slug=slug,
         suspend=False,
     )
 
@@ -102,17 +102,17 @@ def unsuspend(schedule_name: str) -> None:
 
 
 @click.command()
-@click.argument("schedule_name")
-def suspend(schedule_name: str) -> None:
+@click.argument("slug")
+def suspend(slug: str) -> None:
     """
     Suspend a Paradime Bolt schedule.
 
-    SCHEDULE_NAME is the schedule's slug (the identifier returned by
-    createBoltSchedule and shown in the Bolt UI).
+    SLUG is the schedule's slug (the identifier returned by createBoltSchedule
+    and shown in the Bolt UI).
     """
     client = get_cli_client_or_exit()
     client.bolt.suspend_schedule(
-        slug=schedule_name,
+        slug=slug,
         suspend=True,
     )
 
@@ -130,19 +130,19 @@ def schedule() -> None:
 @click.command(name="retry")
 @click.option("--wait", help="Wait for the retry run to finish", is_flag=True)
 @click.option("--json", help="JSON formatted response", is_flag=True)
-@click.argument("schedule_name")
-def schedule_retry(wait: bool, json: bool, schedule_name: str) -> None:
+@click.argument("slug")
+def schedule_retry(wait: bool, json: bool, slug: str) -> None:
     """
     Retry the latest failed run of a Paradime Bolt schedule.
 
-    SCHEDULE_NAME is the schedule's slug.
+    SLUG is the schedule's slug.
     """
     if not json:
         print_version()
 
     client = get_cli_client_or_exit()
     try:
-        new_run_id = client.bolt.retry_schedule_from_failure(slug=schedule_name)
+        new_run_id = client.bolt.retry_schedule_from_failure(slug=slug)
     except ParadimeAPIException as e:
         print_error_table(f"Failed to retry schedule: {e}", is_json=json)
         sys.exit(1)
@@ -171,19 +171,19 @@ schedule.add_command(schedule_retry)
 )
 @click.option("--wait", help="Wait for the run to finish", is_flag=True)
 @click.option("--json", help="JSON formatted response", is_flag=True)
-@click.argument("schedule_name")
+@click.argument("slug")
 def run(
     branch: str,
     command: List[str],
     pr_number: Optional[int],
     wait: bool,
     json: bool,
-    schedule_name: str,
+    slug: str,
 ) -> None:
     """
     Trigger a Paradime Bolt run.
 
-    SCHEDULE_NAME is the schedule's slug.
+    SLUG is the schedule's slug.
     """
     if not json:
         print_version()
@@ -192,7 +192,7 @@ def run(
     client = get_cli_client_or_exit()
     try:
         run_id = client.bolt.trigger_run(
-            slug=schedule_name,
+            slug=slug,
             branch=branch,
             commands=list(command) if command else None,
             pr_number=pr_number,
@@ -259,8 +259,10 @@ def verify(path: str) -> None:
 
 @click.command()
 @click.option(
+    "--slug",
     "--schedule-name",
-    help="The schedule's slug (the identifier returned by createBoltSchedule and shown in the Bolt UI).",
+    "slug",
+    help="The schedule's slug (the identifier returned by createBoltSchedule and shown in the Bolt UI). `--schedule-name` is accepted as a deprecated alias.",
     required=True,
 )
 @click.option(
@@ -281,7 +283,7 @@ def verify(path: str) -> None:
     default=None,
 )
 def artifact(
-    schedule_name: str,
+    slug: str,
     artifact_path: str,
     command_index: Optional[int] = None,
     output_path: Optional[str] = None,
@@ -292,10 +294,10 @@ def artifact(
     print_version()
     client = get_cli_client_or_exit()
     try:
-        print_artifact_downloading(schedule_name=schedule_name, artifact_path=artifact_path)
+        print_artifact_downloading(schedule_name=slug, artifact_path=artifact_path)
 
         artifact_url = client.bolt.get_latest_artifact_url(
-            slug=schedule_name,
+            slug=slug,
             artifact_path=artifact_path,
             command_index=command_index,
         )
