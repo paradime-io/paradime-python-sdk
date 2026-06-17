@@ -111,3 +111,19 @@ class BoltRun(BaseModel):
 class BoltScheduleRuns(BaseModel):
     ok: bool
     runs: List[BoltRun]
+
+
+class BoltLogStream(str, Enum):
+    STDOUT = "STDOUT"
+    STDERR = "STDERR"
+
+
+class BoltLogLine(BaseModel):
+    stream: BoltLogStream
+    line: str
+
+
+class BoltCommandLogs(BaseModel):
+    lines: List[BoltLogLine]
+    cursor: str
+    finished: bool
