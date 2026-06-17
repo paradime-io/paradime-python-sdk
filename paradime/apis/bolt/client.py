@@ -176,6 +176,97 @@ class BoltClient:
             "suspendBoltSchedule"
         ]
 
+    def create_schedule(
+        self,
+        *,
+        display_name: str,
+        schedule: str,
+        environment: str,
+        commands: List[str],
+        git_branch: Optional[str] = None,
+        description: Optional[str] = None,
+        timezone: Optional[str] = None,
+        owner_email: Optional[str] = None,
+        suspended: Optional[bool] = None,
+        sla_seconds: Optional[int] = None,
+        trigger_on_merge: Optional[bool] = None,
+    ) -> str:
+        """
+        Create a new Bolt schedule.
+
+        Args:
+            display_name (str): Human-readable schedule name shown in the Bolt UI.
+            schedule (str): Cron expression (e.g. ``"0 1 * * *"``) or the literal ``"OFF"`` for manual-only runs.
+            environment (str): Name of the environment to run in (e.g. ``"production"``).
+            commands (List[str]): Commands the schedule should run, in order (e.g. ``["dbt run", "dbt test"]``).
+            git_branch (Optional[str]): Git branch the run should check out. Defaults to the environment's branch.
+            description (Optional[str]): Free-text description shown in the UI.
+            timezone (Optional[str]): IANA timezone for the cron expression (e.g. ``"UTC"``, ``"Europe/London"``).
+            owner_email (Optional[str]): Email of the workspace member who should own the schedule.
+            suspended (Optional[bool]): Create the schedule already suspended. Defaults to active.
+            sla_seconds (Optional[int]): Soft SLA window in seconds; runs exceeding this are surfaced as overdue.
+            trigger_on_merge (Optional[bool]): If True, run on every merge to ``git_branch``.
+
+        Returns:
+            str: The slug assigned by the backend. This is the identifier to pass as ``slug=`` to every
+            other Bolt method (``trigger_run``, ``get_schedule``, ``delete_schedule``, etc.).
+
+        Note:
+            There is a short consistency window (~10s) between schedule creation and the trigger path
+            accepting the new slug. Callers that immediately invoke ``trigger_run`` may need to retry.
+        """
+
+        schedule_input: dict = {
+            "displayName": display_name,
+            "schedule": schedule,
+            "environment": environment,
+            "commands": commands,
+        }
+        optional_fields = {
+            "gitBranch": git_branch,
+            "description": description,
+            "timezone": timezone,
+            "ownerEmail": owner_email,
+            "suspended": suspended,
+            "slaSeconds": sla_seconds,
+            "triggerOnMerge": trigger_on_merge,
+        }
+        for key, value in optional_fields.items():
+            if value is not None:
+                schedule_input[key] = value
+
+        query = """
+            mutation CreateBoltSchedule($schedule: BoltScheduleInput!) {
+                createBoltSchedule(schedule: $schedule) {
+                    slug
+                }
+            }
+        """
+
+        result = self.client._call_gql(query=query, variables={"schedule": schedule_input})
+        return result["createBoltSchedule"]["slug"]
+
+    def delete_schedule(self, slug: str) -> None:
+        """
+        Delete a Bolt schedule.
+
+        Args:
+            slug (str): The schedule slug returned by ``create_schedule``.
+
+        Returns:
+            None
+        """
+
+        query = """
+            mutation DeleteBoltSchedule($slug: String!) {
+                deleteBoltSchedule(slug: $slug) {
+                    ok
+                }
+            }
+        """
+
+        self.client._call_gql(query=query, variables={"slug": slug})
+
     def list_schedules(
         self,
         *,
