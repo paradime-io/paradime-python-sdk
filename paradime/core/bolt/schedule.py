@@ -279,7 +279,10 @@ def get_slug_format_warnings(schedules: ParadimeSchedules) -> List[str]:
     return warnings
 
 
-def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
+def is_valid_schedule_at_path(
+    file_path: Path,
+    existing_names: Optional[set] = None,
+) -> Optional[str]:
     try:
         schedules = _get_schedules(file_path)
     except Exception as e:
@@ -293,16 +296,21 @@ def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
     if len(schedule_names) > len(set(schedule_names)):
         return "Schedule names are not unique."
 
-    # check turbo ci / deferred references resolve to existing schedules
+    # All known names: local YAML + backend (if available)
+    known_names = set(schedule_names)
+    if existing_names:
+        known_names |= existing_names
+
+    # check turbo ci / deferred references resolve to known schedules
     # (multiple turbo CI configs are supported)
     for schedule in schedules.schedules:
         if schedule.turbo_ci and schedule.turbo_ci.enabled:
-            if schedule.turbo_ci.deferred_schedule_name not in schedule_names:
-                return f"Turbo CI schedule error: '{schedule.turbo_ci.deferred_schedule_name}' does not refer to another schedule name"
+            if schedule.turbo_ci.deferred_schedule_name not in known_names:
+                return f"Turbo CI schedule error: '{schedule.turbo_ci.deferred_schedule_name}' does not refer to a known schedule name"
 
         if schedule.deferred_schedule and schedule.deferred_schedule.enabled:
-            if schedule.deferred_schedule.deferred_schedule_name not in schedule_names:
-                return f"Deferred schedule error: '{schedule.deferred_schedule.deferred_schedule_name}' does not refer to another schedule name"
+            if schedule.deferred_schedule.deferred_schedule_name not in known_names:
+                return f"Deferred schedule error: '{schedule.deferred_schedule.deferred_schedule_name}' does not refer to a known schedule name"
 
     # Verify schedules individually
     for schedule in schedules.schedules:
@@ -375,9 +383,7 @@ def _find_schedule_files(path: Path) -> List[Path]:
     bolt_dir = root / SCHEDULES_DIR_NAME
     if bolt_dir.is_dir():
         files.extend(
-            sorted(
-                p for p in bolt_dir.rglob("*") if p.is_file() and p.suffix in (".yaml", ".yml")
-            )
+            sorted(p for p in bolt_dir.rglob("*") if p.is_file() and p.suffix in (".yaml", ".yml"))
         )
 
     # Collect flat file(s)
