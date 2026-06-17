@@ -245,48 +245,58 @@ def verify(path: str) -> None:
     except Exception:
         schedules = None
 
-    if schedules:
+    if not schedules:
+        click.secho("No schedules found.", fg="yellow")
+        return
+
+    click.secho(
+        f"Found {len(schedules.schedules)} schedule(s): "
+        + ", ".join(s.name for s in schedules.schedules),
+        fg="cyan",
+    )
+
+    try:
+        client = get_cli_client_or_exit()
+        root = schedule_path.parent if schedule_path.is_file() else schedule_path
+
+        # Fetch existing schedule names from the backend.
+        existing_names: set[str] = set()
         try:
-            client = get_cli_client_or_exit()
-            root = schedule_path.parent if schedule_path.is_file() else schedule_path
+            all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
+            existing_names = {s.name for s in all_schedules.schedules}
+            click.secho(f"Backend has {len(existing_names)} existing schedule(s).", fg="cyan")
+        except Exception:
+            click.secho("Could not fetch existing schedules — will mint all.", fg="yellow")
 
-            # Fetch existing schedule names from the backend.
-            existing_names: set[str] = set()
-            try:
-                all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
-                existing_names = {s.name for s in all_schedules.schedules}
-            except Exception:
-                pass  # If we can't fetch, we'll mint everything
+        unregistered = [s.name for s in schedules.schedules if s.name not in existing_names]
 
-            has_unregistered = any(
-                s.name not in existing_names for s in schedules.schedules
-            )
-
-            if has_unregistered:
-                changed = mint_slugs_in_yaml_files(
-                    mint_fn=client.bolt.create_schedule_slugs,
-                    root=root,
-                    existing_names=existing_names,
-                )
-                if changed:
-                    click.secho(f"Minted slugs in {changed} file(s).", fg="green")
-                else:
-                    click.secho("All schedules verified.", fg="green")
-            else:
-                click.secho("All schedules verified.", fg="green")
-        except (ParadimeAPIException, ParadimeException) as e:
+        if unregistered:
             click.secho(
-                f"Could not mint slugs (API unavailable): {e}\n"
-                f"Non-slug schedule names will be grandfathered by the backend on deploy.",
+                f"Unregistered schedule(s) needing slugs: {', '.join(unregistered)}",
                 fg="yellow",
             )
-        except Exception:
-            # Fall back to warnings if minting fails for any reason
-            if schedules:
-                for warning in get_slug_format_warnings(schedules):
-                    click.secho(f"warning: {warning}", fg="yellow")
-    else:
-        click.secho("All schedules verified.", fg="green")
+            changed = mint_slugs_in_yaml_files(
+                mint_fn=client.bolt.create_schedule_slugs,
+                root=root,
+                existing_names=existing_names,
+            )
+            if changed:
+                click.secho(f"Minted slugs in {changed} file(s).", fg="green")
+            else:
+                click.secho("All schedules verified.", fg="green")
+        else:
+            click.secho("All schedules verified.", fg="green")
+    except (ParadimeAPIException, ParadimeException) as e:
+        click.secho(
+            f"Could not mint slugs (API unavailable): {e}\n"
+            f"Non-slug schedule names will be grandfathered by the backend on deploy.",
+            fg="yellow",
+        )
+    except Exception:
+        # Fall back to warnings if minting fails for any reason
+        if schedules:
+            for warning in get_slug_format_warnings(schedules):
+                click.secho(f"warning: {warning}", fg="yellow")
 
 
 @click.command()

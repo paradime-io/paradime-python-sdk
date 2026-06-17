@@ -7,6 +7,7 @@ modifying the YAML in place.
 from pathlib import Path
 from typing import Callable, List, Set
 
+import click
 from ruamel.yaml import YAML
 
 from paradime.core.bolt.schedule import SCHEDULE_FILE_NAMES, SCHEDULES_DIR_NAME
@@ -65,7 +66,12 @@ def mint_slugs_in_yaml_files(
 
     files = _find_yaml_files(root)
     if not files:
+        click.secho(f"No schedule YAML files found under {root}", fg="yellow")
         return 0
+
+    click.secho(f"Scanning {len(files)} file(s):", fg="cyan")
+    for f in files:
+        click.secho(f"  {f}", fg="cyan")
 
     grandfathered = existing_names or set()
 
@@ -78,9 +84,11 @@ def mint_slugs_in_yaml_files(
     for filepath in files:
         doc = yaml.load(filepath)
         if not doc or "schedules" not in doc:
+            click.secho(f"  Skipping {filepath} (no 'schedules' key)", fg="yellow")
             continue
         schedules = doc.get("schedules")
         if not isinstance(schedules, list):
+            click.secho(f"  Skipping {filepath} ('schedules' is not a list)", fg="yellow")
             continue
         loaded.append((filepath, doc))
 
@@ -93,23 +101,26 @@ def mint_slugs_in_yaml_files(
             name_str = str(name)
 
             if name_str in grandfathered:
-                # Exists in the backend — leave it alone
+                click.secho(f"  {filepath.name}: '{name_str}' exists in backend, skipping.", fg="cyan")
                 display = entry.get("display_name") or name_str
                 name_to_slug[str(display)] = name_str
                 name_to_slug[name_str] = name_str
             else:
-                # New schedule, not a slug — needs minting
                 display = entry.get("display_name") or name_str
+                click.secho(f"  {filepath.name}: '{name_str}' not in backend, will mint slug.", fg="yellow")
                 if str(display) not in names_needing_slugs:
                     names_needing_slugs.append(str(display))
                 name_to_slug[name_str] = name_str  # placeholder, updated below
 
     if not names_needing_slugs:
+        click.secho("No schedules need slug minting.", fg="green")
         return 0
 
     # Mint slugs from the backend
+    click.secho(f"Minting {len(names_needing_slugs)} slug(s) via backend...", fg="cyan")
     minted_slugs = mint_fn(names_needing_slugs)
     for display_name, minted in zip(names_needing_slugs, minted_slugs):
+        click.secho(f"  '{display_name}' -> '{minted}'", fg="green")
         name_to_slug[display_name] = minted
 
     # --- Pass 2: rewrite all files ---
@@ -165,6 +176,7 @@ def mint_slugs_in_yaml_files(
                         changed = True
 
         if changed:
+            click.secho(f"  Rewriting {filepath}", fg="green")
             yaml.dump(doc, filepath)
             files_changed += 1
 
