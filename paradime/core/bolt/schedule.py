@@ -369,23 +369,24 @@ def _find_schedule_files(path: Path) -> List[Path]:
 
     # Treat path as a directory (project root).
     root = path if path.is_dir() else path.parent
+    files: List[Path] = []
 
-    # Check .bolt/ directory first
+    # Collect from .bolt/ directory
     bolt_dir = root / SCHEDULES_DIR_NAME
     if bolt_dir.is_dir():
-        files = sorted(
-            p for p in bolt_dir.rglob("*") if p.is_file() and p.suffix in (".yaml", ".yml")
+        files.extend(
+            sorted(
+                p for p in bolt_dir.rglob("*") if p.is_file() and p.suffix in (".yaml", ".yml")
+            )
         )
-        if files:
-            return files
 
-    # Fall back to flat file
+    # Collect flat file(s)
     for name in SCHEDULE_FILE_NAMES:
         flat = root / name
         if flat.is_file():
-            return [flat]
+            files.append(flat)
 
-    return []
+    return files
 
 
 def _get_schedules(path: Path) -> Optional[ParadimeSchedules]:

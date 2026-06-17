@@ -19,11 +19,9 @@ from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.core.bolt.schedule import (
-    SCHEDULE_FILE_NAME,
     _get_schedules,
     get_slug_format_warnings,
     is_valid_schedule_at_path,
-    is_valid_slug,
 )
 from paradime.core.bolt.yaml_rewriter import mint_slugs_in_yaml_files
 
@@ -241,21 +239,18 @@ def verify(path: str) -> None:
         print_error_table(error_string, is_json=False)
         sys.exit(1)
 
-    # Check for non-slug names and mint slugs via the backend
+    # Check for names not yet registered in the backend and mint slugs.
     try:
         schedules = _get_schedules(schedule_path)
     except Exception:
         schedules = None
 
-    has_non_slugs = schedules and any(not is_valid_slug(s.name) for s in schedules.schedules)
-
-    if has_non_slugs:
+    if schedules:
         try:
             client = get_cli_client_or_exit()
             root = schedule_path.parent if schedule_path.is_file() else schedule_path
 
-            # Fetch existing schedule names from the backend so we don't
-            # rewrite names that are already deployed (grandfathered).
+            # Fetch existing schedule names from the backend.
             existing_names: set[str] = set()
             try:
                 all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
@@ -263,13 +258,22 @@ def verify(path: str) -> None:
             except Exception:
                 pass  # If we can't fetch, we'll mint everything
 
-            changed = mint_slugs_in_yaml_files(
-                mint_fn=client.bolt.create_schedule_slugs,
-                root=root,
-                existing_names=existing_names,
+            has_unregistered = any(
+                s.name not in existing_names for s in schedules.schedules
             )
-            if changed:
-                click.secho(f"Minted slugs in {changed} file(s).", fg="green")
+
+            if has_unregistered:
+                changed = mint_slugs_in_yaml_files(
+                    mint_fn=client.bolt.create_schedule_slugs,
+                    root=root,
+                    existing_names=existing_names,
+                )
+                if changed:
+                    click.secho(f"Minted slugs in {changed} file(s).", fg="green")
+                else:
+                    click.secho("All schedules verified.", fg="green")
+            else:
+                click.secho("All schedules verified.", fg="green")
         except (ParadimeAPIException, ParadimeException) as e:
             click.secho(
                 f"Could not mint slugs (API unavailable): {e}\n"

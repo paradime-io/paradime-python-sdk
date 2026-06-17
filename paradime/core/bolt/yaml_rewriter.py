@@ -9,26 +9,27 @@ from typing import Callable, List, Set
 
 from ruamel.yaml import YAML
 
-from paradime.core.bolt.schedule import SCHEDULE_FILE_NAME, is_valid_slug
-
-SCHEDULES_DIR_NAME = ".bolt"
+from paradime.core.bolt.schedule import SCHEDULE_FILE_NAMES, SCHEDULES_DIR_NAME
 
 
 def _find_yaml_files(root: Path) -> List[Path]:
-    """Discover schedule YAML files — either ``.bolt/*.yaml`` or the flat file."""
+    """Discover schedule YAML files from ``.bolt/`` and/or the flat file."""
+    files: List[Path] = []
+
     bolt_dir = root / SCHEDULES_DIR_NAME
     if bolt_dir.is_dir():
-        files = sorted(
-            p for p in bolt_dir.rglob("*") if p.is_file() and p.suffix in (".yaml", ".yml")
+        files.extend(
+            sorted(
+                p for p in bolt_dir.rglob("*") if p.is_file() and p.suffix in (".yaml", ".yml")
+            )
         )
-        if files:
-            return files
 
-    flat = root / SCHEDULE_FILE_NAME
-    if flat.is_file():
-        return [flat]
+    for name in SCHEDULE_FILE_NAMES:
+        flat = root / name
+        if flat.is_file():
+            files.append(flat)
 
-    return []
+    return files
 
 
 def mint_slugs_in_yaml_files(
@@ -91,13 +92,10 @@ def mint_slugs_in_yaml_files(
                 continue
             name_str = str(name)
 
-            if is_valid_slug(name_str):
-                # Already a slug — record the mapping
+            if name_str in grandfathered:
+                # Exists in the backend — leave it alone
                 display = entry.get("display_name") or name_str
                 name_to_slug[str(display)] = name_str
-                name_to_slug[name_str] = name_str
-            elif name_str in grandfathered:
-                # Exists in backend with this non-slug name — leave it alone
                 name_to_slug[name_str] = name_str
             else:
                 # New schedule, not a slug — needs minting
@@ -126,7 +124,7 @@ def mint_slugs_in_yaml_files(
 
             # Rewrite the schedule's own name (only if not grandfathered)
             name = entry.get("name")
-            if name and not is_valid_slug(str(name)) and str(name) not in grandfathered:
+            if name and str(name) not in grandfathered:
                 old_name = str(name)
                 display = entry.get("display_name") or old_name
                 slug: str | None = name_to_slug.get(str(display)) or name_to_slug.get(old_name)
