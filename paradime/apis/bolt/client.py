@@ -1,6 +1,6 @@
 import time
 import warnings
-from typing import Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import requests
 
@@ -13,19 +13,45 @@ from paradime.apis.bolt.types import (
     BoltCommandArtifact,
     BoltCommandLogs,
     BoltDeferredSchedule,
+    BoltDeferredScheduleConfigInput,
+    BoltEnvironmentVariableInput,
+    BoltIntegrationsInput,
     BoltLogLine,
     BoltLogStream,
     BoltNotificationItem,
     BoltNotifications,
+    BoltNotificationsInput,
     BoltRun,
     BoltRunGitInfo,
     BoltRunState,
     BoltSchedule,
     BoltScheduleInfo,
     BoltScheduleRuns,
+    BoltScheduleTriggerInput,
     BoltSchedules,
+    BoltSelfHealingConfigInput,
+    _BoltInputBase,
 )
 from paradime.client.api_client import APIClient
+
+
+def _serialize_input(
+    value: Optional[Union[_BoltInputBase, Dict[str, Any]]],
+) -> Optional[Dict[str, Any]]:
+    """Convert a typed input model (or a raw dict escape hatch) to the GraphQL payload."""
+    if value is None:
+        return None
+    if isinstance(value, _BoltInputBase):
+        return value.dict(by_alias=True, exclude_none=True)
+    return value
+
+
+def _serialize_input_list(
+    items: Optional[List[Any]],
+) -> Optional[List[Dict[str, Any]]]:
+    if items is None:
+        return None
+    return [_serialize_input(item) for item in items]  # type: ignore[misc]
 
 
 def _resolve_slug_or_schedule_name(
@@ -190,6 +216,15 @@ class BoltClient:
         suspended: Optional[bool] = None,
         sla_seconds: Optional[int] = None,
         trigger_on_merge: Optional[bool] = None,
+        notifications: Optional[Union[BoltNotificationsInput, Dict[str, Any]]] = None,
+        integrations: Optional[Union[BoltIntegrationsInput, Dict[str, Any]]] = None,
+        self_healing: Optional[Union[BoltSelfHealingConfigInput, Dict[str, Any]]] = None,
+        turbo_ci: Optional[Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]] = None,
+        deferred_schedule: Optional[
+            Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]
+        ] = None,
+        schedule_trigger: Optional[Union[BoltScheduleTriggerInput, Dict[str, Any]]] = None,
+        env_vars: Optional[List[Union[BoltEnvironmentVariableInput, Dict[str, Any]]]] = None,
     ) -> str:
         """
         Create a new Bolt schedule.
@@ -206,6 +241,13 @@ class BoltClient:
             suspended (Optional[bool]): Create the schedule already suspended. Defaults to active.
             sla_seconds (Optional[int]): Soft SLA window in seconds; runs exceeding this are surfaced as overdue.
             trigger_on_merge (Optional[bool]): If True, run on every merge to ``git_branch``.
+            notifications (Optional[BoltNotificationsInput | dict]): Slack / Teams / email notification routing.
+            integrations (Optional[BoltIntegrationsInput | dict]): PagerDuty / Datadog / incident.io / New Relic incident triggers fired on failures.
+            self_healing (Optional[BoltSelfHealingConfigInput | dict]): Paradime self-healing agent (auto-retry + Slack updates).
+            turbo_ci (Optional[BoltDeferredScheduleConfigInput | dict]): Turbo CI config — defer state from another schedule's last successful run.
+            deferred_schedule (Optional[BoltDeferredScheduleConfigInput | dict]): Slim-CI-style deferred schedule config.
+            schedule_trigger (Optional[BoltScheduleTriggerInput | dict]): Run this schedule when a parent schedule (possibly in another workspace) finishes.
+            env_vars (Optional[List[BoltEnvironmentVariableInput | dict]]): Environment-variable overrides for this schedule.
 
         Returns:
             str: The slug assigned by the backend. This is the identifier to pass as ``slug=`` to every
@@ -214,15 +256,29 @@ class BoltClient:
         Note:
             There is a short consistency window (~10s) between schedule creation and the trigger path
             accepting the new slug. Callers that immediately invoke ``trigger_run`` may need to retry.
+
+        Example:
+            >>> slug = paradime.bolt.create_schedule(
+            ...     display_name="Nightly build",
+            ...     schedule="0 1 * * *",
+            ...     environment="production",
+            ...     commands=["dbt build"],
+            ...     notifications=BoltNotificationsInput(
+            ...         slack_notifications=[
+            ...             BoltNotificationChannelInput(channel="#data-alerts", events=["FAILED"]),
+            ...         ],
+            ...     ),
+            ...     env_vars=[BoltEnvironmentVariableInput(key="DBT_PROFILES_DIR", value="/wks/p")],
+            ... )
         """
 
-        schedule_input: dict = {
+        schedule_input: Dict[str, Any] = {
             "displayName": display_name,
             "schedule": schedule,
             "environment": environment,
             "commands": commands,
         }
-        optional_fields = {
+        scalar_fields = {
             "gitBranch": git_branch,
             "description": description,
             "timezone": timezone,
@@ -231,7 +287,20 @@ class BoltClient:
             "slaSeconds": sla_seconds,
             "triggerOnMerge": trigger_on_merge,
         }
-        for key, value in optional_fields.items():
+        for key, value in scalar_fields.items():
+            if value is not None:
+                schedule_input[key] = value
+
+        nested_fields: Dict[str, Any] = {
+            "notifications": _serialize_input(notifications),
+            "integrations": _serialize_input(integrations),
+            "selfHealing": _serialize_input(self_healing),
+            "turboCi": _serialize_input(turbo_ci),
+            "deferredSchedule": _serialize_input(deferred_schedule),
+            "scheduleTrigger": _serialize_input(schedule_trigger),
+            "envVars": _serialize_input_list(env_vars),
+        }
+        for key, value in nested_fields.items():
             if value is not None:
                 schedule_input[key] = value
 
