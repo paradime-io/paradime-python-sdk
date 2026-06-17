@@ -217,7 +217,7 @@ def retry(retry_all: bool, wait: bool, json: bool, run_id: int) -> None:
     "--path",
     help="Path to paradime_schedules.yml file or project root containing .bolt/ directory.",
     show_default=True,
-    default=SCHEDULE_FILE_NAME,
+    default=".",
 )
 def verify(path: str) -> None:
     """

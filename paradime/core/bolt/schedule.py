@@ -12,6 +12,8 @@ from paradime.core.bolt.timezones import SUPPORTED_TIMEZONES
 from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
+SCHEDULE_FILE_NAMES = ("paradime_schedules.yml", "paradime_schedules.yaml")
+SCHEDULES_DIR_NAME = ".bolt"
 VALID_ON_EVENTS = ("failed", "passed", "sla")
 
 # Schedule slug format. Mirrors paradb's schedule slug shape:
@@ -354,14 +356,61 @@ def parse_command(command: str) -> Command:
     return Command(as_list=cmd_as_list)
 
 
-def _get_schedules(path: Path) -> Optional[ParadimeSchedules]:
-    """Parse the yaml file."""
+def _find_schedule_files(path: Path) -> List[Path]:
+    """Discover schedule YAML files from a path.
 
-    # Get the schedules.
+    ``path`` can be:
+    - A direct file path (returned as-is if it exists).
+    - A directory that contains ``paradime_schedules.{yml,yaml}`` or a
+      ``.bolt/`` sub-directory with YAML files.
+    """
     if path.is_file():
-        parsed_yaml = yaml.safe_load(path.read_text())
-        return ParadimeSchedules.parse_obj(parsed_yaml)
-    return None
+        return [path]
+
+    # Treat path as a directory (project root).
+    root = path if path.is_dir() else path.parent
+
+    # Check .bolt/ directory first
+    bolt_dir = root / SCHEDULES_DIR_NAME
+    if bolt_dir.is_dir():
+        files = sorted(
+            p for p in bolt_dir.rglob("*") if p.is_file() and p.suffix in (".yaml", ".yml")
+        )
+        if files:
+            return files
+
+    # Fall back to flat file
+    for name in SCHEDULE_FILE_NAMES:
+        flat = root / name
+        if flat.is_file():
+            return [flat]
+
+    return []
+
+
+def _get_schedules(path: Path) -> Optional[ParadimeSchedules]:
+    """Parse schedule YAML file(s).
+
+    Supports a single flat file (``paradime_schedules.{yml,yaml}``) as well as
+    a ``.bolt/`` directory containing multiple YAML files.  When multiple files
+    are found their schedule lists are merged into one ``ParadimeSchedules``.
+    """
+    files = _find_schedule_files(path)
+    if not files:
+        return None
+
+    all_schedules: List[ParadimeSchedule] = []
+    for f in files:
+        parsed_yaml = yaml.safe_load(f.read_text())
+        if not parsed_yaml:
+            continue
+        parsed = ParadimeSchedules.parse_obj(parsed_yaml)
+        all_schedules.extend(parsed.schedules)
+
+    if not all_schedules:
+        return None
+
+    return ParadimeSchedules(schedules=all_schedules)
 
 
 def _cron_schedule_is_non_standard(schedule: str) -> bool:
