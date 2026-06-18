@@ -1,3 +1,5 @@
+import re
+import secrets
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +12,37 @@ from paradime.core.bolt.timezones import SUPPORTED_TIMEZONES
 from paradime.tools.pydantic import BaseModel, Extra, root_validator, validator
 
 SCHEDULE_FILE_NAME = "paradime_schedules.yml"
+SCHEDULE_FILE_NAMES = ("paradime_schedules.yml", "paradime_schedules.yaml")
+SCHEDULES_DIR_NAME = ".bolt"
 VALID_ON_EVENTS = ("failed", "passed", "sla")
+
+# Schedule slug format. Mirrors paradb's schedule slug shape:
+# <first-24-chars-of-name-normalised>-<6-random-hex-chars>.
+# Keep in sync with the paradime-backend slug validator.
+SLUG_REGEX = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SLUG_MAX_LENGTH = 80
+
+DISPLAY_NAME_MAX_LENGTH = 128
+
+
+def is_valid_slug(name: str) -> bool:
+    return bool(name) and len(name) <= SLUG_MAX_LENGTH and SLUG_REGEX.fullmatch(name) is not None
+
+
+def mint_schedule_slug(display_name: str) -> str:
+    """Mint ``<first-24-chars-normalised>-<6-hex>``.
+
+    Same format as the backend's ``mint_schedule_slug`` in paradb. Used locally
+    for suggestion text only; the ``paradime bolt mint`` command calls the backend
+    to mint the canonical slug.
+    """
+    normalised = display_name.lower()
+    normalised = re.sub(r"[^a-z0-9]", "-", normalised)
+    normalised = re.sub(r"-+", "-", normalised)
+    normalised = normalised.strip("-")
+    normalised = normalised[:24]
+    hex_suffix = secrets.token_hex(3)
+    return f"{normalised}-{hex_suffix}"
 
 
 class ParadimeScheduleBase(BaseModel):
@@ -175,6 +207,7 @@ class Integrations(BaseModel):
 
 class ParadimeSchedule(ParadimeScheduleBase):
     name: str
+    display_name: Optional[str] = None
     schedule: str
     timezone: Optional[str] = None
     environment: str
@@ -206,6 +239,16 @@ class ParadimeSchedule(ParadimeScheduleBase):
 
     suspended: Optional[bool] = False
 
+    @validator("display_name")
+    def validate_display_name(cls, display_name: Optional[str]) -> Optional[str]:
+        if display_name is None:
+            return None
+        if "\n" in display_name or "\r" in display_name:
+            raise ValueError("display_name must not contain newlines")
+        if len(display_name) > DISPLAY_NAME_MAX_LENGTH:
+            raise ValueError(f"display_name must be {DISPLAY_NAME_MAX_LENGTH} characters or fewer")
+        return display_name
+
 
 class ParadimeSchedules(ParadimeScheduleBase):
     version: int = 1
@@ -217,7 +260,29 @@ class Command:
     as_list: List[str]
 
 
-def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
+def get_slug_format_warnings(schedules: ParadimeSchedules) -> List[str]:
+    """Names that aren't slug-format yet — informational only.
+
+    The backend grandfathers existing names so deploys keep working, but new
+    schedule names should match the slug format. Surface this as a nudge from
+    `verify` without failing it.
+    """
+    warnings: List[str] = []
+    for schedule in schedules.schedules:
+        if not is_valid_slug(schedule.name):
+            suggested = mint_schedule_slug(schedule.display_name or schedule.name)
+            warnings.append(
+                f"{schedule.name!r} is not in slug format. "
+                f"Run `paradime bolt mint` to auto-generate slugs, "
+                f"or use a slug like {suggested!r}."
+            )
+    return warnings
+
+
+def is_valid_schedule_at_path(
+    file_path: Path,
+    existing_names: Optional[set] = None,
+) -> Optional[str]:
     try:
         schedules = _get_schedules(file_path)
     except Exception as e:
@@ -231,16 +296,21 @@ def is_valid_schedule_at_path(file_path: Path) -> Optional[str]:
     if len(schedule_names) > len(set(schedule_names)):
         return "Schedule names are not unique."
 
-    # check turbo ci / deferred references resolve to existing schedules
+    # All known names: local YAML + backend (if available)
+    known_names = set(schedule_names)
+    if existing_names:
+        known_names |= existing_names
+
+    # check turbo ci / deferred references resolve to known schedules
     # (multiple turbo CI configs are supported)
     for schedule in schedules.schedules:
         if schedule.turbo_ci and schedule.turbo_ci.enabled:
-            if schedule.turbo_ci.deferred_schedule_name not in schedule_names:
-                return f"Turbo CI schedule error: '{schedule.turbo_ci.deferred_schedule_name}' does not refer to another schedule name"
+            if schedule.turbo_ci.deferred_schedule_name not in known_names:
+                return f"Turbo CI schedule error: '{schedule.turbo_ci.deferred_schedule_name}' does not refer to a known schedule name"
 
         if schedule.deferred_schedule and schedule.deferred_schedule.enabled:
-            if schedule.deferred_schedule.deferred_schedule_name not in schedule_names:
-                return f"Deferred schedule error: '{schedule.deferred_schedule.deferred_schedule_name}' does not refer to another schedule name"
+            if schedule.deferred_schedule.deferred_schedule_name not in known_names:
+                return f"Deferred schedule error: '{schedule.deferred_schedule.deferred_schedule_name}' does not refer to a known schedule name"
 
     # Verify schedules individually
     for schedule in schedules.schedules:
@@ -294,14 +364,60 @@ def parse_command(command: str) -> Command:
     return Command(as_list=cmd_as_list)
 
 
-def _get_schedules(path: Path) -> Optional[ParadimeSchedules]:
-    """Parse the yaml file."""
+def _find_schedule_files(path: Path) -> List[Path]:
+    """Discover schedule YAML files from a path.
 
-    # Get the schedules.
+    ``path`` can be:
+    - A direct file path (returned as-is if it exists).
+    - A directory that contains ``paradime_schedules.{yml,yaml}`` or a
+      ``.bolt/`` sub-directory with YAML files.
+    """
     if path.is_file():
-        parsed_yaml = yaml.safe_load(path.read_text())
-        return ParadimeSchedules.parse_obj(parsed_yaml)
-    return None
+        return [path]
+
+    # Treat path as a directory (project root).
+    root = path if path.is_dir() else path.parent
+    files: List[Path] = []
+
+    # Collect from .bolt/ directory
+    bolt_dir = root / SCHEDULES_DIR_NAME
+    if bolt_dir.is_dir():
+        files.extend(
+            sorted(p for p in bolt_dir.rglob("*") if p.is_file() and p.suffix in (".yaml", ".yml"))
+        )
+
+    # Collect flat file(s)
+    for name in SCHEDULE_FILE_NAMES:
+        flat = root / name
+        if flat.is_file():
+            files.append(flat)
+
+    return files
+
+
+def _get_schedules(path: Path) -> Optional[ParadimeSchedules]:
+    """Parse schedule YAML file(s).
+
+    Supports a single flat file (``paradime_schedules.{yml,yaml}``) as well as
+    a ``.bolt/`` directory containing multiple YAML files.  When multiple files
+    are found their schedule lists are merged into one ``ParadimeSchedules``.
+    """
+    files = _find_schedule_files(path)
+    if not files:
+        return None
+
+    all_schedules: List[ParadimeSchedule] = []
+    for f in files:
+        parsed_yaml = yaml.safe_load(f.read_text())
+        if not parsed_yaml:
+            continue
+        parsed = ParadimeSchedules.parse_obj(parsed_yaml)
+        all_schedules.extend(parsed.schedules)
+
+    if not all_schedules:
+        return None
+
+    return ParadimeSchedules(schedules=all_schedules)
 
 
 def _cron_schedule_is_non_standard(schedule: str) -> bool:
