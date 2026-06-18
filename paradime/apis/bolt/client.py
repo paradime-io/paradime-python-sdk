@@ -27,8 +27,8 @@ from paradime.apis.bolt.types import (
     BoltSchedule,
     BoltScheduleInfo,
     BoltScheduleRuns,
-    BoltScheduleTriggerInput,
     BoltSchedules,
+    BoltScheduleTriggerInput,
     BoltSelfHealingConfigInput,
     _BoltInputBase,
 )
@@ -220,9 +220,7 @@ class BoltClient:
         integrations: Optional[Union[BoltIntegrationsInput, Dict[str, Any]]] = None,
         self_healing: Optional[Union[BoltSelfHealingConfigInput, Dict[str, Any]]] = None,
         turbo_ci: Optional[Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]] = None,
-        deferred_schedule: Optional[
-            Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]
-        ] = None,
+        deferred_schedule: Optional[Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]] = None,
         schedule_trigger: Optional[Union[BoltScheduleTriggerInput, Dict[str, Any]]] = None,
         env_vars: Optional[List[Union[BoltEnvironmentVariableInput, Dict[str, Any]]]] = None,
     ) -> str:
