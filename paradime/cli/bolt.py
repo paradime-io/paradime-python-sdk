@@ -242,10 +242,8 @@ def verify(path: str) -> None:
     """
     print_version()
 
-    # Fetch schedules across all workspaces so cross-workspace `schedule_trigger`
-    # references can be validated. Tolerate missing credentials / API failure (skip
-    # the check rather than fail verify) by leaving the refs as None, so `verify`
-    # still works offline.
+    # Fetch schedules across all workspaces to validate cross-workspace
+    # schedule_trigger references. Skip the check (refs=None) if offline.
     schedule_trigger_refs = None
     try:
         client = get_cli_client()

@@ -256,10 +256,8 @@ def is_valid_schedule_at_path(
             if schedule.deferred_schedule.deferred_schedule_name not in schedule_names:
                 return f"Deferred schedule error: '{schedule.deferred_schedule.deferred_schedule_name}' does not refer to another schedule name"
 
-        # schedule_trigger can point at a schedule in any workspace. When we have
-        # the list of schedules across all workspaces, validate the
-        # (workspace_name, schedule_name) pair against it. A local schedule in this
-        # same file is also accepted (it may not be deployed yet).
+        # schedule_trigger may point at a schedule in any workspace; validate the
+        # (workspace_name, schedule_name) pair (a local schedule also counts).
         if schedule.schedule_trigger and schedule.schedule_trigger.enabled and schedule_trigger_refs:
             trigger = schedule.schedule_trigger
             ref = (trigger.workspace_name, trigger.schedule_name)
