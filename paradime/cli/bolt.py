@@ -22,7 +22,7 @@ from paradime.cli.rich_text_output import (
 )
 from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
-from paradime.client.paradime_cli_client import get_cli_client_or_exit
+from paradime.client.paradime_cli_client import get_cli_client, get_cli_client_or_exit
 from paradime.core.bolt.schedule import SCHEDULE_FILE_NAME, is_valid_schedule_at_path
 
 WAIT_SLEEP: Final = 10
@@ -241,7 +241,19 @@ def verify(path: str) -> None:
     Verify the paradime_schedules.yml file.
     """
     print_version()
-    error_string = is_valid_schedule_at_path(Path(path))
+
+    # Fetch schedules across all workspaces so cross-workspace `schedule_trigger`
+    # references can be validated. Tolerate missing credentials / API failure (skip
+    # the check rather than fail verify) by leaving the refs as None, so `verify`
+    # still works offline.
+    schedule_trigger_refs = None
+    try:
+        client = get_cli_client()
+        schedule_trigger_refs = set(client.bolt.list_all_schedule_names())
+    except Exception:
+        schedule_trigger_refs = None
+
+    error_string = is_valid_schedule_at_path(Path(path), schedule_trigger_refs=schedule_trigger_refs)
     if error_string:
         print_error_table(error_string, is_json=False)
         sys.exit(1)
