@@ -251,7 +251,9 @@ def verify(path: str) -> None:
     except Exception:
         schedule_trigger_refs = None
 
-    error_string = is_valid_schedule_at_path(Path(path), schedule_trigger_refs=schedule_trigger_refs)
+    error_string = is_valid_schedule_at_path(
+        Path(path), schedule_trigger_refs=schedule_trigger_refs
+    )
     if error_string:
         print_error_table(error_string, is_json=False)
         sys.exit(1)

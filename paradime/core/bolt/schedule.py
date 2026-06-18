@@ -258,7 +258,11 @@ def is_valid_schedule_at_path(
 
         # schedule_trigger may point at a schedule in any workspace; validate the
         # (workspace_name, schedule_name) pair (a local schedule also counts).
-        if schedule.schedule_trigger and schedule.schedule_trigger.enabled and schedule_trigger_refs:
+        if (
+            schedule.schedule_trigger
+            and schedule.schedule_trigger.enabled
+            and schedule_trigger_refs
+        ):
             trigger = schedule.schedule_trigger
             ref = (trigger.workspace_name, trigger.schedule_name)
             if ref not in schedule_trigger_refs and trigger.schedule_name not in schedule_names:
