@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "paradime-io"
-version = "5.7.0"
+version = "5.8.0"
 description = "Paradime - Python SDK"
 authors = [
     { name = "Bhuvan Singla", email = "bhuvan@paradime.io" },
@@ -37,6 +37,7 @@ dependencies = [
     "google-cloud-dataproc>=5.9.0,<6.0.0",
     "google-cloud-datastream>=1.9.0,<2.0.0",
     "google-auth>=2.29.0,<3.0.0",
+    "ruamel.yaml>=0.18.0,<0.19.0",
 ]
 
 [project.scripts]

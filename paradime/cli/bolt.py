@@ -23,7 +23,13 @@ from paradime.cli.rich_text_output import (
 from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
 from paradime.client.paradime_cli_client import get_cli_client, get_cli_client_or_exit
-from paradime.core.bolt.schedule import SCHEDULE_FILE_NAME, is_valid_schedule_at_path
+from paradime.core.bolt.schedule import (
+    SCHEDULE_FILE_NAME,
+    _get_schedules,
+    get_slug_format_warnings,
+    is_valid_schedule_at_path,
+)
+from paradime.core.bolt.yaml_rewriter import mint_slugs_in_yaml_files
 
 WAIT_SLEEP: Final = 10
 WAIT_SLEEP_STREAMING: Final = 2
@@ -84,14 +90,17 @@ def _wait_with_logs(client: "Paradime", run_id: int, is_json: bool) -> None:
 
 
 @click.command()
-@click.argument("schedule_name")
-def unsuspend(schedule_name: str) -> None:
+@click.argument("slug")
+def unsuspend(slug: str) -> None:
     """
     Enable a suspended Paradime Bolt schedule.
+
+    SLUG is the schedule's slug (the identifier returned by createBoltSchedule
+    and shown in the Bolt UI).
     """
     client = get_cli_client_or_exit()
     client.bolt.suspend_schedule(
-        schedule_name=schedule_name,
+        slug=slug,
         suspend=False,
     )
 
@@ -99,14 +108,17 @@ def unsuspend(schedule_name: str) -> None:
 
 
 @click.command()
-@click.argument("schedule_name")
-def suspend(schedule_name: str) -> None:
+@click.argument("slug")
+def suspend(slug: str) -> None:
     """
     Suspend a Paradime Bolt schedule.
+
+    SLUG is the schedule's slug (the identifier returned by createBoltSchedule
+    and shown in the Bolt UI).
     """
     client = get_cli_client_or_exit()
     client.bolt.suspend_schedule(
-        schedule_name=schedule_name,
+        slug=slug,
         suspend=True,
     )
 
@@ -124,17 +136,19 @@ def schedule() -> None:
 @click.command(name="retry")
 @click.option("--wait", help="Wait for the retry run to finish", is_flag=True)
 @click.option("--json", help="JSON formatted response", is_flag=True)
-@click.argument("schedule_name")
-def schedule_retry(wait: bool, json: bool, schedule_name: str) -> None:
+@click.argument("slug")
+def schedule_retry(wait: bool, json: bool, slug: str) -> None:
     """
     Retry the latest failed run of a Paradime Bolt schedule.
+
+    SLUG is the schedule's slug.
     """
     if not json:
         print_version()
 
     client = get_cli_client_or_exit()
     try:
-        new_run_id = client.bolt.retry_schedule_from_failure(schedule_name)
+        new_run_id = client.bolt.retry_schedule_from_failure(slug=slug)
     except ParadimeAPIException as e:
         print_error_table(f"Failed to retry schedule: {e}", is_json=json)
         sys.exit(1)
@@ -163,17 +177,19 @@ schedule.add_command(schedule_retry)
 )
 @click.option("--wait", help="Wait for the run to finish", is_flag=True)
 @click.option("--json", help="JSON formatted response", is_flag=True)
-@click.argument("schedule_name")
+@click.argument("slug")
 def run(
     branch: str,
     command: List[str],
     pr_number: Optional[int],
     wait: bool,
     json: bool,
-    schedule_name: str,
+    slug: str,
 ) -> None:
     """
     Trigger a Paradime Bolt run.
+
+    SLUG is the schedule's slug.
     """
     if not json:
         print_version()
@@ -182,7 +198,7 @@ def run(
     client = get_cli_client_or_exit()
     try:
         run_id = client.bolt.trigger_run(
-            schedule_name,
+            slug=slug,
             branch=branch,
             commands=list(command) if command else None,
             pr_number=pr_number,
@@ -232,37 +248,90 @@ def retry(retry_all: bool, wait: bool, json: bool, run_id: int) -> None:
 @click.command()
 @click.option(
     "--path",
-    help="Path to paradime_schedules.yml file.",
+    help="Path to paradime_schedules.yml file or project root containing .bolt/ directory.",
     show_default=True,
-    default=SCHEDULE_FILE_NAME,
+    default=".",
 )
 def verify(path: str) -> None:
     """
-    Verify the paradime_schedules.yml file.
+    Verify schedule YAML files and mint slugs for new schedules.
+
+    Validates the schedule configuration, then checks for schedules whose
+    ``name`` is not a valid slug. For those, calls the Paradime backend to
+    mint slugs and rewrites the YAML in place — moving the current ``name``
+    to ``display_name`` and inserting the minted slug as ``name``.
+
+    Also resolves cross-references in ``deferred_schedule``, ``turbo_ci``,
+    and ``schedule_trigger`` sections to use the minted slugs.
+
+    Supports both the flat ``paradime_schedules.yml`` layout and the modular
+    ``.bolt/`` folder layout.
     """
     print_version()
+    schedule_path = Path(path)
 
-    # Fetch schedules across all workspaces to validate cross-workspace
-    # schedule_trigger references. Skip the check (refs=None) if offline.
-    schedule_trigger_refs = None
+    # Fetch existing schedule names from the backend early so we can use
+    # them for both validation and slug minting.
+    all_schedules_ref: set[str] = set()
     try:
-        client = get_cli_client()
-        schedule_trigger_refs = set(client.bolt.list_all_schedule_names())
-    except Exception:
-        schedule_trigger_refs = None
+        client = get_cli_client_or_exit()
+        all_schedules_ref = set(client.bolt.list_all_schedule_names())
+    except (ParadimeAPIException, ParadimeException):
+        client = None
 
-    error_string = is_valid_schedule_at_path(
-        Path(path), schedule_trigger_refs=schedule_trigger_refs
-    )
+    error_string = is_valid_schedule_at_path(schedule_path, schedule_trigger_refs=all_schedules_ref)
     if error_string:
         print_error_table(error_string, is_json=False)
         sys.exit(1)
 
+    # Check for names not yet registered in the backend and mint slugs.
+    try:
+        schedules = _get_schedules(schedule_path)
+    except Exception:
+        schedules = None
+
+    if not schedules:
+        click.secho("No schedules found.", fg="yellow")
+        return
+
+    try:
+        if not client:
+            client = get_cli_client_or_exit()
+        root = schedule_path.parent if schedule_path.is_file() else schedule_path
+
+        unregistered = [s.name for s in schedules.schedules if s.name not in all_schedules_ref]
+
+        if unregistered:
+            changed = mint_slugs_in_yaml_files(
+                mint_fn=client.bolt.create_schedule_slugs,
+                root=root,
+                existing_names=all_schedules_ref,
+            )
+            if changed:
+                click.secho(f"Minted slugs in {changed} file(s).", fg="green")
+            else:
+                click.secho("All schedules verified.", fg="green")
+        else:
+            click.secho("All schedules verified.", fg="green")
+    except (ParadimeAPIException, ParadimeException) as e:
+        click.secho(
+            f"Could not mint slugs (API unavailable): {e}\n"
+            f"Non-slug schedule names will be grandfathered by the backend on deploy.",
+            fg="yellow",
+        )
+    except Exception:
+        # Fall back to warnings if minting fails for any reason
+        if schedules:
+            for warning in get_slug_format_warnings(schedules):
+                click.secho(f"warning: {warning}", fg="yellow")
+
 
 @click.command()
 @click.option(
+    "--slug",
     "--schedule-name",
-    help="The name of the Bolt schedule.",
+    "slug",
+    help="The schedule's slug (the identifier returned by createBoltSchedule and shown in the Bolt UI). `--schedule-name` is accepted as a deprecated alias.",
     required=True,
 )
 @click.option(
@@ -283,7 +352,7 @@ def verify(path: str) -> None:
     default=None,
 )
 def artifact(
-    schedule_name: str,
+    slug: str,
     artifact_path: str,
     command_index: Optional[int] = None,
     output_path: Optional[str] = None,
@@ -294,10 +363,10 @@ def artifact(
     print_version()
     client = get_cli_client_or_exit()
     try:
-        print_artifact_downloading(schedule_name=schedule_name, artifact_path=artifact_path)
+        print_artifact_downloading(schedule_name=slug, artifact_path=artifact_path)
 
         artifact_url = client.bolt.get_latest_artifact_url(
-            schedule_name=schedule_name,
+            slug=slug,
             artifact_path=artifact_path,
             command_index=command_index,
         )

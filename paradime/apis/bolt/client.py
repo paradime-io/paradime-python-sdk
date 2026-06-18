@@ -1,5 +1,6 @@
 import time
-from typing import Iterator, List, Optional, Tuple
+import warnings
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import requests
 
@@ -12,10 +13,14 @@ from paradime.apis.bolt.types import (
     BoltCommandArtifact,
     BoltCommandLogs,
     BoltDeferredSchedule,
+    BoltDeferredScheduleConfigInput,
+    BoltEnvironmentVariableInput,
+    BoltIntegrationsInput,
     BoltLogLine,
     BoltLogStream,
     BoltNotificationItem,
     BoltNotifications,
+    BoltNotificationsInput,
     BoltRun,
     BoltRunGitInfo,
     BoltRunState,
@@ -23,8 +28,63 @@ from paradime.apis.bolt.types import (
     BoltScheduleInfo,
     BoltScheduleRuns,
     BoltSchedules,
+    BoltScheduleTriggerInput,
+    BoltSelfHealingConfigInput,
+    _BoltInputBase,
 )
 from paradime.client.api_client import APIClient
+
+
+def _serialize_input(
+    value: Optional[Union[_BoltInputBase, Dict[str, Any]]],
+) -> Optional[Dict[str, Any]]:
+    """Convert a typed input model (or a raw dict escape hatch) to the GraphQL payload."""
+    if value is None:
+        return None
+    if isinstance(value, _BoltInputBase):
+        return value.dict(by_alias=True, exclude_none=True)
+    return value
+
+
+def _serialize_input_list(
+    items: Optional[List[Any]],
+) -> Optional[List[Dict[str, Any]]]:
+    if items is None:
+        return None
+    return [_serialize_input(item) for item in items]  # type: ignore[misc]
+
+
+def _resolve_slug_or_schedule_name(
+    *,
+    slug: Optional[str],
+    schedule_name: Optional[str],
+    method: str,
+) -> str:
+    """Resolve the schedule slug from the dual `slug` / `schedule_name` SDK input.
+
+    Both arguments accept a slug — ``schedule_name`` is the deprecated alias
+    kept for backwards compatibility with existing callers. Exactly one of the
+    two must be provided; ``ValueError`` is raised otherwise. When the caller
+    uses the deprecated ``schedule_name`` kwarg, a ``DeprecationWarning`` is
+    emitted pointing at their call site.
+
+    Mirrors the GraphQL XOR check on the public API. The resolved value is sent
+    on the wire as the new ``slug`` field, which both new and old backends
+    accept.
+    """
+    if bool(slug) == bool(schedule_name):
+        raise ValueError(
+            f"`{method}` requires exactly one of `slug` or `schedule_name` (deprecated). "
+            "Both fields accept a schedule slug."
+        )
+    if schedule_name is not None:
+        warnings.warn(
+            f"Passing `schedule_name=` to `{method}` is deprecated; use `slug=` instead. "
+            "Both kwargs accept a schedule slug.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+    return slug or schedule_name  # type: ignore[return-value]
 
 
 def _parse_notification_items(
@@ -63,27 +123,34 @@ class BoltClient:
 
     def trigger_run(
         self,
-        schedule_name: str,
+        schedule_name: Optional[str] = None,
         commands: Optional[List[str]] = None,
         branch: Optional[str] = None,
         pr_number: Optional[int] = None,
+        *,
+        slug: Optional[str] = None,
     ) -> int:
         """
         Triggers a run for a given schedule.
 
         Args:
-            schedule_name (str): The name of the schedule to trigger the run for.
+            schedule_name (Optional[str]): Deprecated alias for ``slug`` — carries a schedule slug. Kept for backwards compatibility with older SDK callers. Exactly one of ``slug`` or ``schedule_name`` must be provided.
             commands (Optional[List[str]], optional): The list of commands to execute in the run. This will override the commands defined in the schedule. Defaults to None.
             branch (Optional[str], optional): The branch or commit hash to run the commands on. Defaults to None.
             pr_number (Optional[int], optional): The pull request number to associate with the run. Defaults to None.
+            slug (Optional[str]): The schedule slug returned by ``createBoltSchedule``. Preferred over ``schedule_name``.
 
         Returns:
             int: The ID of the triggered run.
         """
 
+        resolved_slug = _resolve_slug_or_schedule_name(
+            slug=slug, schedule_name=schedule_name, method="trigger_run"
+        )
+
         query = """
-            mutation triggerBoltRun($scheduleName: String!, $commands: [String!], $branch: String, $prNumber: Int) {
-                triggerBoltRun(scheduleName: $scheduleName, commands: $commands, branch: $branch, prNumber: $prNumber){
+            mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int) {
+                triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber){
                     runId
                 }
             }
@@ -92,7 +159,7 @@ class BoltClient:
         response_json = self.client._call_gql(
             query=query,
             variables={
-                "scheduleName": schedule_name,
+                "slug": resolved_slug,
                 "commands": commands,
                 "branch": branch,
                 "prNumber": pr_number,
@@ -101,27 +168,171 @@ class BoltClient:
 
         return response_json["runId"]
 
-    def suspend_schedule(self, *, schedule_name: str, suspend: bool) -> None:
+    def suspend_schedule(
+        self,
+        *,
+        suspend: bool,
+        slug: Optional[str] = None,
+        schedule_name: Optional[str] = None,
+    ) -> None:
         """
-        Suspends a UI based schedule name.
-        Args:
-            schedule_name (str): The name of the schedule to suspend
-            suspend (bool): True to suspend the schedule, False to unsuspend the schedule
+        Suspends or resumes a UI/API-created schedule.
 
-        Note: This only works with schedule names created via the UI and not via YAML.
+        Args:
+            suspend (bool): True to suspend the schedule, False to unsuspend.
+            slug (Optional[str]): The schedule slug returned by ``createBoltSchedule``. Preferred over ``schedule_name``.
+            schedule_name (Optional[str]): Deprecated alias for ``slug`` — carries a slug. Kept for backwards compatibility with older SDK callers. Exactly one of ``slug`` or ``schedule_name`` must be provided.
+
+        Note: This only works for schedules created via the UI or API, not via YAML.
         """
+
+        resolved_slug = _resolve_slug_or_schedule_name(
+            slug=slug, schedule_name=schedule_name, method="suspend_schedule"
+        )
 
         query = """
-            mutation SuspendBoltSchedule($scheduleName: String!, $suspend: Boolean!) {
-                suspendBoltSchedule(scheduleName: $scheduleName, suspend: $suspend) {
+            mutation SuspendBoltSchedule($slug: String, $suspend: Boolean!) {
+                suspendBoltSchedule(slug: $slug, suspend: $suspend) {
                     ok
                 }
             }
         """
 
-        self.client._call_gql(
-            query=query, variables={"scheduleName": schedule_name, "suspend": suspend}
-        )["suspendBoltSchedule"]
+        self.client._call_gql(query=query, variables={"slug": resolved_slug, "suspend": suspend})[
+            "suspendBoltSchedule"
+        ]
+
+    def create_schedule(
+        self,
+        *,
+        display_name: str,
+        schedule: str,
+        environment: str,
+        commands: List[str],
+        git_branch: Optional[str] = None,
+        description: Optional[str] = None,
+        timezone: Optional[str] = None,
+        owner_email: Optional[str] = None,
+        suspended: Optional[bool] = None,
+        sla_seconds: Optional[int] = None,
+        trigger_on_merge: Optional[bool] = None,
+        notifications: Optional[Union[BoltNotificationsInput, Dict[str, Any]]] = None,
+        integrations: Optional[Union[BoltIntegrationsInput, Dict[str, Any]]] = None,
+        self_healing: Optional[Union[BoltSelfHealingConfigInput, Dict[str, Any]]] = None,
+        turbo_ci: Optional[Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]] = None,
+        deferred_schedule: Optional[Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]] = None,
+        schedule_trigger: Optional[Union[BoltScheduleTriggerInput, Dict[str, Any]]] = None,
+        env_vars: Optional[List[Union[BoltEnvironmentVariableInput, Dict[str, Any]]]] = None,
+    ) -> str:
+        """
+        Create a new Bolt schedule.
+
+        Args:
+            display_name (str): Human-readable schedule name shown in the Bolt UI.
+            schedule (str): Cron expression (e.g. ``"0 1 * * *"``) or the literal ``"OFF"`` for manual-only runs.
+            environment (str): Name of the environment to run in (e.g. ``"production"``).
+            commands (List[str]): Commands the schedule should run, in order (e.g. ``["dbt run", "dbt test"]``).
+            git_branch (Optional[str]): Git branch the run should check out. Defaults to the environment's branch.
+            description (Optional[str]): Free-text description shown in the UI.
+            timezone (Optional[str]): IANA timezone for the cron expression (e.g. ``"UTC"``, ``"Europe/London"``).
+            owner_email (Optional[str]): Email of the workspace member who should own the schedule.
+            suspended (Optional[bool]): Create the schedule already suspended. Defaults to active.
+            sla_seconds (Optional[int]): Soft SLA window in seconds; runs exceeding this are surfaced as overdue.
+            trigger_on_merge (Optional[bool]): If True, run on every merge to ``git_branch``.
+            notifications (Optional[BoltNotificationsInput | dict]): Slack / Teams / email notification routing.
+            integrations (Optional[BoltIntegrationsInput | dict]): PagerDuty / Datadog / incident.io / New Relic incident triggers fired on failures.
+            self_healing (Optional[BoltSelfHealingConfigInput | dict]): Paradime self-healing agent (auto-retry + Slack updates).
+            turbo_ci (Optional[BoltDeferredScheduleConfigInput | dict]): Turbo CI config — defer state from another schedule's last successful run.
+            deferred_schedule (Optional[BoltDeferredScheduleConfigInput | dict]): Slim-CI-style deferred schedule config.
+            schedule_trigger (Optional[BoltScheduleTriggerInput | dict]): Run this schedule when a parent schedule (possibly in another workspace) finishes.
+            env_vars (Optional[List[BoltEnvironmentVariableInput | dict]]): Environment-variable overrides for this schedule.
+
+        Returns:
+            str: The slug assigned by the backend. This is the identifier to pass as ``slug=`` to every
+            other Bolt method (``trigger_run``, ``get_schedule``, ``delete_schedule``, etc.).
+
+        Note:
+            There is a short consistency window (~10s) between schedule creation and the trigger path
+            accepting the new slug. Callers that immediately invoke ``trigger_run`` may need to retry.
+
+        Example:
+            >>> slug = paradime.bolt.create_schedule(
+            ...     display_name="Nightly build",
+            ...     schedule="0 1 * * *",
+            ...     environment="production",
+            ...     commands=["dbt build"],
+            ...     notifications=BoltNotificationsInput(
+            ...         slack_notifications=[
+            ...             BoltNotificationChannelInput(channel="#data-alerts", events=["FAILED"]),
+            ...         ],
+            ...     ),
+            ...     env_vars=[BoltEnvironmentVariableInput(key="DBT_PROFILES_DIR", value="/wks/p")],
+            ... )
+        """
+
+        schedule_input: Dict[str, Any] = {
+            "displayName": display_name,
+            "schedule": schedule,
+            "environment": environment,
+            "commands": commands,
+        }
+        scalar_fields = {
+            "gitBranch": git_branch,
+            "description": description,
+            "timezone": timezone,
+            "ownerEmail": owner_email,
+            "suspended": suspended,
+            "slaSeconds": sla_seconds,
+            "triggerOnMerge": trigger_on_merge,
+        }
+        for key, value in scalar_fields.items():
+            if value is not None:
+                schedule_input[key] = value
+
+        nested_fields: Dict[str, Any] = {
+            "notifications": _serialize_input(notifications),
+            "integrations": _serialize_input(integrations),
+            "selfHealing": _serialize_input(self_healing),
+            "turboCi": _serialize_input(turbo_ci),
+            "deferredSchedule": _serialize_input(deferred_schedule),
+            "scheduleTrigger": _serialize_input(schedule_trigger),
+            "envVars": _serialize_input_list(env_vars),
+        }
+        for key, value in nested_fields.items():
+            if value is not None:
+                schedule_input[key] = value
+
+        query = """
+            mutation CreateBoltSchedule($schedule: BoltScheduleInput!) {
+                createBoltSchedule(schedule: $schedule) {
+                    slug
+                }
+            }
+        """
+
+        result = self.client._call_gql(query=query, variables={"schedule": schedule_input})
+        return result["createBoltSchedule"]["slug"]
+
+    def delete_schedule(self, slug: str) -> None:
+        """
+        Delete a Bolt schedule.
+
+        Args:
+            slug (str): The schedule slug returned by ``create_schedule``.
+
+        Returns:
+            None
+        """
+
+        query = """
+            mutation DeleteBoltSchedule($slug: String!) {
+                deleteBoltSchedule(slug: $slug) {
+                    ok
+                }
+            }
+        """
+
+        self.client._call_gql(query=query, variables={"slug": slug})
 
     def list_schedules(
         self,
@@ -255,7 +466,8 @@ class BoltClient:
     def list_runs(
         self,
         *,
-        schedule_name: str,
+        slug: Optional[str] = None,
+        schedule_name: Optional[str] = None,
         offset: int = 0,
         limit: int = 50,
     ) -> BoltScheduleRuns:
@@ -263,7 +475,8 @@ class BoltClient:
         Get a list of Bolt runs for a specific schedule. The list is paginated.
 
         Args:
-            schedule_name (str): The name of the Bolt schedule. Must be exact schedule name.
+            slug (Optional[str]): The schedule slug returned by ``createBoltSchedule``. Preferred over ``schedule_name``.
+            schedule_name (Optional[str]): Deprecated alias for ``slug`` — carries a slug. Kept for backwards compatibility with older SDK callers. Exactly one of ``slug`` or ``schedule_name`` must be provided.
             offset (int): The offset value for pagination. Default is 0. Must be >= 0.
             limit (int): The limit value for pagination. Default is 50. Must be between 1 and 1000.
 
@@ -271,7 +484,7 @@ class BoltClient:
             BoltScheduleRuns: An object containing the list of Bolt runs.
 
         Raises:
-            ValueError: If offset < 0 or limit is not between 1 and 1000.
+            ValueError: If offset < 0, limit is not between 1 and 1000, or neither/both of slug/schedule_name are provided.
         """
 
         # Validate inputs
@@ -280,9 +493,13 @@ class BoltClient:
         if limit < 1 or limit > 1000:
             raise ValueError(f"limit must be between 1 and 1000, got {limit}")
 
+        resolved_slug = _resolve_slug_or_schedule_name(
+            slug=slug, schedule_name=schedule_name, method="list_runs"
+        )
+
         query = """
-            query listBoltRuns($scheduleName: String!, $offset: Int!, $limit: Int!) {
-                listBoltRuns(scheduleName: $scheduleName, offset: $offset, limit: $limit) {
+            query listBoltRuns($slug: String, $offset: Int!, $limit: Int!) {
+                listBoltRuns(slug: $slug, offset: $offset, limit: $limit) {
                     ok
                     runs {
                         id
@@ -304,7 +521,7 @@ class BoltClient:
 
         response_json = self.client._call_gql(
             query=query,
-            variables={"scheduleName": schedule_name, "offset": offset, "limit": limit},
+            variables={"slug": resolved_slug, "offset": offset, "limit": limit},
         )["listBoltRuns"]
 
         runs: List[BoltRun] = []
@@ -331,20 +548,30 @@ class BoltClient:
             runs=runs,
         )
 
-    def get_schedule(self, schedule_name: str) -> BoltScheduleInfo:
+    def get_schedule(
+        self,
+        schedule_name: Optional[str] = None,
+        *,
+        slug: Optional[str] = None,
+    ) -> BoltScheduleInfo:
         """
         Retrieves information about a specific schedule.
 
         Args:
-            schedule_name (str): The name of the schedule.
+            schedule_name (Optional[str]): Deprecated alias for ``slug`` — carries a slug. Kept for backwards compatibility with older SDK callers. Exactly one of ``slug`` or ``schedule_name`` must be provided.
+            slug (Optional[str]): The schedule slug returned by ``createBoltSchedule``. Preferred over ``schedule_name``.
 
         Returns:
             BoltScheduleInfo: An object containing information about the schedule.
         """
 
+        resolved_slug = _resolve_slug_or_schedule_name(
+            slug=slug, schedule_name=schedule_name, method="get_schedule"
+        )
+
         query = """
-            query boltScheduleName($scheduleName: String!) {
-                boltScheduleName(scheduleName: $scheduleName) {
+            query boltScheduleName($slug: String) {
+                boltScheduleName(slug: $slug) {
                     ok
                     latestRunId
                     commands
@@ -356,12 +583,12 @@ class BoltClient:
             }
         """
 
-        response_json = self.client._call_gql(
-            query=query, variables={"scheduleName": schedule_name}
-        )["boltScheduleName"]
+        response_json = self.client._call_gql(query=query, variables={"slug": resolved_slug})[
+            "boltScheduleName"
+        ]
 
         return BoltScheduleInfo(
-            name=schedule_name,
+            name=resolved_slug,
             commands=response_json["commands"],
             schedule=response_json["schedule"],
             uuid=response_json["uuid"],
@@ -650,39 +877,50 @@ class BoltClient:
 
         return response_json["runId"]
 
-    def retry_schedule_from_failure(self, schedule_name: str) -> int:
+    def retry_schedule_from_failure(
+        self,
+        schedule_name: Optional[str] = None,
+        *,
+        slug: Optional[str] = None,
+    ) -> int:
         """
-        Retries the latest failed run of a Bolt schedule, by schedule name.
+        Retries the latest failed run of a Bolt schedule, by slug.
 
         Resumes from the failed command of the most recent run of the given schedule,
         without needing to know its run ID.
 
         Args:
-            schedule_name (str): The name of the schedule whose latest failed run to retry.
+            schedule_name (Optional[str]): Deprecated alias for ``slug`` — carries a slug. Kept for backwards compatibility with older SDK callers. Exactly one of ``slug`` or ``schedule_name`` must be provided.
+            slug (Optional[str]): The schedule slug returned by ``createBoltSchedule``. Preferred over ``schedule_name``.
 
         Returns:
             int: The ID of the newly created retry run.
         """
 
+        resolved_slug = _resolve_slug_or_schedule_name(
+            slug=slug, schedule_name=schedule_name, method="retry_schedule_from_failure"
+        )
+
         query = """
-            mutation RetryBoltRunFromFailure($scheduleName: String!) {
-                retryBoltRunFromFailure(scheduleName: $scheduleName) {
+            mutation RetryBoltRunFromFailure($slug: String) {
+                retryBoltRunFromFailure(slug: $slug) {
                     runId
                 }
             }
         """
 
-        response_json = self.client._call_gql(
-            query=query, variables={"scheduleName": schedule_name}
-        )["retryBoltRunFromFailure"]
+        response_json = self.client._call_gql(query=query, variables={"slug": resolved_slug})[
+            "retryBoltRunFromFailure"
+        ]
 
         return response_json["runId"]
 
     def get_latest_artifact_url(
         self,
         *,
-        schedule_name: str,
         artifact_path: str,
+        slug: Optional[str] = None,
+        schedule_name: Optional[str] = None,
         command_index: Optional[int] = None,
         max_runs: int = 50,
     ) -> str:
@@ -690,8 +928,9 @@ class BoltClient:
         Retrieves the URL of the latest artifact for a given schedule.
 
         Args:
-            schedule_name (str): The name of the schedule.
             artifact_path (str): The path of the artifact.
+            slug (Optional[str]): The schedule slug returned by ``createBoltSchedule``. Preferred over ``schedule_name``.
+            schedule_name (Optional[str]): Deprecated alias for ``slug`` — carries a slug. Kept for backwards compatibility with older SDK callers. Exactly one of ``slug`` or ``schedule_name`` must be provided.
             command_index (Optional[int]): The index of the command in the schedule. Defaults to searching through all commands from the last command to the first.
             max_runs (int): The maximum number of latest runs to search through. Defaults to 50.
 
@@ -699,12 +938,16 @@ class BoltClient:
             str: The URL of the latest artifact.
         """
 
+        resolved_slug = _resolve_slug_or_schedule_name(
+            slug=slug, schedule_name=schedule_name, method="get_latest_artifact_url"
+        )
+
         # Get the latest runs for the schedule
-        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=max_runs).runs
+        latest_runs = self.list_runs(slug=resolved_slug, offset=0, limit=max_runs).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
-                f"No runs found for schedule {schedule_name!r}."
+                f"No runs found for schedule {resolved_slug!r}."
             )
 
         # Search through runs until we find the artifact
@@ -738,7 +981,7 @@ class BoltClient:
 
         if artifact_id is None:
             raise BoltScheduleArtifactNotFoundException(
-                f"No artifact found for schedule {schedule_name!r} in the latest {max_runs} runs."
+                f"No artifact found for schedule {resolved_slug!r} in the latest {max_runs} runs."
             )
 
         # Get the URL of the artifact
@@ -748,24 +991,31 @@ class BoltClient:
 
     def get_latest_manifest_json(
         self,
-        schedule_name: str,
+        schedule_name: Optional[str] = None,
         command_index: Optional[int] = None,
         max_runs: int = 50,
+        *,
+        slug: Optional[str] = None,
     ) -> dict:
         """
         Retrieves the latest manifest JSON for a given schedule.
 
         Args:
-            schedule_name (str): The name of the schedule.
+            schedule_name (Optional[str]): Deprecated alias for ``slug`` — carries a slug. Kept for backwards compatibility with older SDK callers. Exactly one of ``slug`` or ``schedule_name`` must be provided.
             command_index (Optional[int]): The index of the command in the schedule. Defaults to None.
             max_runs (int): The maximum number of latest runs to search through. Defaults to 50.
+            slug (Optional[str]): The schedule slug returned by ``createBoltSchedule``. Preferred over ``schedule_name``.
 
         Returns:
             dict: The content of the latest manifest JSON.
         """
 
+        resolved_slug = _resolve_slug_or_schedule_name(
+            slug=slug, schedule_name=schedule_name, method="get_latest_manifest_json"
+        )
+
         manifest_url = self.get_latest_artifact_url(
-            schedule_name=schedule_name,
+            slug=resolved_slug,
             artifact_path="target/manifest.json",
             command_index=command_index,
             max_runs=max_runs,
@@ -795,7 +1045,7 @@ class BoltClient:
         if command_index is not None:
             # Get run results from specific command
             run_results_url = self.get_latest_artifact_url(
-                schedule_name=schedule_name,
+                slug=schedule_name,
                 artifact_path="target/run_results.json",
                 command_index=command_index,
                 max_runs=1,
@@ -803,7 +1053,7 @@ class BoltClient:
             return requests.get(run_results_url).json()
 
         # Get the latest runs for the schedule
-        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=1).runs
+        latest_runs = self.list_runs(slug=schedule_name, offset=0, limit=1).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
@@ -876,14 +1126,14 @@ class BoltClient:
         """
         if command_index is not None:
             sources_url = self.get_latest_artifact_url(
-                schedule_name=schedule_name,
+                slug=schedule_name,
                 artifact_path="target/sources.json",
                 command_index=command_index,
                 max_runs=1,
             )
             return requests.get(sources_url).json()
 
-        latest_runs = self.list_runs(schedule_name=schedule_name, offset=0, limit=1).runs
+        latest_runs = self.list_runs(slug=schedule_name, offset=0, limit=1).runs
 
         if not latest_runs:
             raise BoltScheduleLatestRunNotFoundException(
@@ -941,7 +1191,9 @@ class BoltClient:
         artifacts = {}
 
         try:
-            artifacts["manifest"] = self.get_latest_manifest_json(schedule_name, max_runs=max_runs)
+            artifacts["manifest"] = self.get_latest_manifest_json(
+                slug=schedule_name, max_runs=max_runs
+            )
         except BoltScheduleArtifactNotFoundException:
             pass
 
@@ -1034,3 +1286,26 @@ class BoltClient:
         """
         response = self.client._call_gql(query=query)["listAllScheduleNames"]
         return [(s["workspaceName"], s["name"]) for s in response["schedules"]]
+    
+    def create_schedule_slugs(self, display_names: List[str]) -> List[str]:
+        """Mint slugs for a list of display names via the backend.
+
+        Args:
+            display_names: Human-readable schedule names to mint slugs for.
+
+        Returns:
+            List of minted slugs in the same order as the input display names.
+        """
+        query = """
+            mutation createScheduleSlugs($displayNames: [String!]!) {
+                createScheduleSlugs(displayNames: $displayNames) {
+                    ok
+                    slugs
+                }
+            }
+        """
+        response = self.client._call_gql(
+            query=query,
+            variables={"displayNames": display_names},
+        )["createScheduleSlugs"]
+        return response["slugs"]
