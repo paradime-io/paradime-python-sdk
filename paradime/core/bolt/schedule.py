@@ -3,7 +3,7 @@ import secrets
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Set, Tuple, Union
 
 import yaml  # type: ignore[import-untyped]
 from croniter import croniter  # type: ignore[import-untyped]
@@ -281,8 +281,24 @@ def get_slug_format_warnings(schedules: ParadimeSchedules) -> List[str]:
 
 def is_valid_schedule_at_path(
     file_path: Path,
-    existing_names: Optional[set] = None,
+    existing_names: Optional[Set[str]] = None,
+    schedule_trigger_refs: Optional[Set[Tuple[str, str]]] = None,
 ) -> Optional[str]:
+    """Validate a schedule YAML file.
+
+    Args:
+        file_path: Path to the schedule YAML file.
+        existing_names: Optional set of schedule names already deployed in the
+            current workspace. When provided, ``turbo_ci`` / ``deferred_schedule``
+            references are allowed to resolve to these names in addition to the
+            local YAML names (grandfathering of already-deployed schedules).
+        schedule_trigger_refs: Optional set of ``(workspace_name, schedule_name)``
+            pairs for schedules deployed across all workspaces. When provided,
+            ``schedule_trigger`` references are validated against it (a
+            ``schedule_trigger`` may point at a schedule in another workspace).
+            When ``None`` (e.g. offline / API unavailable) the cross-workspace
+            check is skipped.
+    """
     try:
         schedules = _get_schedules(file_path)
     except Exception as e:
@@ -311,6 +327,21 @@ def is_valid_schedule_at_path(
         if schedule.deferred_schedule and schedule.deferred_schedule.enabled:
             if schedule.deferred_schedule.deferred_schedule_name not in known_names:
                 return f"Deferred schedule error: '{schedule.deferred_schedule.deferred_schedule_name}' does not refer to a known schedule name"
+
+        # schedule_trigger may point at a schedule in any workspace; validate the
+        # (workspace_name, schedule_name) pair (a local schedule also counts).
+        if (
+            schedule.schedule_trigger
+            and schedule.schedule_trigger.enabled
+            and schedule_trigger_refs
+        ):
+            trigger = schedule.schedule_trigger
+            ref = (trigger.workspace_name, trigger.schedule_name)
+            if ref not in schedule_trigger_refs and trigger.schedule_name not in schedule_names:
+                return (
+                    f"Schedule trigger error: '{trigger.schedule_name}' does not refer to a known "
+                    f"schedule in workspace '{trigger.workspace_name}'"
+                )
 
     # Verify schedules individually
     for schedule in schedules.schedules:

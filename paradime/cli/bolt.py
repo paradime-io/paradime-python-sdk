@@ -271,7 +271,13 @@ def verify(path: str) -> None:
 
     # Fetch existing schedule names from the backend early so we can use
     # them for both validation and slug minting.
+    #
+    # ``existing_names`` are the current workspace's deployed schedule names
+    # (used for grandfathering, unregistered detection and minting).
+    # ``all_schedules_ref`` are (workspace_name, schedule_name) pairs across all
+    # workspaces (used only to validate cross-workspace schedule_trigger refs).
     existing_names: set[str] = set()
+    all_schedules_ref: set[tuple[str, str]] = set()
     try:
         client = get_cli_client_or_exit()
         try:
@@ -279,10 +285,18 @@ def verify(path: str) -> None:
             existing_names = {s.name for s in all_schedules.schedules}
         except Exception:
             pass
+        try:
+            all_schedules_ref = set(client.bolt.list_all_schedule_names())
+        except Exception:
+            pass
     except (ParadimeAPIException, ParadimeException):
         client = None
 
-    error_string = is_valid_schedule_at_path(schedule_path, existing_names=existing_names)
+    error_string = is_valid_schedule_at_path(
+        schedule_path,
+        existing_names=existing_names,
+        schedule_trigger_refs=all_schedules_ref or None,
+    )
     if error_string:
         print_error_table(error_string, is_json=False)
         sys.exit(1)

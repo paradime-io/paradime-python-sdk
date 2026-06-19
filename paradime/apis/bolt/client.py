@@ -1,6 +1,6 @@
 import time
 import warnings
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
 import requests
 
@@ -1262,6 +1262,30 @@ class BoltClient:
 
         # Default to False for unknown commands
         return False
+
+    def list_all_schedule_names(self) -> List[Tuple[str, str]]:
+        """List schedule names across all workspaces in the company.
+
+        Unlike ``list_schedules`` (scoped to the API key's workspace), this returns
+        schedules in every workspace, so ``schedule_trigger`` references that point
+        at another workspace can be validated.
+
+        Returns:
+            A list of ``(workspace_name, schedule_name)`` tuples.
+        """
+        query = """
+            query listAllScheduleNames {
+                listAllScheduleNames {
+                    ok
+                    schedules {
+                        name
+                        workspaceName
+                    }
+                }
+            }
+        """
+        response = self.client._call_gql(query=query)["listAllScheduleNames"]
+        return [(s["workspaceName"], s["name"]) for s in response["schedules"]]
 
     def create_schedule_slugs(self, display_names: List[str]) -> List[str]:
         """Mint slugs for a list of display names via the backend.
