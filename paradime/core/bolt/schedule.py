@@ -281,12 +281,17 @@ def get_slug_format_warnings(schedules: ParadimeSchedules) -> List[str]:
 
 def is_valid_schedule_at_path(
     file_path: Path,
+    existing_names: Optional[Set[str]] = None,
     schedule_trigger_refs: Optional[Set[Tuple[str, str]]] = None,
 ) -> Optional[str]:
     """Validate a schedule YAML file.
 
     Args:
         file_path: Path to the schedule YAML file.
+        existing_names: Optional set of schedule names already deployed in the
+            current workspace. When provided, ``turbo_ci`` / ``deferred_schedule``
+            references are allowed to resolve to these names in addition to the
+            local YAML names (grandfathering of already-deployed schedules).
         schedule_trigger_refs: Optional set of ``(workspace_name, schedule_name)``
             pairs for schedules deployed across all workspaces. When provided,
             ``schedule_trigger`` references are validated against it (a

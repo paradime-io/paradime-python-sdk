@@ -272,14 +272,32 @@ def verify(path: str) -> None:
 
     # Fetch existing schedule names from the backend early so we can use
     # them for both validation and slug minting.
-    all_schedules_ref: set[str] = set()
+    #
+    # ``existing_names`` are the current workspace's deployed schedule names
+    # (used for grandfathering, unregistered detection and minting).
+    # ``all_schedules_ref`` are (workspace_name, schedule_name) pairs across all
+    # workspaces (used only to validate cross-workspace schedule_trigger refs).
+    existing_names: set[str] = set()
+    all_schedules_ref: set[tuple[str, str]] = set()
     try:
         client = get_cli_client_or_exit()
-        all_schedules_ref = set(client.bolt.list_all_schedule_names())
+        try:
+            all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
+            existing_names = {s.name for s in all_schedules.schedules}
+        except Exception:
+            pass
+        try:
+            all_schedules_ref = set(client.bolt.list_all_schedule_names())
+        except Exception:
+            pass
     except (ParadimeAPIException, ParadimeException):
         client = None
 
-    error_string = is_valid_schedule_at_path(schedule_path, schedule_trigger_refs=all_schedules_ref)
+    error_string = is_valid_schedule_at_path(
+        schedule_path,
+        existing_names=existing_names,
+        schedule_trigger_refs=all_schedules_ref or None,
+    )
     if error_string:
         print_error_table(error_string, is_json=False)
         sys.exit(1)
@@ -299,13 +317,13 @@ def verify(path: str) -> None:
             client = get_cli_client_or_exit()
         root = schedule_path.parent if schedule_path.is_file() else schedule_path
 
-        unregistered = [s.name for s in schedules.schedules if s.name not in all_schedules_ref]
+        unregistered = [s.name for s in schedules.schedules if s.name not in existing_names]
 
         if unregistered:
             changed = mint_slugs_in_yaml_files(
                 mint_fn=client.bolt.create_schedule_slugs,
                 root=root,
-                existing_names=all_schedules_ref,
+                existing_names=existing_names,
             )
             if changed:
                 click.secho(f"Minted slugs in {changed} file(s).", fg="green")
