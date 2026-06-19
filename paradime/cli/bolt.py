@@ -22,9 +22,8 @@ from paradime.cli.rich_text_output import (
 )
 from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
-from paradime.client.paradime_cli_client import get_cli_client, get_cli_client_or_exit
+from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.core.bolt.schedule import (
-    SCHEDULE_FILE_NAME,
     _get_schedules,
     get_slug_format_warnings,
     is_valid_schedule_at_path,

@@ -1286,7 +1286,7 @@ class BoltClient:
         """
         response = self.client._call_gql(query=query)["listAllScheduleNames"]
         return [(s["workspaceName"], s["name"]) for s in response["schedules"]]
-    
+
     def create_schedule_slugs(self, display_names: List[str]) -> List[str]:
         """Mint slugs for a list of display names via the backend.
 
