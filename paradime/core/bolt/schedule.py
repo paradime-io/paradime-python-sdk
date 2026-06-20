@@ -70,6 +70,7 @@ class DeferredSchedule(ParadimeScheduleBase):
     enabled: bool
     deferred_schedule_name: Optional[str]
     deferred_manifest_schedule: Optional[str]
+    deferred_schedule_slug: Optional[str] = None
     # `successful_runs_only` is the canonical name used by the JSON schema and the
     # UI. `successful_run_only` is kept for backwards compatibility with existing
     # YAML files.
@@ -80,8 +81,10 @@ class DeferredSchedule(ParadimeScheduleBase):
     @classmethod
     def validate_all_fields_at_the_same_time(cls, values: Any) -> Any:
         # backwards compatability
-        deferred_schedule_name = values.get("deferred_schedule_name") or values.get(
-            "deferred_manifest_schedule"
+        deferred_schedule_name = (
+            values.get("deferred_schedule_slug")
+            or values.get("deferred_schedule_name")
+            or values.get("deferred_manifest_schedule")
         )
         if not deferred_schedule_name:
             raise ValueError("Missing deferred_schedule_name")
@@ -106,9 +109,19 @@ class Hightouch(ParadimeScheduleBase):
 
 class ScheduleTrigger(ParadimeScheduleBase):
     enabled: bool
-    schedule_name: str
+    schedule_name: Optional[str] = None
+    schedule_slug: Optional[str] = None
     workspace_name: str
     trigger_on: List[str]
+
+    @root_validator()
+    @classmethod
+    def resolve_slug(cls, values: Any) -> Any:
+        schedule_name = values.get("schedule_slug") or values.get("schedule_name")
+        if not schedule_name:
+            raise ValueError("Missing schedule_name or schedule_slug")
+        values["schedule_name"] = schedule_name
+        return values
 
     @validator("trigger_on")
     def validate_trigger_on(cls, trigger_on: List[str]) -> List[str]:
@@ -231,6 +244,7 @@ class EnvOverride(ParadimeScheduleBase):
 
 class ParadimeSchedule(ParadimeScheduleBase):
     name: str
+    slug: Optional[str] = None
     display_name: Optional[str] = None
     schedule: str
     timezone: Optional[str] = None
@@ -279,29 +293,41 @@ class ParadimeSchedule(ParadimeScheduleBase):
 
     @root_validator()
     @classmethod
-    def validate_self_healing_slack_channel(cls, values: Any) -> Any:
+    def validate_all_fields(cls, values: Any) -> Any:
+        # v3 slug swap: when slug is present, YAML `name` is the human label
+        slug = values.get("slug")
+        if slug:
+            yaml_name = values["name"]
+            values["name"] = slug
+            values["display_name"] = yaml_name
+            if "\n" in yaml_name or "\r" in yaml_name:
+                raise ValueError("display_name must not contain newlines")
+            if len(yaml_name) > DISPLAY_NAME_MAX_LENGTH:
+                raise ValueError(
+                    f"display_name must be {DISPLAY_NAME_MAX_LENGTH} characters or fewer"
+                )
+
         # self_healing.slack_channel must appear in notifications.slack_channels —
         # the agent replies into the thread created by the standard notification.
         self_healing = values.get("self_healing")
-        if not (self_healing and self_healing.enabled and self_healing.slack_channel):
-            return values
+        if self_healing and self_healing.enabled and self_healing.slack_channel:
+            notifications = values.get("notifications")
+            configured: set = set()
+            if notifications and notifications.slack_channels:
+                configured = {c.get_channel() for c in notifications.slack_channels}
 
-        notifications = values.get("notifications")
-        configured: set = set()
-        if notifications and notifications.slack_channels:
-            configured = {c.get_channel() for c in notifications.slack_channels}
+            slack_notify = values.get("slack_notify")
+            if isinstance(slack_notify, str):
+                configured.add(slack_notify)
+            elif isinstance(slack_notify, list):
+                configured.update(c for c in slack_notify if c)
 
-        slack_notify = values.get("slack_notify")
-        if isinstance(slack_notify, str):
-            configured.add(slack_notify)
-        elif isinstance(slack_notify, list):
-            configured.update(c for c in slack_notify if c)
+            if self_healing.slack_channel not in configured:
+                raise ValueError(
+                    f"self_healing.slack_channel '{self_healing.slack_channel}' must also "
+                    f"appear in notifications.slack_channels for this schedule"
+                )
 
-        if self_healing.slack_channel not in configured:
-            raise ValueError(
-                f"self_healing.slack_channel '{self_healing.slack_channel}' must also "
-                f"appear in notifications.slack_channels for this schedule"
-            )
         return values
 
 

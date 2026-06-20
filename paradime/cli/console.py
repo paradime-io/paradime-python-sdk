@@ -83,6 +83,32 @@ def debug(message: str) -> None:
         console.print(f"[muted]  {message}[/]")
 
 
+def result_panel(
+    message: str,
+    *,
+    style: str = "success",
+    title: str = "Result",
+) -> None:
+    """Display a result inside a bordered panel with spacing."""
+    style_map = {
+        "success": ("success", "green", "✓"),
+        "error": ("error", "red", "✗"),
+        "warning": ("warning", "yellow", "⚠"),
+    }
+    text_style, border_colour, icon = style_map.get(style, style_map["success"])
+    body = Text.from_markup(f"[{text_style}]{icon}[/]  {message}")
+    panel = Panel(
+        body,
+        title=f"[bold]{title}[/]",
+        border_style=border_colour,
+        padding=(1, 3),
+        expand=False,
+    )
+    console.print()
+    console.print(panel)
+    console.print()
+
+
 def header(title: str, subtitle: str | None = None) -> None:
     """Command header — bold brand-coloured title, optional muted subtitle."""
     console.print()
