@@ -23,6 +23,7 @@ from paradime.cli.rich_text_output import (
 from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
+from paradime.core.bolt import internal_transport
 from paradime.core.bolt.schedule import (
     _get_schedules,
     get_slug_format_warnings,
@@ -244,16 +245,13 @@ def retry(retry_all: bool, wait: bool, json: bool, run_id: int) -> None:
         _wait_with_logs(client, new_run_id, is_json=json)
 
 
-@click.command()
-@click.option(
-    "--path",
-    help="Path to paradime_schedules.yml file or project root containing .bolt/ directory.",
-    show_default=True,
-    default=".",
-)
-def verify(path: str) -> None:
-    """
-    Verify schedule YAML files and mint slugs for new schedules.
+def run_bolt_verify(path: str) -> int:
+    """Verify schedule YAML files and mint slugs for new schedules.
+
+    This is the single source of truth for ``paradime bolt verify`` (external,
+    GraphQL-backed) and the Theia editor's ``paradime schedule verify``
+    (internal, REST-backed). The transport is chosen automatically from
+    ``PARADIME_INTERNAL_MODE`` (see ``internal_transport``).
 
     Validates the schedule configuration, then checks for schedules whose
     ``name`` is not a valid slug. For those, calls the Paradime backend to
@@ -265,6 +263,8 @@ def verify(path: str) -> None:
 
     Supports both the flat ``paradime_schedules.yml`` layout and the modular
     ``.bolt/`` folder layout.
+
+    Returns a process exit code (0 on success, non-zero on validation failure).
     """
     print_version()
     schedule_path = Path(path)
@@ -276,30 +276,48 @@ def verify(path: str) -> None:
     # (used for grandfathering, unregistered detection and minting).
     # ``all_schedules_ref`` are (workspace_name, schedule_name) pairs across all
     # workspaces (used only to validate cross-workspace schedule_trigger refs).
+    #
+    # Two transports back these calls. In the default (external) mode the SDK
+    # talks to the public GraphQL API with an API key/secret. In internal mode
+    # (``PARADIME_INTERNAL_MODE`` set, e.g. inside a Theia editor pod) it uses the
+    # backend's company-scoped internal REST endpoints, which need no key/secret
+    # and are only reachable from within the network perimeter.
     existing_names: set[str] = set()
     all_schedules_ref: set[tuple[str, str]] = set()
-    try:
-        client = get_cli_client_or_exit()
+    slack_id_verifier = None
+    mint_fn = None
+
+    if internal_transport.is_internal_mode():
+        deployed = internal_transport.list_existing_schedules()
+        existing_names = internal_transport.current_workspace_names(deployed)
+        all_schedules_ref = internal_transport.all_workspace_refs(deployed)
+        slack_id_verifier = internal_transport.verify_slack_ids
+        mint_fn = internal_transport.create_schedule_slugs
+    else:
         try:
-            all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
-            existing_names = {s.name for s in all_schedules.schedules}
-        except Exception:
-            pass
-        try:
-            all_schedules_ref = set(client.bolt.list_all_schedule_names())
-        except Exception:
-            pass
-    except (ParadimeAPIException, ParadimeException):
-        client = None
+            client = get_cli_client_or_exit()
+            try:
+                all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
+                existing_names = {s.name for s in all_schedules.schedules}
+            except Exception:
+                pass
+            try:
+                all_schedules_ref = set(client.bolt.list_all_schedule_names())
+            except Exception:
+                pass
+            mint_fn = client.bolt.create_schedule_slugs
+        except (ParadimeAPIException, ParadimeException):
+            client = None
 
     error_string = is_valid_schedule_at_path(
         schedule_path,
         existing_names=existing_names,
         schedule_trigger_refs=all_schedules_ref or None,
+        slack_id_verifier=slack_id_verifier,
     )
     if error_string:
         print_error_table(error_string, is_json=False)
-        sys.exit(1)
+        return 1
 
     # Check for names not yet registered in the backend and mint slugs.
     try:
@@ -309,18 +327,19 @@ def verify(path: str) -> None:
 
     if not schedules:
         click.secho("No schedules found.", fg="yellow")
-        return
+        return 0
 
     try:
-        if not client:
+        if mint_fn is None:
             client = get_cli_client_or_exit()
+            mint_fn = client.bolt.create_schedule_slugs
         root = schedule_path.parent if schedule_path.is_file() else schedule_path
 
         unregistered = [s.name for s in schedules.schedules if s.name not in existing_names]
 
         if unregistered:
             changed = mint_slugs_in_yaml_files(
-                mint_fn=client.bolt.create_schedule_slugs,
+                mint_fn=mint_fn,
                 root=root,
                 existing_names=existing_names,
             )
@@ -341,6 +360,20 @@ def verify(path: str) -> None:
         if schedules:
             for warning in get_slug_format_warnings(schedules):
                 click.secho(f"warning: {warning}", fg="yellow")
+
+    return 0
+
+
+@click.command()
+@click.option(
+    "--path",
+    help="Path to paradime_schedules.yml file or project root containing .bolt/ directory.",
+    show_default=True,
+    default=".",
+)
+def verify(path: str) -> None:
+    """Verify schedule YAML files and mint slugs for new schedules."""
+    sys.exit(run_bolt_verify(path))
 
 
 @click.command()

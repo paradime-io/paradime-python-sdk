@@ -1,9 +1,11 @@
+import json
+import os
 import re
 import secrets
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import yaml  # type: ignore[import-untyped]
 from croniter import croniter  # type: ignore[import-untyped]
@@ -15,6 +17,17 @@ SCHEDULE_FILE_NAME = "paradime_schedules.yml"
 SCHEDULE_FILE_NAMES = ("paradime_schedules.yml", "paradime_schedules.yaml")
 SCHEDULES_DIR_NAME = ".bolt"
 VALID_ON_EVENTS = ("failed", "passed", "sla")
+
+# Commands a schedule is allowed to run. Mirrors the backend's allow-list
+# (enforced again at deploy time). The default can be overridden — e.g. when the
+# backend extends the list via a feature flag — through the ``BOLT_ALLOWED_COMMANDS``
+# environment variable (a JSON array of strings).
+ALLOWED_COMMANDS = ["dbt", "re_data", "edr", "lightdash", "python"]
+
+# A callable that, given a list of Slack IDs, returns ``(ok, ids_with_status)``
+# where ``ids_with_status`` maps each Slack ID to whether it is reachable by the
+# Paradime Slack bot. ``ok`` is ``False`` when Slack could not be reached at all.
+SlackIdVerifier = Callable[[List[str]], Tuple[bool, Optional[Dict[str, bool]]]]
 
 # Schedule slug format. Mirrors paradb's schedule slug shape:
 # <first-24-chars-of-name-normalised>-<6-random-hex-chars>.
@@ -205,6 +218,17 @@ class Integrations(BaseModel):
         extra = Extra.allow
 
 
+class SelfHealingConfig(BaseModel):
+    enabled: bool = False
+    slack_channel: Optional[str] = None
+    agent_name: Optional[str] = None
+
+
+class EnvOverride(ParadimeScheduleBase):
+    key: str
+    value: str
+
+
 class ParadimeSchedule(ParadimeScheduleBase):
     name: str
     display_name: Optional[str] = None
@@ -237,7 +261,11 @@ class ParadimeSchedule(ParadimeScheduleBase):
 
     trigger_on_merge: Optional[bool] = False
 
+    self_healing: Optional[SelfHealingConfig] = None
+
     suspended: Optional[bool] = False
+
+    env_overrides: Optional[List[EnvOverride]] = None
 
     @validator("display_name")
     def validate_display_name(cls, display_name: Optional[str]) -> Optional[str]:
@@ -248,6 +276,33 @@ class ParadimeSchedule(ParadimeScheduleBase):
         if len(display_name) > DISPLAY_NAME_MAX_LENGTH:
             raise ValueError(f"display_name must be {DISPLAY_NAME_MAX_LENGTH} characters or fewer")
         return display_name
+
+    @root_validator()
+    @classmethod
+    def validate_self_healing_slack_channel(cls, values: Any) -> Any:
+        # self_healing.slack_channel must appear in notifications.slack_channels —
+        # the agent replies into the thread created by the standard notification.
+        self_healing = values.get("self_healing")
+        if not (self_healing and self_healing.enabled and self_healing.slack_channel):
+            return values
+
+        notifications = values.get("notifications")
+        configured: set = set()
+        if notifications and notifications.slack_channels:
+            configured = {c.get_channel() for c in notifications.slack_channels}
+
+        slack_notify = values.get("slack_notify")
+        if isinstance(slack_notify, str):
+            configured.add(slack_notify)
+        elif isinstance(slack_notify, list):
+            configured.update(c for c in slack_notify if c)
+
+        if self_healing.slack_channel not in configured:
+            raise ValueError(
+                f"self_healing.slack_channel '{self_healing.slack_channel}' must also "
+                f"appear in notifications.slack_channels for this schedule"
+            )
+        return values
 
 
 class ParadimeSchedules(ParadimeScheduleBase):
@@ -283,6 +338,7 @@ def is_valid_schedule_at_path(
     file_path: Path,
     existing_names: Optional[Set[str]] = None,
     schedule_trigger_refs: Optional[Set[Tuple[str, str]]] = None,
+    slack_id_verifier: Optional[SlackIdVerifier] = None,
 ) -> Optional[str]:
     """Validate a schedule YAML file.
 
@@ -298,6 +354,10 @@ def is_valid_schedule_at_path(
             ``schedule_trigger`` may point at a schedule in another workspace).
             When ``None`` (e.g. offline / API unavailable) the cross-workspace
             check is skipped.
+        slack_id_verifier: Optional callable used to check that each schedule's
+            Slack notification IDs are reachable by the Paradime Slack bot. When
+            ``None`` (e.g. the public API has no Slack-check endpoint) the check
+            is skipped.
     """
     try:
         schedules = _get_schedules(file_path)
@@ -345,18 +405,57 @@ def is_valid_schedule_at_path(
 
     # Verify schedules individually
     for schedule in schedules.schedules:
-        if error := verify_single_schedule(schedule):
+        if error := verify_single_schedule(schedule, slack_id_verifier=slack_id_verifier):
             return error
 
     return None
 
 
-def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[str]:
+def get_allowed_commands() -> List[str]:
+    """Allowed commands, overridable via the ``BOLT_ALLOWED_COMMANDS`` env var.
+
+    The env var, when set, must be a JSON array of strings; otherwise the
+    hardcoded default (``ALLOWED_COMMANDS``) is used.
+    """
+    env_value = os.environ.get("BOLT_ALLOWED_COMMANDS", "")
+    if env_value:
+        try:
+            commands = json.loads(env_value)
+            if isinstance(commands, list) and commands:
+                return commands
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return list(ALLOWED_COMMANDS)
+
+
+def is_allowed_command(command: Command, allowed_commands: List[str]) -> bool:
+    cmd = command.as_list
+    return bool(cmd) and cmd[0] in allowed_commands
+
+
+def verify_single_schedule(
+    schedule: ParadimeSchedule,
+    slack_id_verifier: Optional[SlackIdVerifier] = None,
+) -> Optional[str]:
     schedule_name = schedule.name
 
     # check there are commands
     if not schedule.commands:
         return f"{schedule_name}: Missing commands."
+
+    # check each command starts with an allowed command
+    allowed_commands = get_allowed_commands()
+    for command in schedule.commands:
+        if not is_allowed_command(parse_command(command), allowed_commands):
+            return (
+                f"{schedule_name}: Command {command!r} is not an allowed command. "
+                f"Allowed commands are: {allowed_commands}."
+            )
+
+    # verify slack ids are reachable by the Paradime Slack bot
+    if slack_id_verifier is not None:
+        if error := _verify_slack_ids(schedule, slack_id_verifier):
+            return error
 
     # verify cron schedule
     if (
@@ -385,6 +484,30 @@ def verify_single_schedule(schedule: ParadimeSchedule) -> Optional[str]:
                     f"{schedule_name}: Email on '{email_on}' is not valid - use: {VALID_ON_EVENTS}."
                 )
 
+    return None
+
+
+def _verify_slack_ids(
+    schedule: ParadimeSchedule,
+    slack_id_verifier: SlackIdVerifier,
+) -> Optional[str]:
+    """Check the schedule's Slack notification IDs via ``slack_id_verifier``."""
+    raw = schedule.slack_notify
+    slack_ids = [raw] if isinstance(raw, str) else list(raw)
+    slack_ids = [slack_id for slack_id in slack_ids if slack_id]
+    if not slack_ids:
+        return None
+
+    ok, ids_with_status = slack_id_verifier(slack_ids)
+    if not ok:
+        return f"{schedule.name}: Problem communicating with Slack."
+    if ids_with_status:
+        for slack_id, id_is_valid in ids_with_status.items():
+            if not id_is_valid:
+                return (
+                    f"{schedule.name}: Slack ID '{slack_id}' is not accessible to "
+                    f"the Paradime Slack bot."
+                )
     return None
 
 
