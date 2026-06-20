@@ -56,9 +56,7 @@ def test_slack_verifier_flags_unreachable_id():
     def verifier(ids: List[str]) -> Tuple[bool, Optional[Dict[str, bool]]]:
         return True, {ids[0]: False}
 
-    error = verify_single_schedule(
-        _schedule(slack_notify=["U123"]), slack_id_verifier=verifier
-    )
+    error = verify_single_schedule(_schedule(slack_notify=["U123"]), slack_id_verifier=verifier)
     assert error is not None
     assert "not accessible" in error
 
@@ -68,8 +66,7 @@ def test_slack_verifier_passes_when_reachable():
         return True, {ids[0]: True}
 
     assert (
-        verify_single_schedule(_schedule(slack_notify=["U123"]), slack_id_verifier=verifier)
-        is None
+        verify_single_schedule(_schedule(slack_notify=["U123"]), slack_id_verifier=verifier) is None
     )
 
 

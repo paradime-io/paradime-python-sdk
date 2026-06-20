@@ -330,7 +330,7 @@ def run_bolt_verify(path: str) -> int:
         _console.result_panel(
             "No schedules found.", style="warning", title="Schedules Verification"
         )
-        return
+        return 1
 
     try:
         if mint_fn is None:
