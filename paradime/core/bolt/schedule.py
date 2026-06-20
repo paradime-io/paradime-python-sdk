@@ -96,7 +96,7 @@ class Hightouch(ParadimeScheduleBase):
 
 class ScheduleTrigger(ParadimeScheduleBase):
     enabled: bool
-    schedule_name: str
+    schedule_name: Optional[str] = None
     schedule_slug: Optional[str] = None
     workspace_name: str
     trigger_on: List[str]
@@ -104,9 +104,10 @@ class ScheduleTrigger(ParadimeScheduleBase):
     @root_validator()
     @classmethod
     def resolve_slug(cls, values: Any) -> Any:
-        slug = values.get("schedule_slug")
-        if slug:
-            values["schedule_name"] = slug
+        schedule_name = values.get("schedule_slug") or values.get("schedule_name")
+        if not schedule_name:
+            raise ValueError("Missing schedule_name or schedule_slug")
+        values["schedule_name"] = schedule_name
         return values
 
     @validator("trigger_on")

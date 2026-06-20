@@ -12,6 +12,7 @@ import click
 import requests
 
 from paradime.apis.bolt.types import BoltRunState
+from paradime.cli import console as _console
 from paradime.cli.rich_text_output import (
     print_artifact_downloaded,
     print_artifact_downloading,
@@ -298,7 +299,7 @@ def verify(path: str) -> None:
         schedule_trigger_refs=all_schedules_ref or None,
     )
     if error_string:
-        print_error_table(error_string, is_json=False)
+        _console.result_panel(error_string, style="error", title="Schedules Verification")
         sys.exit(1)
 
     # Check for names not yet registered in the backend and mint slugs.
@@ -308,7 +309,7 @@ def verify(path: str) -> None:
         schedules = None
 
     if not schedules:
-        click.secho("No schedules found.", fg="yellow")
+        _console.result_panel("No schedules found.", style="warning", title="Schedules Verification")
         return
 
     try:
@@ -322,20 +323,34 @@ def verify(path: str) -> None:
             existing_names=existing_names,
         )
         if changed:
-            click.secho(f"Minted slugs in {changed} file(s).", fg="green")
+            _console.result_panel(
+                f"Minted slugs in {changed} file(s).",
+                style="success",
+                title="Schedules Verification",
+            )
         else:
-            click.secho("All schedules verified.", fg="green")
+            _console.result_panel(
+                "All schedules verified.",
+                style="success",
+                title="Schedules Verification",
+            )
     except (ParadimeAPIException, ParadimeException) as e:
-        click.secho(
+        _console.result_panel(
             f"Could not mint slugs (API unavailable): {e}\n"
             f"Non-slug schedule names will be grandfathered by the backend on deploy.",
-            fg="yellow",
+            style="warning",
+            title="Schedules Verification",
         )
     except Exception:
         # Fall back to warnings if minting fails for any reason
         if schedules:
-            for warning in get_slug_format_warnings(schedules):
-                click.secho(f"warning: {warning}", fg="yellow")
+            warnings = get_slug_format_warnings(schedules)
+            if warnings:
+                _console.result_panel(
+                    "\n".join(warnings),
+                    style="warning",
+                    title="Schedules Verification",
+                )
 
 
 @click.command()
