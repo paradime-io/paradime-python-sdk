@@ -309,7 +309,9 @@ def verify(path: str) -> None:
         schedules = None
 
     if not schedules:
-        _console.result_panel("No schedules found.", style="warning", title="Schedules Verification")
+        _console.result_panel(
+            "No schedules found.", style="warning", title="Schedules Verification"
+        )
         return
 
     try:
