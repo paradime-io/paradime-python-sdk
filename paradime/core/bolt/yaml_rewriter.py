@@ -1,13 +1,3 @@
-"""Rewrite schedule YAML files to mint slugs for non-slug names.
-
-Uses ``ruamel.yaml`` to preserve comments, key order, and formatting when
-modifying the YAML in place.
-
-v3 format: the human-readable label stays as ``name`` and the minted slug is
-inserted as ``slug``. Cross-references use ``deferred_schedule_slug`` and
-``schedule_slug`` fields.
-"""
-
 from pathlib import Path
 from typing import Callable, List, Set
 
@@ -46,12 +36,17 @@ def mint_slugs_in_yaml_files(
     is inserted as ``slug``. Cross-references use ``deferred_schedule_slug`` and
     ``schedule_slug`` fields.
 
+    v2 → v3 auto-migration: when a schedule already has ``name`` (a slug) and
+    ``display_name`` (the human label), it is converted to v3 by swapping them.
+
     Two-pass approach:
     1. Collect all schedule names across all files. For names that are not valid
        slugs **and not already deployed** (i.e. not in ``existing_names``), call
        the backend to mint slugs. Names that already exist in the backend are
-       grandfathered and left unchanged.
-    2. Rewrite all files: insert ``slug`` fields and fix cross-references.
+       grandfathered and left unchanged. v2 schedules with ``display_name`` are
+       marked for auto-migration (no minting needed).
+    2. Rewrite all files: insert ``slug`` fields, migrate v2 → v3, and fix
+       cross-references.
 
     Args:
         mint_fn: Callable that takes a list of display names and returns slugs.
@@ -76,8 +71,9 @@ def mint_slugs_in_yaml_files(
     # --- Pass 1: load all files and collect names that need slugs ---
     loaded: list[tuple[Path, dict]] = []
     names_needing_slugs: list[str] = []  # display names to mint
-    # Track name → slug for all names (both existing and to-be-minted)
+    # Track display_name/old_name → slug for all names
     name_to_slug: dict[str, str] = {}
+    has_v2_to_migrate = False
 
     for filepath in files:
         doc = yaml.load(filepath)
@@ -92,16 +88,22 @@ def mint_slugs_in_yaml_files(
             if not isinstance(entry, dict):
                 continue
 
-            # v3 schedules already have a slug — use it directly
             existing_slug = entry.get("slug")
             name = entry.get("name")
             if not name:
                 continue
             name_str = str(name)
+            display_name = entry.get("display_name")
 
             if existing_slug:
                 # Already v3: map the display name to the existing slug
                 name_to_slug[name_str] = str(existing_slug)
+            elif display_name:
+                # v2 format: name is the slug, display_name is the label.
+                # Auto-migrate to v3 (no minting needed).
+                name_to_slug[name_str] = name_str
+                name_to_slug[str(display_name)] = name_str
+                has_v2_to_migrate = True
             elif name_str in grandfathered:
                 name_to_slug[name_str] = name_str
             else:
@@ -109,13 +111,14 @@ def mint_slugs_in_yaml_files(
                     names_needing_slugs.append(name_str)
                 name_to_slug[name_str] = name_str  # placeholder, updated below
 
-    if not names_needing_slugs:
+    if not names_needing_slugs and not has_v2_to_migrate:
         return 0
 
-    # Mint slugs from the backend
-    minted_slugs = mint_fn(names_needing_slugs)
-    for display_name, minted in zip(names_needing_slugs, minted_slugs):
-        name_to_slug[display_name] = minted
+    # Mint slugs from the backend (only for genuinely new names)
+    if names_needing_slugs:
+        minted_slugs = mint_fn(names_needing_slugs)
+        for display_name, minted in zip(names_needing_slugs, minted_slugs):
+            name_to_slug[display_name] = minted
 
     # --- Pass 2: rewrite all files ---
     files_changed = 0
@@ -127,14 +130,27 @@ def mint_slugs_in_yaml_files(
             if not isinstance(entry, dict):
                 continue
 
-            # Insert slug for schedules that need one (v3 format)
             name = entry.get("name")
             existing_slug = entry.get("slug")
-            if name and not existing_slug and str(name) not in grandfathered:
+            display_name = entry.get("display_name")
+
+            if existing_slug:
+                # Already v3, nothing to do for this schedule's own fields
+                pass
+            elif name and display_name:
+                # v2 → v3 migration: name is the slug, display_name is the label.
+                # Swap: name ← display_name, insert slug ← old name, remove display_name.
+                old_slug = str(name)
+                entry["name"] = str(display_name)
+                # Insert slug right after name
+                entry.insert(1, "slug", old_slug)  # type: ignore[attr-defined]
+                del entry["display_name"]
+                changed = True
+            elif name and str(name) not in grandfathered:
+                # New schedule needing a minted slug
                 name_str = str(name)
                 slug: str | None = name_to_slug.get(name_str)
                 if slug and slug != name_str:
-                    # Insert slug right after name (v3 format)
                     entry.insert(1, "slug", slug)  # type: ignore[attr-defined]
                     changed = True
 

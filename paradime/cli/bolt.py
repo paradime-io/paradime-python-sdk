@@ -316,18 +316,13 @@ def verify(path: str) -> None:
             client = get_cli_client_or_exit()
         root = schedule_path.parent if schedule_path.is_file() else schedule_path
 
-        unregistered = [s.name for s in schedules.schedules if s.name not in existing_names]
-
-        if unregistered:
-            changed = mint_slugs_in_yaml_files(
-                mint_fn=client.bolt.create_schedule_slugs,
-                root=root,
-                existing_names=existing_names,
-            )
-            if changed:
-                click.secho(f"Minted slugs in {changed} file(s).", fg="green")
-            else:
-                click.secho("All schedules verified.", fg="green")
+        changed = mint_slugs_in_yaml_files(
+            mint_fn=client.bolt.create_schedule_slugs,
+            root=root,
+            existing_names=existing_names,
+        )
+        if changed:
+            click.secho(f"Minted slugs in {changed} file(s).", fg="green")
         else:
             click.secho("All schedules verified.", fg="green")
     except (ParadimeAPIException, ParadimeException) as e:
