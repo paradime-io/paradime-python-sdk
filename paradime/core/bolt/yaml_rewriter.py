@@ -2,6 +2,10 @@
 
 Uses ``ruamel.yaml`` to preserve comments, key order, and formatting when
 modifying the YAML in place.
+
+v3 format: the human-readable label stays as ``name`` and the minted slug is
+inserted as ``slug``. Cross-references use ``deferred_schedule_slug`` and
+``schedule_slug`` fields.
 """
 
 from pathlib import Path
@@ -38,14 +42,16 @@ def mint_slugs_in_yaml_files(
 ) -> int:
     """Walk schedule YAML files, mint slugs for non-slug names, rewrite in place.
 
+    v3 format: the human-readable ``name`` is left in place and the minted slug
+    is inserted as ``slug``. Cross-references use ``deferred_schedule_slug`` and
+    ``schedule_slug`` fields.
+
     Two-pass approach:
     1. Collect all schedule names across all files. For names that are not valid
        slugs **and not already deployed** (i.e. not in ``existing_names``), call
        the backend to mint slugs. Names that already exist in the backend are
        grandfathered and left unchanged.
-    2. Rewrite all files: update ``name`` fields, set ``display_name``, and fix
-       cross-references in ``deferred_schedule``, ``turbo_ci``, and
-       ``schedule_trigger`` sections.
+    2. Rewrite all files: insert ``slug`` fields and fix cross-references.
 
     Args:
         mint_fn: Callable that takes a list of display names and returns slugs.
@@ -85,19 +91,22 @@ def mint_slugs_in_yaml_files(
         for entry in schedules:
             if not isinstance(entry, dict):
                 continue
+
+            # v3 schedules already have a slug — use it directly
+            existing_slug = entry.get("slug")
             name = entry.get("name")
             if not name:
                 continue
             name_str = str(name)
 
-            if name_str in grandfathered:
-                display = entry.get("display_name") or name_str
-                name_to_slug[str(display)] = name_str
+            if existing_slug:
+                # Already v3: map the display name to the existing slug
+                name_to_slug[name_str] = str(existing_slug)
+            elif name_str in grandfathered:
                 name_to_slug[name_str] = name_str
             else:
-                display = entry.get("display_name") or name_str
-                if str(display) not in names_needing_slugs:
-                    names_needing_slugs.append(str(display))
+                if name_str not in names_needing_slugs:
+                    names_needing_slugs.append(name_str)
                 name_to_slug[name_str] = name_str  # placeholder, updated below
 
     if not names_needing_slugs:
@@ -118,46 +127,45 @@ def mint_slugs_in_yaml_files(
             if not isinstance(entry, dict):
                 continue
 
-            # Rewrite the schedule's own name (only if not grandfathered)
+            # Insert slug for schedules that need one (v3 format)
             name = entry.get("name")
-            if name and str(name) not in grandfathered:
-                old_name = str(name)
-                display = entry.get("display_name") or old_name
-                slug: str | None = name_to_slug.get(str(display)) or name_to_slug.get(old_name)
-                if slug and slug != old_name:
-                    if "display_name" not in entry:
-                        entry.insert(1, "display_name", old_name)  # type: ignore[attr-defined]
-                    entry["name"] = slug
+            existing_slug = entry.get("slug")
+            if name and not existing_slug and str(name) not in grandfathered:
+                name_str = str(name)
+                slug: str | None = name_to_slug.get(name_str)
+                if slug and slug != name_str:
+                    # Insert slug right after name (v3 format)
+                    entry.insert(1, "slug", slug)  # type: ignore[attr-defined]
                     changed = True
 
-            # Fix deferred_schedule.deferred_schedule_name
+            # Fix deferred_schedule cross-reference (use deferred_schedule_slug)
             deferred = entry.get("deferred_schedule")
             if isinstance(deferred, dict):
                 ref = deferred.get("deferred_schedule_name")
                 if ref and str(ref) in name_to_slug:
                     new_ref = name_to_slug[str(ref)]
                     if new_ref != str(ref):
-                        deferred["deferred_schedule_name"] = new_ref
+                        deferred["deferred_schedule_slug"] = new_ref
                         changed = True
 
-            # Fix turbo_ci.deferred_schedule_name
+            # Fix turbo_ci cross-reference (use deferred_schedule_slug)
             turbo = entry.get("turbo_ci")
             if isinstance(turbo, dict):
                 ref = turbo.get("deferred_schedule_name")
                 if ref and str(ref) in name_to_slug:
                     new_ref = name_to_slug[str(ref)]
                     if new_ref != str(ref):
-                        turbo["deferred_schedule_name"] = new_ref
+                        turbo["deferred_schedule_slug"] = new_ref
                         changed = True
 
-            # Fix schedule_trigger.schedule_name
+            # Fix schedule_trigger cross-reference (use schedule_slug)
             trigger = entry.get("schedule_trigger")
             if isinstance(trigger, dict):
                 ref = trigger.get("schedule_name")
                 if ref and str(ref) in name_to_slug:
                     new_ref = name_to_slug[str(ref)]
                     if new_ref != str(ref):
-                        trigger["schedule_name"] = new_ref
+                        trigger["schedule_slug"] = new_ref
                         changed = True
 
         if changed:
