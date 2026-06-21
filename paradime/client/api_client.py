@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import requests
 
@@ -11,25 +11,50 @@ class APIClient:
     """
     A client for making API requests to the Paradime API.
 
+    Supports two authentication modes:
+
+    1. **Workspace-level** (legacy): Uses an API key and secret scoped to a single workspace.
+    2. **Company-level**: Uses a ``prdm_cmp_`` bearer token that spans multiple workspaces.
+       Each request targets a workspace via the ``workspace_uid`` parameter.
+
     Args:
-        api_key (str): The API key for authentication.
-        api_secret (str): The API secret for authentication.
         api_endpoint (str): The endpoint URL for the API.
+        api_key (str, optional): The API key for workspace-level authentication.
+        api_secret (str, optional): The API secret for workspace-level authentication.
+        api_token (str, optional): A company-level API token (``prdm_cmp_`` prefix).
+        workspace_uid (str, optional): The target workspace UID for company-level auth.
         timeout (int, optional): The timeout for API requests in seconds. Defaults to 60 seconds.
     """
 
     def __init__(
         self,
         *,
-        api_key: str,
-        api_secret: str,
         api_endpoint: str,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None,
+        api_token: Optional[str] = None,
+        workspace_uid: Optional[str] = None,
         timeout: int = 60,
     ):
-        self.api_key = api_key
-        self.api_secret = api_secret
         self.api_endpoint = api_endpoint
         self.timeout = timeout
+        self.api_token: Optional[str]
+        self.workspace_uid: Optional[str]
+
+        if api_token:
+            self.api_key = ""
+            self.api_secret = ""
+            self.api_token = api_token
+            self.workspace_uid = workspace_uid
+        elif api_key and api_secret:
+            self.api_key = api_key
+            self.api_secret = api_secret
+            self.api_token = None
+            self.workspace_uid = None
+        else:
+            raise ValueError(
+                "Provide either (api_key + api_secret) or api_token for authentication."
+            )
 
     def _get_request_headers(self) -> Dict[str, str]:
         """
@@ -41,10 +66,16 @@ class APIClient:
 
         headers: Dict[str, str] = {
             "Content-Type": "application/json",
-            "X-API-KEY": self.api_key,
-            "X-API-SECRET": self.api_secret,
             "X-PYTHON-SDK-VERSION": get_sdk_version(),
         }
+
+        if self.api_token:
+            headers["Authorization"] = f"Bearer {self.api_token}"
+            if self.workspace_uid:
+                headers["X-Paradime-Workspace"] = self.workspace_uid
+        else:
+            headers["X-API-KEY"] = self.api_key
+            headers["X-API-SECRET"] = self.api_secret
 
         if is_telemetry_enabled():
             headers["X-PYTHON-VERSION"] = get_python_version()
