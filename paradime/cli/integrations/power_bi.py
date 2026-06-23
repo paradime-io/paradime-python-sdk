@@ -53,6 +53,22 @@ from paradime.core.scripts.power_bi import (
     help="A base64 encoded json string to send as the request body - https://learn.microsoft.com/en-us/power-bi/connect-data/asynchronous-refresh#parameters.",
     required=False,
 )
+@click.option(
+    "--wait/--no-wait",
+    "wait",
+    envvar="POWER_BI_REFRESH_WAIT",
+    default=False,
+    help="Wait for each refresh to complete and report its status, instead of returning "
+    "as soon as the refresh is triggered.\n\n [env: POWER_BI_REFRESH_WAIT]",
+)
+@env_click_option(
+    "timeout-minutes",
+    "POWER_BI_REFRESH_TIMEOUT_MINUTES",
+    help="Maximum minutes to wait per dataset when --wait is set.",
+    required=False,
+    default=60,
+    type=int,
+)
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def power_bi_refresh(
     tenant_id: str,
@@ -62,6 +78,8 @@ def power_bi_refresh(
     dataset_names: List[str],
     dataset_name: Optional[List[str]],
     refresh_request_body_b64: Optional[str],
+    wait: bool,
+    timeout_minutes: int,
     json_output: bool,
 ) -> None:
     """
@@ -75,21 +93,52 @@ def power_bi_refresh(
         console.header(f"Power BI — Refresh Datasets (group {group_id})")
 
     try:
-        trigger_power_bi_refreshes(
+        results = trigger_power_bi_refreshes(
             client_id=client_id,
             client_secret=client_secret,
             group_id=group_id,
             dataset_names=dataset_names,
             refresh_request_body_b64=refresh_request_body_b64,
             tenant_id=tenant_id,
+            wait=wait,
+            timeout_minutes=timeout_minutes,
         )
-        if json_output:
-            console.json_out({"success": True, "datasets": list(dataset_names)})
     except Exception as e:
         if json_output:
             console.json_out({"error": str(e), "success": False})
             sys.exit(1)
         raise
+
+    failures = [result for result in results if result.is_failure]
+
+    if json_output:
+        console.json_out(
+            {
+                "success": not failures,
+                "datasets": [
+                    {
+                        "dataset": result.dataset_name,
+                        "status": result.status,
+                        "request_id": result.request_id,
+                        "error": result.error,
+                    }
+                    for result in results
+                ],
+            }
+        )
+        if failures:
+            sys.exit(1)
+        return
+
+    for result in results:
+        if result.is_failure:
+            console.error(f"{result.dataset_name}: {result.status} — {result.error}")
+        else:
+            console.success(f"{result.dataset_name}: {result.status}")
+
+    if failures:
+        failed_names = ", ".join(result.dataset_name for result in failures)
+        raise Exception(f"Power BI refresh failed for: {failed_names}")
 
 
 @click.command(context_settings=dict(max_content_width=160))
