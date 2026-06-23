@@ -19,6 +19,7 @@ from paradime.cli.integrations.aws_stepfunctions import (
     aws_stepfunctions_trigger,
 )
 from paradime.cli.integrations.census import census_list_syncs, census_sync
+from paradime.cli.integrations.datahub import datahub_artifacts_push
 from paradime.cli.integrations.fivetran import fivetran_list_connectors, fivetran_sync
 from paradime.cli.integrations.gcp_bigquery_transfer import (
     gcp_bigquery_transfer_list,
@@ -95,6 +96,7 @@ run.add_command(adf_list_pipelines)
 run.add_command(hex_trigger)
 run.add_command(hex_list_projects)
 run.add_command(montecarlo_artifacts_import)
+run.add_command(datahub_artifacts_push)
 run.add_command(hightouch_sync)
 run.add_command(hightouch_sync_sequence)
 run.add_command(hightouch_list_syncs)
