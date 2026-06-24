@@ -269,12 +269,12 @@ def trigger_dag_run(
 
     # Show Airflow UI link
     ui_url = f"{base_url}/dags/{dag_id}/grid?dag_run_id={dag_run_id}"
-    console.debug(f"[{dag_id}] Airflow UI: {ui_url}")
+    console.info(f"[{dag_id}] Airflow UI: {ui_url}")
 
     if not wait_for_completion:
         return f"DAG run triggered (ID: {dag_run_id})"
 
-    console.debug(f"[{dag_id}] Monitoring DAG run progress...")
+    console.info(f"[{dag_id}] Monitoring DAG run progress...")
 
     # Wait for DAG run completion
     dag_run_status = _wait_for_dag_completion(
@@ -371,11 +371,11 @@ def _wait_for_dag_completion(
                     state_summary = ", ".join(
                         [f"{count} {state}" for state, count in task_states.items()]
                     )
-                    console.debug(
+                    console.info(
                         f"[{dag_id}] Running... ({state_summary}) ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
                 elif state == "queued":
-                    console.debug(f"[{dag_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)")
+                    console.info(f"[{dag_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)")
 
             # Display logs for completed tasks (only once per task)
             if show_logs:
@@ -403,7 +403,7 @@ def _wait_for_dag_completion(
                 elapsed_sec = int(elapsed % 60)
 
                 if state == "success":
-                    console.debug(
+                    console.info(
                         f"[{dag_id}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
                     )
                     return f"SUCCESS (completed at run ID: {dag_run_id})"
@@ -426,7 +426,7 @@ def _wait_for_dag_completion(
                                 )
                                 task_states_logged.add(task_key)
 
-                    console.debug(f"[{dag_id}] DAG run failed")
+                    console.error(f"[{dag_id}] DAG run failed")
                     return f"FAILED (run ID: {dag_run_id})"
 
             elif state in ["running", "queued"]:
@@ -477,7 +477,7 @@ def _fetch_and_display_task_logs(
         )
 
         if logs_response.status_code == 200:
-            console.debug(f"[{dag_id}] Task '{task_id}' {task_state.upper()}")
+            console.info(f"[{dag_id}] Task '{task_id}' {task_state.upper()}")
 
             # Parse log content - Airflow v2 API returns JSON structured logs
             import json
@@ -520,34 +520,34 @@ def _fetch_and_display_task_logs(
                 if formatted_lines:
                     # Limit to last 100 lines for readability
                     if len(formatted_lines) > 100:
-                        console.debug(
+                        console.info(
                             f"... (showing last 100 lines of {len(formatted_lines)} total lines)"
                         )
                         formatted_lines = formatted_lines[-100:]
 
                     for line in formatted_lines:
-                        console.debug(f"  {line}")
+                        console.log(f"  {line}")
                 else:
                     # Fallback to raw text if no structured logs found
-                    console.debug(f"  {logs_response.text[:2000]}")
+                    console.log(f"  {logs_response.text[:2000]}")
 
             except json.JSONDecodeError:
                 # Fallback to plain text parsing for older Airflow versions
                 log_lines = logs_response.text.split("\n")
                 if len(log_lines) > 100:
-                    console.debug(f"... (showing last 100 lines of {len(log_lines)} total lines)")
+                    console.info(f"... (showing last 100 lines of {len(log_lines)} total lines)")
                     log_lines = log_lines[-100:]
 
                 for line in log_lines:
                     if line.strip():
-                        console.debug(f"  {line}")
+                        console.log(f"  {line}")
 
         else:
             # Log retrieval failed, just note the task state
-            console.debug(f"[{dag_id}] Task '{task_id}' {task_state} (logs unavailable)")
+            console.warning(f"[{dag_id}] Task '{task_id}' {task_state} (logs unavailable)")
 
     except Exception as e:
-        console.debug(f"[{dag_id}] Could not fetch logs for task '{task_id}': {str(e)[:50]}")
+        console.warning(f"[{dag_id}] Could not fetch logs for task '{task_id}': {str(e)[:50]}")
 
 
 def list_airflow_dags(
