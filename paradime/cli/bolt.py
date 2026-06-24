@@ -29,7 +29,7 @@ from paradime.core.bolt.schedule import (
     get_slug_format_warnings,
     is_valid_schedule_at_path,
 )
-from paradime.core.bolt.yaml_rewriter import mint_slugs_in_yaml_files
+from paradime.core.bolt.yaml_rewriter import migrate_yaml_to_v3, mint_slugs_in_yaml_files
 
 WAIT_SLEEP: Final = 10
 WAIT_SLEEP_STREAMING: Final = 2
@@ -357,6 +357,79 @@ def verify(path: str) -> None:
 
 @click.command()
 @click.option(
+    "--path",
+    help="Path to paradime_schedules.yml file or project root containing .bolt/ directory.",
+    show_default=True,
+    default=".",
+)
+def migrate(path: str) -> None:
+    """
+    Migrate v1/v2 schedule YAML files to v3 format.
+
+    Fetches schedule data (slug and display_name) from the Paradime backend
+    and rewrites local YAML files to v3 format:
+
+    \b
+    - v1 (only name): name → display_name from DB, slug → name from DB
+    - v2 (name + display_name): name → display_name from DB, slug → name from DB
+    - v3 (already has slug): skipped
+
+    Cross-references in deferred_schedule, turbo_ci, and schedule_trigger
+    are also updated to use slug-based fields.
+    """
+    print_version()
+    schedule_path = Path(path)
+
+    client = get_cli_client_or_exit()
+    try:
+        all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
+    except (ParadimeAPIException, ParadimeException) as e:
+        _console.result_panel(
+            f"Failed to fetch schedules from backend: {e}",
+            style="error",
+            title="Schedule Migration",
+        )
+        sys.exit(1)
+
+    # Build lookup: DB name → {slug, display_name}
+    db_schedules: dict[str, dict[str, str | None]] = {}
+    for s in all_schedules.schedules:
+        db_schedules[s.name] = {
+            "slug": s.slug,
+            "display_name": s.display_name,
+        }
+
+    root = schedule_path.parent if schedule_path.is_file() else schedule_path
+
+    try:
+        changed = migrate_yaml_to_v3(
+            root=root,
+            db_schedules=db_schedules,
+        )
+    except Exception as e:
+        _console.result_panel(
+            f"Migration failed: {e}",
+            style="error",
+            title="Schedule Migration",
+        )
+        sys.exit(1)
+
+    if changed:
+        _console.result_panel(
+            f"Migrated {changed} file(s) to v3 format.",
+            style="success",
+            title="Schedule Migration",
+        )
+    else:
+        _console.result_panel(
+            "No files needed migration. All schedules are already in v3 format or not found in the backend.",
+            style="success",
+            title="Schedule Migration",
+        )
+
+
+@click.command()
+@click.option(
     "--slug",
     "--schedule-name",
     "slug",
@@ -429,4 +502,5 @@ bolt.add_command(run)
 bolt.add_command(retry)
 bolt.add_command(schedule)
 bolt.add_command(verify)
+bolt.add_command(migrate)
 bolt.add_command(artifact)

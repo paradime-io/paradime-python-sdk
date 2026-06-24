@@ -358,6 +358,8 @@ class BoltClient:
                 listBoltSchedules(offset: $offset, limit: $limit, showInactive: $showInactive) {
                     schedules {
                         name
+                        slug
+                        displayName
                         schedule
                         owner
                         lastRunAt

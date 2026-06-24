@@ -42,6 +42,8 @@ class BoltNotifications(BaseModel):
 
 class BoltSchedule(BaseModel):
     name: str
+    slug: Optional[str]
+    display_name: Optional[str]
     schedule: str
     owner: Optional[str]
     last_run_at: Optional[str]
