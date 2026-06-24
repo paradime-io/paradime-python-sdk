@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
 
@@ -91,6 +92,7 @@ def trigger_airflow_dags(
     show_logs: bool = True,
     use_gcp_auth: bool = False,
     bearer_token: Optional[str] = None,
+    poll_interval: int = 10,
 ) -> List[str]:
     """
     Trigger multiple Airflow DAG runs.
@@ -132,6 +134,7 @@ def trigger_airflow_dags(
                         show_logs=show_logs,
                         use_gcp_auth=use_gcp_auth,
                         bearer_token=bearer_token,
+                        poll_interval=poll_interval,
                     ),
                 )
             )
@@ -177,6 +180,7 @@ def trigger_dag_run(
     show_logs: bool = True,
     use_gcp_auth: bool = False,
     bearer_token: Optional[str] = None,
+    poll_interval: int = 10,
 ) -> str:
     """
     Trigger a single Airflow DAG run.
@@ -269,12 +273,12 @@ def trigger_dag_run(
 
     # Show Airflow UI link
     ui_url = f"{base_url}/dags/{dag_id}/grid?dag_run_id={dag_run_id}"
-    console.debug(f"[{dag_id}] Airflow UI: {ui_url}")
+    console.info(f"[{dag_id}] Airflow UI: {ui_url}")
 
     if not wait_for_completion:
         return f"DAG run triggered (ID: {dag_run_id})"
 
-    console.debug(f"[{dag_id}] Monitoring DAG run progress...")
+    console.info(f"[{dag_id}] Monitoring DAG run progress...")
 
     # Wait for DAG run completion
     dag_run_status = _wait_for_dag_completion(
@@ -285,6 +289,7 @@ def trigger_dag_run(
         dag_run_id=dag_run_id,
         timeout_minutes=timeout_minutes,
         show_logs=show_logs,
+        poll_interval=poll_interval,
     )
 
     return f"DAG run completed. Final status: {dag_run_status}"
@@ -299,6 +304,7 @@ def _wait_for_dag_completion(
     dag_run_id: str,
     timeout_minutes: int,
     show_logs: bool,
+    poll_interval: int = 10,
 ) -> str:
     """
     Poll DAG run status until completion or timeout.
@@ -311,15 +317,19 @@ def _wait_for_dag_completion(
         dag_run_id: DAG run ID
         timeout_minutes: Maximum time to wait for completion
         show_logs: Whether to display task logs
+        poll_interval: Seconds between status polls (also the log-tail cadence)
 
     Returns:
         Final DAG run status
     """
     start_time = time.time()
     timeout_seconds = timeout_minutes * 60
-    sleep_interval = 10  # Poll every 10 seconds
+    sleep_interval = max(1, poll_interval)
     counter = 0
-    task_states_logged = set()  # Track which task states we've logged
+    log_watermarks: Dict[Tuple[str, int], datetime] = {}
+    log_headers_printed: Set[Tuple[str, int, str]] = set()
+    # Progress lines emitted every ~60s of wall-clock, regardless of poll cadence
+    progress_every = max(1, 60 // sleep_interval)
 
     while True:
         elapsed = time.time() - start_time
@@ -365,37 +375,38 @@ def _wait_for_dag_completion(
                 task_state = task.get("state", "unknown")
                 task_states[task_state] = task_states.get(task_state, 0) + 1
 
-            # Log progress every 6 checks (~1 minute)
-            if counter == 0 or counter % 6 == 0:
+            # Log progress every ~60s of wall-clock
+            if counter == 0 or counter % progress_every == 0:
                 if state == "running":
                     state_summary = ", ".join(
                         [f"{count} {state}" for state, count in task_states.items()]
                     )
-                    console.debug(
+                    console.info(
                         f"[{dag_id}] Running... ({state_summary}) ({elapsed_min}m {elapsed_sec}s elapsed)"
                     )
                 elif state == "queued":
-                    console.debug(f"[{dag_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)")
+                    console.info(f"[{dag_id}] Queued... ({elapsed_min}m {elapsed_sec}s elapsed)")
 
-            # Display logs for completed tasks (only once per task)
+            # Tail logs for running tasks, flush logs for tasks that just finished
             if show_logs:
                 for task in task_instances:
                     task_id = task.get("task_id")
                     task_state = task.get("state")
-                    task_key = f"{task_id}:{task_state}"
-
-                    # Only fetch logs for completed tasks we haven't logged yet
-                    if task_state in ["success", "failed"] and task_key not in task_states_logged:
-                        _fetch_and_display_task_logs(
-                            api_base=api_base,
-                            auth=auth,
-                            headers=headers,
-                            dag_id=dag_id,
-                            dag_run_id=dag_run_id,
-                            task_id=task_id,
-                            task_state=task_state,
-                        )
-                        task_states_logged.add(task_key)
+                    try_number = task.get("try_number", 1) or 1
+                    if not task_id or task_state not in ("running", "success", "failed"):
+                        continue
+                    _tail_task_logs(
+                        api_base=api_base,
+                        auth=auth,
+                        headers=headers,
+                        dag_id=dag_id,
+                        dag_run_id=dag_run_id,
+                        task_id=task_id,
+                        try_number=try_number,
+                        task_state=task_state,
+                        watermarks=log_watermarks,
+                        headers_printed=log_headers_printed,
+                    )
 
             # Check if DAG run is complete
             if state in ["success", "failed"]:
@@ -403,30 +414,33 @@ def _wait_for_dag_completion(
                 elapsed_sec = int(elapsed % 60)
 
                 if state == "success":
-                    console.debug(
+                    console.info(
                         f"[{dag_id}] Completed successfully ({elapsed_min}m {elapsed_sec}s)"
                     )
                     return f"SUCCESS (completed at run ID: {dag_run_id})"
                 elif state == "failed":
-                    # Log any remaining task logs
-                    if show_logs:
-                        for task in task_instances:
-                            task_id = task.get("task_id")
-                            task_state = task.get("state")
-                            task_key = f"{task_id}:{task_state}"
-                            if task_key not in task_states_logged:
-                                _fetch_and_display_task_logs(
-                                    api_base=api_base,
-                                    auth=auth,
-                                    headers=headers,
-                                    dag_id=dag_id,
-                                    dag_run_id=dag_run_id,
-                                    task_id=task_id,
-                                    task_state=task_state,
-                                )
-                                task_states_logged.add(task_key)
-
-                    console.debug(f"[{dag_id}] DAG run failed")
+                    # Always surface failure context, even if --show-logs was off.
+                    # When show_logs is True the failed tasks were already tailed
+                    # in the main loop; the watermark makes this call a no-op.
+                    for task in task_instances:
+                        if task.get("state") != "failed":
+                            continue
+                        failed_task_id = task.get("task_id")
+                        if not failed_task_id:
+                            continue
+                        _tail_task_logs(
+                            api_base=api_base,
+                            auth=auth,
+                            headers=headers,
+                            dag_id=dag_id,
+                            dag_run_id=dag_run_id,
+                            task_id=failed_task_id,
+                            try_number=task.get("try_number", 1) or 1,
+                            task_state="failed",
+                            watermarks=log_watermarks,
+                            headers_printed=log_headers_printed,
+                        )
+                    console.error(f"[{dag_id}] DAG run failed")
                     return f"FAILED (run ID: {dag_run_id})"
 
             elif state in ["running", "queued"]:
@@ -445,7 +459,7 @@ def _wait_for_dag_completion(
             continue
 
 
-def _fetch_and_display_task_logs(
+def _tail_task_logs(
     *,
     api_base: str,
     auth: Optional[tuple],
@@ -453,101 +467,109 @@ def _fetch_and_display_task_logs(
     dag_id: str,
     dag_run_id: str,
     task_id: str,
+    try_number: int,
     task_state: str,
+    watermarks: Dict[Tuple[str, int], datetime],
+    headers_printed: Set[Tuple[str, int, str]],
 ) -> None:
     """
-    Fetch and display logs for a specific task instance.
+    Fetch logs for a task instance and emit only entries newer than the watermark.
 
-    Args:
-        api_base: Airflow API base URL
-        auth: Optional authentication tuple (username, password) for basic auth
-        headers: Request headers (may contain bearer token)
-        dag_id: DAG ID
-        dag_run_id: DAG run ID
-        task_id: Task ID
-        task_state: Task state (for display purposes)
+    Updates the per-(task_id, try_number) watermark to the latest emitted entry's
+    timestamp so subsequent polls only print incremental output. Use for both
+    in-flight (running) and terminal (success/failed) states; calling repeatedly
+    is safe and idempotent.
     """
+    watermark_key = (task_id, try_number)
+    header_key = (task_id, try_number, task_state)
+
     try:
-        # Fetch task logs - try attempt 1 first
-        task_try = 1
         logs_response = requests.get(
-            f"{api_base}/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}/logs/{task_try}",
+            f"{api_base}/dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}/logs/{try_number}",
             auth=auth,
             headers=headers,
         )
 
-        if logs_response.status_code == 200:
-            console.debug(f"[{dag_id}] Task '{task_id}' {task_state.upper()}")
+        if logs_response.status_code != 200:
+            if task_state in ("success", "failed") and header_key not in headers_printed:
+                console.warning(f"[{dag_id}] Task '{task_id}' {task_state} (logs unavailable)")
+                headers_printed.add(header_key)
+            return
 
-            # Parse log content - Airflow v2 API returns JSON structured logs
-            import json
+        watermark = watermarks.get(watermark_key)
+        new_lines: List[str] = []
+        latest_ts: Optional[datetime] = watermark
 
-            try:
-                log_data = json.loads(logs_response.text)
-                log_entries = log_data.get("content", [])
+        try:
+            log_data = json.loads(logs_response.text)
+            log_entries = log_data.get("content", [])
 
-                formatted_lines = []
-                for entry in log_entries:
-                    if isinstance(entry, dict):
-                        # Extract timestamp and event/message
-                        entry_timestamp = entry.get("timestamp", "")
-                        event = entry.get("event", "")
-                        level = entry.get("level", "INFO").upper()
+            for entry in log_entries:
+                if not isinstance(entry, dict):
+                    continue
 
-                        # Format timestamp to match Airflow's format [YYYY-MM-DD HH:MM:SS]
-                        if entry_timestamp:
-                            try:
-                                from datetime import datetime as dt
+                event = entry.get("event", "")
+                if not event:
+                    continue
+                # Skip GitHub Actions group markers
+                if event.startswith("::group::") or event.startswith("::endgroup::"):
+                    continue
 
-                                parsed_time = dt.fromisoformat(
-                                    entry_timestamp.replace("Z", "+00:00")
-                                )
-                                formatted_time = parsed_time.strftime("%Y-%m-%d %H:%M:%S")
-                            except Exception:
-                                formatted_time = entry_timestamp[:19].replace("T", " ")
-                        else:
-                            formatted_time = ""
+                entry_timestamp = entry.get("timestamp", "")
+                entry_dt: Optional[datetime] = None
+                if entry_timestamp:
+                    try:
+                        entry_dt = datetime.fromisoformat(entry_timestamp.replace("Z", "+00:00"))
+                    except Exception:
+                        entry_dt = None
 
-                        # Skip GitHub Actions group markers
-                        if event.startswith("::group::") or event.startswith("::endgroup::"):
-                            continue
+                # Filter by watermark — only emit strictly newer entries
+                if watermark is not None and entry_dt is not None and entry_dt <= watermark:
+                    continue
 
-                        # Format the log line
-                        if formatted_time and event:
-                            formatted_lines.append(f"[{formatted_time}] {level} - {event}")
-
-                # Display the formatted logs
-                if formatted_lines:
-                    # Limit to last 100 lines for readability
-                    if len(formatted_lines) > 100:
-                        console.debug(
-                            f"... (showing last 100 lines of {len(formatted_lines)} total lines)"
-                        )
-                        formatted_lines = formatted_lines[-100:]
-
-                    for line in formatted_lines:
-                        console.debug(f"  {line}")
+                level = entry.get("level", "INFO").upper()
+                if entry_dt is not None:
+                    formatted_time = entry_dt.strftime("%Y-%m-%d %H:%M:%S")
+                elif entry_timestamp:
+                    formatted_time = entry_timestamp[:19].replace("T", " ")
                 else:
-                    # Fallback to raw text if no structured logs found
-                    console.debug(f"  {logs_response.text[:2000]}")
+                    formatted_time = ""
 
-            except json.JSONDecodeError:
-                # Fallback to plain text parsing for older Airflow versions
-                log_lines = logs_response.text.split("\n")
-                if len(log_lines) > 100:
-                    console.debug(f"... (showing last 100 lines of {len(log_lines)} total lines)")
-                    log_lines = log_lines[-100:]
+                if formatted_time:
+                    new_lines.append(f"[{formatted_time}] {level} - {event}")
+                else:
+                    new_lines.append(f"{level} - {event}")
 
-                for line in log_lines:
-                    if line.strip():
-                        console.debug(f"  {line}")
+                if entry_dt is not None and (latest_ts is None or entry_dt > latest_ts):
+                    latest_ts = entry_dt
 
-        else:
-            # Log retrieval failed, just note the task state
-            console.debug(f"[{dag_id}] Task '{task_id}' {task_state} (logs unavailable)")
+        except json.JSONDecodeError:
+            # Plain text fallback (older Airflow). No reliable per-line timestamps,
+            # so we can't watermark — only emit once per terminal state, never tail
+            # running tasks here (would double-print on each poll).
+            if task_state not in ("success", "failed") or watermark_key in watermarks:
+                return
+            for line in logs_response.text.split("\n"):
+                if line.strip():
+                    new_lines.append(line)
+            # Sentinel watermark so we never re-emit this stream
+            latest_ts = datetime.max.replace(tzinfo=timezone.utc)
+
+        if not new_lines:
+            return
+
+        if header_key not in headers_printed:
+            console.info(f"[{dag_id}] Task '{task_id}' {task_state.upper()}")
+            headers_printed.add(header_key)
+
+        for line in new_lines:
+            console.log(f"  {line}")
+
+        if latest_ts is not None:
+            watermarks[watermark_key] = latest_ts
 
     except Exception as e:
-        console.debug(f"[{dag_id}] Could not fetch logs for task '{task_id}': {str(e)[:50]}")
+        console.warning(f"[{dag_id}] Could not fetch logs for task '{task_id}': {str(e)[:50]}")
 
 
 def list_airflow_dags(
