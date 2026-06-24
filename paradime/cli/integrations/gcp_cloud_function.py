@@ -41,10 +41,10 @@ from paradime.core.scripts.gcp_cloud_function import list_cloud_functions, trigg
     default=True,
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    envvar="GCP_CLOUD_FUNCTION_TRIGGER_TIMEOUT_MINUTES",
-    help="Maximum time to wait for completion (in minutes). Only used with --wait.\n\n [env: GCP_CLOUD_FUNCTION_TRIGGER_TIMEOUT_MINUTES]",
+    envvar="GCP_CLOUD_FUNCTION_TRIGGER_TIMEOUT",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.\n\n [env: GCP_CLOUD_FUNCTION_TRIGGER_TIMEOUT]",
     default=30,
 )
 def gcp_cloud_function_trigger(
@@ -54,7 +54,7 @@ def gcp_cloud_function_trigger(
     function_names: List[str],
     payload: Optional[str],
     wait: bool,
-    timeout_minutes: int,
+    timeout: int,
 ) -> None:
     """
     Invoke Google Cloud Functions by name.
@@ -69,7 +69,7 @@ def gcp_cloud_function_trigger(
             function_names=function_names,
             payload=payload,
             wait_for_completion=wait,
-            timeout_minutes=timeout_minutes,
+            timeout_minutes=timeout,
         )
 
         failed = [r for r in results if "FAILED" in r]
