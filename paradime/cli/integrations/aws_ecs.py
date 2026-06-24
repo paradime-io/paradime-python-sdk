@@ -71,13 +71,15 @@ from paradime.core.scripts.aws_ecs import list_ecs_task_definitions, trigger_ecs
 )
 @click.option(
     "--wait/--no-wait",
+    envvar="AWS_ECS_TRIGGER_WAIT",
     default=True,
-    help="Wait for tasks to complete before returning",
+    help="Wait for tasks to complete before returning\n\n [env: AWS_ECS_TRIGGER_WAIT]",
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="AWS_ECS_TRIGGER_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: AWS_ECS_TRIGGER_TIMEOUT]",
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

@@ -57,13 +57,15 @@ from paradime.core.scripts.gcp_dataproc import list_dataproc_clusters, trigger_d
 )
 @click.option(
     "--wait/--no-wait",
-    help="Wait for the Dataproc job to complete before returning.",
+    envvar="GCP_DATAPROC_TRIGGER_WAIT",
+    help="Wait for the Dataproc job to complete before returning.\n\n [env: GCP_DATAPROC_TRIGGER_WAIT]",
     default=True,
 )
 @click.option(
     "--timeout-minutes",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait.",
+    envvar="GCP_DATAPROC_TRIGGER_TIMEOUT_MINUTES",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.\n\n [env: GCP_DATAPROC_TRIGGER_TIMEOUT_MINUTES]",
     default=1440,
 )
 def gcp_dataproc_trigger(

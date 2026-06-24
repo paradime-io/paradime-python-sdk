@@ -49,13 +49,15 @@ from paradime.core.scripts.azure_data_factory import list_adf_pipelines, trigger
 )
 @click.option(
     "--wait/--no-wait",
+    envvar="ADF_PIPELINES_WAIT",
     default=True,
-    help="Wait for pipeline runs to complete before returning. Shows progress and final status.",
+    help="Wait for pipeline runs to complete before returning. Shows progress and final status.\n\n [env: ADF_PIPELINES_WAIT]",
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="ADF_PIPELINES_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: ADF_PIPELINES_TIMEOUT]",
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

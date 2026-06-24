@@ -55,13 +55,15 @@ from paradime.core.scripts.aws_lambda import list_lambda_functions, trigger_lamb
 )
 @click.option(
     "--wait/--no-wait",
-    help="Wait for async invocations to complete before returning (only applies to Event invocation type)",
+    envvar="AWS_LAMBDA_TRIGGER_WAIT",
+    help="Wait for async invocations to complete before returning (only applies to Event invocation type)\n\n [env: AWS_LAMBDA_TRIGGER_WAIT]",
     default=True,
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="AWS_LAMBDA_TRIGGER_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: AWS_LAMBDA_TRIGGER_TIMEOUT]",
     default=15,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

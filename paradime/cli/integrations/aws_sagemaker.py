@@ -46,13 +46,15 @@ from paradime.core.scripts.aws_sagemaker import (
 )
 @click.option(
     "--wait/--no-wait",
-    help="Wait for pipeline executions to complete before returning",
+    envvar="AWS_SAGEMAKER_TRIGGER_WAIT",
+    help="Wait for pipeline executions to complete before returning\n\n [env: AWS_SAGEMAKER_TRIGGER_WAIT]",
     default=True,
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="AWS_SAGEMAKER_TRIGGER_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: AWS_SAGEMAKER_TRIGGER_TIMEOUT]",
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

@@ -40,13 +40,15 @@ from paradime.core.scripts.hex import list_hex_projects, trigger_hex_runs
 )
 @click.option(
     "--wait/--no-wait",
+    envvar="HEX_TRIGGER_WAIT",
     default=True,
-    help="Wait for runs to complete before returning (default: True)",
+    help="Wait for runs to complete before returning (default: True)\n\n [env: HEX_TRIGGER_WAIT]",
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="HEX_TRIGGER_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: HEX_TRIGGER_TIMEOUT]",
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

@@ -40,13 +40,15 @@ from paradime.core.scripts.github_actions import list_github_workflows, trigger_
 )
 @click.option(
     "--wait/--no-wait",
+    envvar="GITHUB_ACTIONS_TRIGGER_WAIT",
     default=True,
-    help="Wait for workflow runs to complete before returning.",
+    help="Wait for workflow runs to complete before returning.\n\n [env: GITHUB_ACTIONS_TRIGGER_WAIT]",
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="GITHUB_ACTIONS_TRIGGER_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: GITHUB_ACTIONS_TRIGGER_TIMEOUT]",
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

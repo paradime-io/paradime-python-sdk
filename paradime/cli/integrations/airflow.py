@@ -58,13 +58,15 @@ from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dag
 )
 @click.option(
     "--wait/--no-wait",
-    help="Wait for DAG runs to complete before returning",
+    envvar="AIRFLOW_TRIGGER_WAIT",
+    help="Wait for DAG runs to complete before returning\n\n [env: AIRFLOW_TRIGGER_WAIT]",
     default=True,
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="AIRFLOW_TRIGGER_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: AIRFLOW_TRIGGER_TIMEOUT]",
     default=1440,
 )
 @click.option(

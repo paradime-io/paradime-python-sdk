@@ -48,13 +48,15 @@ from paradime.core.scripts.matillion import (
 )
 @click.option(
     "--wait/--no-wait",
-    help="Wait for pipeline executions to complete before returning",
+    envvar="MATILLION_PIPELINE_WAIT",
+    help="Wait for pipeline executions to complete before returning\n\n [env: MATILLION_PIPELINE_WAIT]",
     default=True,
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="MATILLION_PIPELINE_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: MATILLION_PIPELINE_TIMEOUT]",
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

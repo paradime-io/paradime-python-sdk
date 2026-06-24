@@ -58,13 +58,15 @@ from paradime.core.scripts.airbyte import list_airbyte_connections, trigger_airb
 )
 @click.option(
     "--wait/--no-wait",
+    envvar="AIRBYTE_SYNC_WAIT",
     default=True,
-    help="Wait for jobs to complete before returning",
+    help="Wait for jobs to complete before returning\n\n [env: AIRBYTE_SYNC_WAIT]",
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="AIRBYTE_SYNC_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: AIRBYTE_SYNC_TIMEOUT]",
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

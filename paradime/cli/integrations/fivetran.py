@@ -41,13 +41,15 @@ from paradime.core.scripts.fivetran import list_fivetran_connectors, trigger_fiv
 )
 @click.option(
     "--wait/--no-wait",
+    envvar="FIVETRAN_SYNC_WAIT",
     default=True,
-    help="Wait for syncs to complete before returning",
+    help="Wait for syncs to complete before returning\n\n [env: FIVETRAN_SYNC_WAIT]",
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="FIVETRAN_SYNC_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: FIVETRAN_SYNC_TIMEOUT]",
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
