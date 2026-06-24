@@ -358,6 +358,8 @@ class BoltClient:
                 listBoltSchedules(offset: $offset, limit: $limit, showInactive: $showInactive) {
                     schedules {
                         name
+                        slug
+                        displayName
                         schedule
                         owner
                         lastRunAt
@@ -418,6 +420,8 @@ class BoltClient:
             schedules.append(
                 BoltSchedule(
                     name=schedule_json["name"],
+                    slug=schedule_json.get("slug"),
+                    display_name=schedule_json.get("displayName"),
                     schedule=schedule_json["schedule"],
                     owner=schedule_json["owner"],
                     last_run_at=schedule_json["lastRunAt"],

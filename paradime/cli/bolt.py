@@ -12,6 +12,7 @@ import click
 import requests
 
 from paradime.apis.bolt.types import BoltRunState
+from paradime.cli import console as _console
 from paradime.cli.rich_text_output import (
     print_artifact_downloaded,
     print_artifact_downloading,
@@ -28,7 +29,7 @@ from paradime.core.bolt.schedule import (
     get_slug_format_warnings,
     is_valid_schedule_at_path,
 )
-from paradime.core.bolt.yaml_rewriter import mint_slugs_in_yaml_files
+from paradime.core.bolt.yaml_rewriter import migrate_yaml_to_v3, mint_slugs_in_yaml_files
 
 WAIT_SLEEP: Final = 10
 WAIT_SLEEP_STREAMING: Final = 2
@@ -298,7 +299,7 @@ def verify(path: str) -> None:
         schedule_trigger_refs=all_schedules_ref or None,
     )
     if error_string:
-        print_error_table(error_string, is_json=False)
+        _console.result_panel(error_string, style="error", title="Schedules Verification")
         sys.exit(1)
 
     # Check for names not yet registered in the backend and mint slugs.
@@ -308,7 +309,9 @@ def verify(path: str) -> None:
         schedules = None
 
     if not schedules:
-        click.secho("No schedules found.", fg="yellow")
+        _console.result_panel(
+            "No schedules found.", style="warning", title="Schedules Verification"
+        )
         return
 
     try:
@@ -316,31 +319,113 @@ def verify(path: str) -> None:
             client = get_cli_client_or_exit()
         root = schedule_path.parent if schedule_path.is_file() else schedule_path
 
-        unregistered = [s.name for s in schedules.schedules if s.name not in existing_names]
-
-        if unregistered:
-            changed = mint_slugs_in_yaml_files(
-                mint_fn=client.bolt.create_schedule_slugs,
-                root=root,
-                existing_names=existing_names,
+        changed = mint_slugs_in_yaml_files(
+            mint_fn=client.bolt.create_schedule_slugs,
+            root=root,
+            existing_names=existing_names,
+        )
+        if changed:
+            _console.result_panel(
+                f"Minted slugs in {changed} file(s).",
+                style="success",
+                title="Schedules Verification",
             )
-            if changed:
-                click.secho(f"Minted slugs in {changed} file(s).", fg="green")
-            else:
-                click.secho("All schedules verified.", fg="green")
         else:
-            click.secho("All schedules verified.", fg="green")
+            _console.result_panel(
+                "All schedules verified.",
+                style="success",
+                title="Schedules Verification",
+            )
     except (ParadimeAPIException, ParadimeException) as e:
-        click.secho(
+        _console.result_panel(
             f"Could not mint slugs (API unavailable): {e}\n"
             f"Non-slug schedule names will be grandfathered by the backend on deploy.",
-            fg="yellow",
+            style="warning",
+            title="Schedules Verification",
         )
     except Exception:
         # Fall back to warnings if minting fails for any reason
         if schedules:
-            for warning in get_slug_format_warnings(schedules):
-                click.secho(f"warning: {warning}", fg="yellow")
+            warnings = get_slug_format_warnings(schedules)
+            if warnings:
+                _console.result_panel(
+                    "\n".join(warnings),
+                    style="warning",
+                    title="Schedules Verification",
+                )
+
+
+@click.command()
+@click.option(
+    "--path",
+    help="Path to paradime_schedules.yml file or project root containing .bolt/ directory.",
+    show_default=True,
+    default=".",
+)
+def migrate(path: str) -> None:
+    """
+    Migrate v1/v2 schedule YAML files to v3 format.
+
+    Fetches schedule data (slug and display_name) from the Paradime backend
+    and rewrites local YAML files to v3 format:
+
+    \b
+    - v1 (only name): name → display_name from DB, slug → name from DB
+    - v2 (name + display_name): name → display_name from DB, slug → name from DB
+    - v3 (already has slug): skipped
+
+    Cross-references in deferred_schedule, turbo_ci, and schedule_trigger
+    are also updated to use slug-based fields.
+    """
+    print_version()
+    schedule_path = Path(path)
+
+    client = get_cli_client_or_exit()
+    try:
+        all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
+    except (ParadimeAPIException, ParadimeException) as e:
+        _console.result_panel(
+            f"Failed to fetch schedules from backend: {e}",
+            style="error",
+            title="Schedule Migration",
+        )
+        sys.exit(1)
+
+    # Build lookup: DB name → {slug, display_name}
+    db_schedules: dict[str, dict[str, str | None]] = {}
+    for s in all_schedules.schedules:
+        db_schedules[s.name] = {
+            "slug": s.slug,
+            "display_name": s.display_name,
+        }
+
+    root = schedule_path.parent if schedule_path.is_file() else schedule_path
+
+    try:
+        changed = migrate_yaml_to_v3(
+            root=root,
+            db_schedules=db_schedules,
+        )
+    except Exception as e:
+        _console.result_panel(
+            f"Migration failed: {e}",
+            style="error",
+            title="Schedule Migration",
+        )
+        sys.exit(1)
+
+    if changed:
+        _console.result_panel(
+            f"Migrated {changed} file(s) to v3 format.",
+            style="success",
+            title="Schedule Migration",
+        )
+    else:
+        _console.result_panel(
+            "No files needed migration. All schedules are already in v3 format or not found in the backend.",
+            style="success",
+            title="Schedule Migration",
+        )
 
 
 @click.command()
@@ -417,4 +502,5 @@ bolt.add_command(run)
 bolt.add_command(retry)
 bolt.add_command(schedule)
 bolt.add_command(verify)
+bolt.add_command(migrate)
 bolt.add_command(artifact)
