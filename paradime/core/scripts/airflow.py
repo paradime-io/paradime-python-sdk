@@ -419,6 +419,27 @@ def _wait_for_dag_completion(
                     )
                     return f"SUCCESS (completed at run ID: {dag_run_id})"
                 elif state == "failed":
+                    # Always surface failure context, even if --show-logs was off.
+                    # When show_logs is True the failed tasks were already tailed
+                    # in the main loop; the watermark makes this call a no-op.
+                    for task in task_instances:
+                        if task.get("state") != "failed":
+                            continue
+                        failed_task_id = task.get("task_id")
+                        if not failed_task_id:
+                            continue
+                        _tail_task_logs(
+                            api_base=api_base,
+                            auth=auth,
+                            headers=headers,
+                            dag_id=dag_id,
+                            dag_run_id=dag_run_id,
+                            task_id=failed_task_id,
+                            try_number=task.get("try_number", 1) or 1,
+                            task_state="failed",
+                            watermarks=log_watermarks,
+                            headers_printed=log_headers_printed,
+                        )
                     console.error(f"[{dag_id}] DAG run failed")
                     return f"FAILED (run ID: {dag_run_id})"
 
