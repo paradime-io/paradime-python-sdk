@@ -492,9 +492,7 @@ def _tail_task_logs(
 
         if logs_response.status_code != 200:
             if task_state in ("success", "failed") and header_key not in headers_printed:
-                console.warning(
-                    f"[{dag_id}] Task '{task_id}' {task_state} (logs unavailable)"
-                )
+                console.warning(f"[{dag_id}] Task '{task_id}' {task_state} (logs unavailable)")
                 headers_printed.add(header_key)
             return
 
@@ -521,9 +519,7 @@ def _tail_task_logs(
                 entry_dt: Optional[datetime] = None
                 if entry_timestamp:
                     try:
-                        entry_dt = datetime.fromisoformat(
-                            entry_timestamp.replace("Z", "+00:00")
-                        )
+                        entry_dt = datetime.fromisoformat(entry_timestamp.replace("Z", "+00:00"))
                     except Exception:
                         entry_dt = None
 
