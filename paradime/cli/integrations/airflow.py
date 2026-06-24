@@ -68,6 +68,13 @@ from paradime.core.scripts.airflow import list_airflow_dags, trigger_airflow_dag
     default=1440,
 )
 @click.option(
+    "--poll-interval",
+    type=int,
+    envvar="AIRFLOW_POLL_INTERVAL",
+    help="Seconds between status polls; also the log-tail cadence.\n\n [env: AIRFLOW_POLL_INTERVAL]",
+    default=10,
+)
+@click.option(
     "--show-logs/--no-show-logs",
     help="Display task logs during execution. Only used with --wait.",
     default=True,
@@ -84,6 +91,7 @@ def airflow_trigger(
     logical_date: Optional[str],
     wait: bool,
     timeout: int,
+    poll_interval: int,
     show_logs: bool,
     json_output: bool,
 ) -> None:
@@ -125,6 +133,7 @@ def airflow_trigger(
             show_logs=show_logs,
             use_gcp_auth=use_gcp_auth,
             bearer_token=bearer_token,
+            poll_interval=poll_interval,
         )
 
         if json_output:

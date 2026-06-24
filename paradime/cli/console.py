@@ -109,6 +109,11 @@ def result_panel(
     console.print()
 
 
+def log(message: str) -> None:
+    """Plain output line — always shown, no icon. Use for streamed content."""
+    console.print(message, highlight=False)
+
+
 def header(title: str, subtitle: str | None = None) -> None:
     """Command header — bold brand-coloured title, optional muted subtitle."""
     console.print()
