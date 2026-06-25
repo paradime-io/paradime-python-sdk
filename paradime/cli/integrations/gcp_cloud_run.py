@@ -31,13 +31,15 @@ from paradime.core.scripts.gcp_cloud_run import list_cloud_run_jobs, trigger_clo
 )
 @click.option(
     "--wait/--no-wait",
-    help="Wait for the job execution to complete before returning.",
+    envvar="GCP_CLOUD_RUN_TRIGGER_WAIT",
+    help="Wait for the job execution to complete before returning.\n\n [env: GCP_CLOUD_RUN_TRIGGER_WAIT]",
     default=True,
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait.",
+    envvar="GCP_CLOUD_RUN_TRIGGER_TIMEOUT",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.\n\n [env: GCP_CLOUD_RUN_TRIGGER_TIMEOUT]",
     default=1440,
 )
 def gcp_cloud_run_trigger(
@@ -46,7 +48,7 @@ def gcp_cloud_run_trigger(
     location: str,
     job_names: List[str],
     wait: bool,
-    timeout_minutes: int,
+    timeout: int,
 ) -> None:
     """
     Trigger Cloud Run Jobs by name.
@@ -60,7 +62,7 @@ def gcp_cloud_run_trigger(
             location=location,
             job_names=job_names,
             wait_for_completion=wait,
-            timeout_minutes=timeout_minutes,
+            timeout_minutes=timeout,
         )
 
         failed = [r for r in results if "FAILED" in r]

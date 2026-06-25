@@ -46,13 +46,15 @@ from paradime.core.scripts.gcp_dataflow import trigger_dataflow_job
 )
 @click.option(
     "--wait/--no-wait",
-    help="Wait for the Dataflow job to complete before returning.",
+    envvar="GCP_DATAFLOW_TRIGGER_WAIT",
+    help="Wait for the Dataflow job to complete before returning.\n\n [env: GCP_DATAFLOW_TRIGGER_WAIT]",
     default=True,
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait.",
+    envvar="GCP_DATAFLOW_TRIGGER_TIMEOUT",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.\n\n [env: GCP_DATAFLOW_TRIGGER_TIMEOUT]",
     default=1440,
 )
 def gcp_dataflow_trigger(
@@ -64,7 +66,7 @@ def gcp_dataflow_trigger(
     template_type: str,
     parameters: Optional[str],
     wait: bool,
-    timeout_minutes: int,
+    timeout: int,
 ) -> None:
     """
     Launch a Dataflow job from a template (classic or flex).
@@ -81,7 +83,7 @@ def gcp_dataflow_trigger(
             template_type=template_type,
             parameters=parameters,
             wait_for_completion=wait,
-            timeout_minutes=timeout_minutes,
+            timeout_minutes=timeout,
         )
 
         failed = [r for r in results if "FAILED" in r]

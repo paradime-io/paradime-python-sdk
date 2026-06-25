@@ -30,13 +30,15 @@ from paradime.core.scripts.census import list_census_syncs, trigger_census_syncs
 )
 @click.option(
     "--wait/--no-wait",
+    envvar="CENSUS_SYNC_WAIT",
     default=True,
-    help="Wait for syncs to complete before returning (default: True)",
+    help="Wait for syncs to complete before returning (default: True)\n\n [env: CENSUS_SYNC_WAIT]",
 )
 @click.option(
     "--timeout",
     type=int,
-    help="Maximum time to wait in minutes.",
+    envvar="CENSUS_SYNC_TIMEOUT",
+    help="Maximum time to wait in minutes.\n\n [env: CENSUS_SYNC_TIMEOUT]",
     default=1440,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)

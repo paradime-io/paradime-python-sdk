@@ -37,13 +37,15 @@ from paradime.core.scripts.gcp_datastream import list_datastream_streams, trigge
 )
 @click.option(
     "--wait/--no-wait",
-    help="Wait for the state change to complete before returning.",
+    envvar="GCP_DATASTREAM_TRIGGER_WAIT",
+    help="Wait for the state change to complete before returning.\n\n [env: GCP_DATASTREAM_TRIGGER_WAIT]",
     default=True,
 )
 @click.option(
-    "--timeout-minutes",
+    "--timeout",
     type=int,
-    help="Maximum time to wait for completion (in minutes). Only used with --wait.",
+    envvar="GCP_DATASTREAM_TRIGGER_TIMEOUT",
+    help="Maximum time to wait for completion (in minutes). Only used with --wait.\n\n [env: GCP_DATASTREAM_TRIGGER_TIMEOUT]",
     default=60,
 )
 def gcp_datastream_trigger(
@@ -53,7 +55,7 @@ def gcp_datastream_trigger(
     stream_names: List[str],
     action: str,
     wait: bool,
-    timeout_minutes: int,
+    timeout: int,
 ) -> None:
     """
     Start, pause, or resume Datastream streams by display name.
@@ -68,7 +70,7 @@ def gcp_datastream_trigger(
             stream_names=stream_names,
             action=action,
             wait_for_completion=wait,
-            timeout_minutes=timeout_minutes,
+            timeout_minutes=timeout,
         )
 
         failed = [r for r in results if "FAILED" in r]
