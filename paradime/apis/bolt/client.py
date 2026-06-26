@@ -129,6 +129,7 @@ class BoltClient:
         pr_number: Optional[int] = None,
         *,
         slug: Optional[str] = None,
+        reason: Optional[str] = None,
     ) -> int:
         """
         Triggers a run for a given schedule.
@@ -139,6 +140,7 @@ class BoltClient:
             branch (Optional[str], optional): The branch or commit hash to run the commands on. Defaults to None.
             pr_number (Optional[int], optional): The pull request number to associate with the run. Defaults to None.
             slug (Optional[str]): The schedule slug returned by ``createBoltSchedule``. Preferred over ``schedule_name``.
+            reason (Optional[str], optional): A freeform reason/label describing why or from where the run was triggered (e.g. the application that made the call). Defaults to None.
 
         Returns:
             int: The ID of the triggered run.
@@ -149,8 +151,8 @@ class BoltClient:
         )
 
         query = """
-            mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int) {
-                triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber){
+            mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int, $reason: String) {
+                triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber, reason: $reason){
                     runId
                 }
             }
@@ -163,6 +165,7 @@ class BoltClient:
                 "commands": commands,
                 "branch": branch,
                 "prNumber": pr_number,
+                "reason": reason,
             },
         )["triggerBoltRun"]
 
