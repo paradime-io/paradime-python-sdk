@@ -1,3 +1,5 @@
+from typing import Optional
+
 from paradime.apis.audit_log.client import AuditLogClient
 from paradime.apis.bolt.client import BoltClient
 from paradime.apis.catalog.client import CatalogClient
@@ -15,6 +17,16 @@ class Paradime(APIClient):
     """
     A client for making API requests to the Paradime API.
 
+    Supports two authentication modes:
+
+    1. **Workspace-level** (legacy)::
+
+        client = Paradime(api_key="...", api_secret="...", api_endpoint="...")
+
+    2. **Company-level** — uses a ``prdm_cmp_`` bearer token that spans multiple workspaces::
+
+        client = Paradime(api_token="prdm_cmp_...", api_endpoint="...", workspace_uid="...")
+
     Attributes:
         audit_log (AuditLogClient): The audit log API client.
         bolt (BoltClient): The bolt API client.
@@ -27,9 +39,11 @@ class Paradime(APIClient):
         workspaces (WorkspacesClient): The workspaces API client.
 
     Args:
-        api_key (str): The API key for authentication. Generate this from Paradime account settings.
-        api_secret (str): The API secret for authentication. Generate this from Paradime account settings.
         api_endpoint (str): The API endpoint URL. Generate this from Paradime account settings.
+        api_key (str, optional): The API key for workspace-level authentication.
+        api_secret (str, optional): The API secret for workspace-level authentication.
+        api_token (str, optional): A company-level API token (``prdm_cmp_`` prefix).
+        workspace_uid (str, optional): The target workspace UID for company-level auth.
     """
 
     audit_log: AuditLogClient
@@ -42,8 +56,22 @@ class Paradime(APIClient):
     users: UsersClient
     workspaces: WorkspacesClient
 
-    def __init__(self, *, api_key: str, api_secret: str, api_endpoint: str):
-        super().__init__(api_key=api_key, api_secret=api_secret, api_endpoint=api_endpoint)
+    def __init__(
+        self,
+        *,
+        api_endpoint: str,
+        api_key: Optional[str] = None,
+        api_secret: Optional[str] = None,
+        api_token: Optional[str] = None,
+        workspace_uid: Optional[str] = None,
+    ):
+        super().__init__(
+            api_endpoint=api_endpoint,
+            api_key=api_key,
+            api_secret=api_secret,
+            api_token=api_token,
+            workspace_uid=workspace_uid,
+        )
 
         check_for_new_version()
 
