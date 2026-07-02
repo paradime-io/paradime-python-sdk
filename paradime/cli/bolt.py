@@ -396,7 +396,7 @@ def migrate(path: str) -> None:
     for s in all_schedules.schedules:
         db_schedules[s.name] = {
             "slug": s.slug,
-            "display_name": s.display_name,
+            "display_name": s.name,
         }
 
     root = schedule_path.parent if schedule_path.is_file() else schedule_path
