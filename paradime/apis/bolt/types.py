@@ -24,6 +24,7 @@ class BoltRunState(str, Enum):
 class BoltDeferredSchedule(BaseModel):
     enabled: bool
     deferred_schedule_name: Optional[str]
+    deferred_schedule_slug: Optional[str]
     successful_run_only: bool
 
 
@@ -43,7 +44,6 @@ class BoltNotifications(BaseModel):
 class BoltSchedule(BaseModel):
     name: str
     slug: Optional[str]
-    display_name: Optional[str]
     schedule: str
     owner: Optional[str]
     last_run_at: Optional[str]
@@ -243,6 +243,9 @@ class BoltDeferredScheduleConfigInput(_BoltInputBase):
     enabled: bool
     successful_run_only: bool
     deferred_schedule_name: Optional[str] = None
+    """Deprecated alias for ``deferred_schedule_slug``. Carries a slug, not a display name."""
+    deferred_schedule_slug: Optional[str] = None
+    """Slug of the deferred-to schedule. Takes priority over ``deferred_schedule_name``."""
 
 
 class BoltScheduleTriggerInput(_BoltInputBase):

@@ -271,7 +271,7 @@ class BoltClient:
         """
 
         schedule_input: Dict[str, Any] = {
-            "displayName": display_name,
+            "name": display_name,
             "schedule": schedule,
             "environment": environment,
             "commands": commands,
@@ -359,7 +359,6 @@ class BoltClient:
                     schedules {
                         name
                         slug
-                        displayName
                         schedule
                         owner
                         lastRunAt
@@ -371,11 +370,13 @@ class BoltClient:
                         turboCi {
                             enabled
                             deferredScheduleName
+                            deferredScheduleSlug
                             successfulRunOnly
                         }
                         deferredSchedule {
                             enabled
                             deferredScheduleName
+                            deferredScheduleSlug
                             successfulRunOnly
                         }
                         commands
@@ -421,7 +422,6 @@ class BoltClient:
                 BoltSchedule(
                     name=schedule_json["name"],
                     slug=schedule_json.get("slug"),
-                    display_name=schedule_json.get("displayName"),
                     schedule=schedule_json["schedule"],
                     owner=schedule_json["owner"],
                     last_run_at=schedule_json["lastRunAt"],
@@ -436,6 +436,9 @@ class BoltClient:
                             deferred_schedule_name=schedule_json["deferredSchedule"][
                                 "deferredScheduleName"
                             ],
+                            deferred_schedule_slug=schedule_json["deferredSchedule"].get(
+                                "deferredScheduleSlug"
+                            ),
                             successful_run_only=schedule_json["deferredSchedule"][
                                 "successfulRunOnly"
                             ],
@@ -447,6 +450,9 @@ class BoltClient:
                         BoltDeferredSchedule(
                             enabled=schedule_json["turboCi"]["enabled"],
                             deferred_schedule_name=schedule_json["turboCi"]["deferredScheduleName"],
+                            deferred_schedule_slug=schedule_json["turboCi"].get(
+                                "deferredScheduleSlug"
+                            ),
                             successful_run_only=schedule_json["turboCi"]["successfulRunOnly"],
                         )
                         if schedule_json["turboCi"]
