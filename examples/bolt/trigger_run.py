@@ -17,5 +17,11 @@ run_id_with_pr = paradime.bolt.trigger_run(
     pr_number=123,
 )
 
+# Trigger a run with a reason describing why/from where it was triggered
+run_id_with_reason = paradime.bolt.trigger_run(
+    BOLT_SCHEDULE_NAME,
+    reason="triggered by data-quality-bot",
+)
+
 # Get the run status
 run_status = paradime.bolt.get_run_status(run_id)
