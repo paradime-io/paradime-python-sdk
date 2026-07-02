@@ -205,7 +205,7 @@ class BoltClient:
     def create_schedule(
         self,
         *,
-        display_name: str,
+        name: str,
         schedule: str,
         environment: str,
         commands: List[str],
@@ -228,7 +228,7 @@ class BoltClient:
         Create a new Bolt schedule.
 
         Args:
-            display_name (str): Human-readable schedule name shown in the Bolt UI.
+            name (str): Human-readable schedule name shown in the Bolt UI.
             schedule (str): Cron expression (e.g. ``"0 1 * * *"``) or the literal ``"OFF"`` for manual-only runs.
             environment (str): Name of the environment to run in (e.g. ``"production"``).
             commands (List[str]): Commands the schedule should run, in order (e.g. ``["dbt run", "dbt test"]``).
@@ -257,7 +257,7 @@ class BoltClient:
 
         Example:
             >>> slug = paradime.bolt.create_schedule(
-            ...     display_name="Nightly build",
+            ...     name="Nightly build",
             ...     schedule="0 1 * * *",
             ...     environment="production",
             ...     commands=["dbt build"],
@@ -271,7 +271,7 @@ class BoltClient:
         """
 
         schedule_input: Dict[str, Any] = {
-            "name": display_name,
+            "name": name,
             "schedule": schedule,
             "environment": environment,
             "commands": commands,
