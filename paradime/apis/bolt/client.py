@@ -208,7 +208,7 @@ class BoltClient:
     def create_schedule(
         self,
         *,
-        display_name: str,
+        name: str,
         schedule: str,
         environment: str,
         commands: List[str],
@@ -231,7 +231,7 @@ class BoltClient:
         Create a new Bolt schedule.
 
         Args:
-            display_name (str): Human-readable schedule name shown in the Bolt UI.
+            name (str): Human-readable schedule name shown in the Bolt UI.
             schedule (str): Cron expression (e.g. ``"0 1 * * *"``) or the literal ``"OFF"`` for manual-only runs.
             environment (str): Name of the environment to run in (e.g. ``"production"``).
             commands (List[str]): Commands the schedule should run, in order (e.g. ``["dbt run", "dbt test"]``).
@@ -260,7 +260,7 @@ class BoltClient:
 
         Example:
             >>> slug = paradime.bolt.create_schedule(
-            ...     display_name="Nightly build",
+            ...     name="Nightly build",
             ...     schedule="0 1 * * *",
             ...     environment="production",
             ...     commands=["dbt build"],
@@ -274,7 +274,7 @@ class BoltClient:
         """
 
         schedule_input: Dict[str, Any] = {
-            "displayName": display_name,
+            "name": name,
             "schedule": schedule,
             "environment": environment,
             "commands": commands,
@@ -362,7 +362,6 @@ class BoltClient:
                     schedules {
                         name
                         slug
-                        displayName
                         schedule
                         owner
                         lastRunAt
@@ -374,11 +373,13 @@ class BoltClient:
                         turboCi {
                             enabled
                             deferredScheduleName
+                            deferredScheduleSlug
                             successfulRunOnly
                         }
                         deferredSchedule {
                             enabled
                             deferredScheduleName
+                            deferredScheduleSlug
                             successfulRunOnly
                         }
                         commands
@@ -424,7 +425,6 @@ class BoltClient:
                 BoltSchedule(
                     name=schedule_json["name"],
                     slug=schedule_json.get("slug"),
-                    display_name=schedule_json.get("displayName"),
                     schedule=schedule_json["schedule"],
                     owner=schedule_json["owner"],
                     last_run_at=schedule_json["lastRunAt"],
@@ -439,6 +439,9 @@ class BoltClient:
                             deferred_schedule_name=schedule_json["deferredSchedule"][
                                 "deferredScheduleName"
                             ],
+                            deferred_schedule_slug=schedule_json["deferredSchedule"].get(
+                                "deferredScheduleSlug"
+                            ),
                             successful_run_only=schedule_json["deferredSchedule"][
                                 "successfulRunOnly"
                             ],
@@ -450,6 +453,9 @@ class BoltClient:
                         BoltDeferredSchedule(
                             enabled=schedule_json["turboCi"]["enabled"],
                             deferred_schedule_name=schedule_json["turboCi"]["deferredScheduleName"],
+                            deferred_schedule_slug=schedule_json["turboCi"].get(
+                                "deferredScheduleSlug"
+                            ),
                             successful_run_only=schedule_json["turboCi"]["successfulRunOnly"],
                         )
                         if schedule_json["turboCi"]
