@@ -23,13 +23,35 @@ def login() -> None:
         "https://app.paradime.io/settings/current-workspace",
     )
 
-    api_key = click.prompt("Enter API Key")
-    api_secret = click.prompt("Enter API Secret", hide_input=True)
+    api_secret = click.prompt(
+        "Enter API Secret (or API Token, e.g. one starting with 'prdm_wsp_' or 'prdm_cmp_')",
+        hide_input=True,
+    )
+
+    credentials_lines = []
+
+    if api_secret.startswith("prdm_wsp_") or api_secret.startswith("prdm_cmp_"):
+        workspace_uid = ""
+        if api_secret.startswith("prdm_cmp_"):
+            workspace_uid = click.prompt("Enter Workspace UID")
+            while not workspace_uid:
+                console.error(
+                    "Workspace UID is required when using a company-level ('prdm_cmp_') API token."
+                )
+                workspace_uid = click.prompt("Enter Workspace UID")
+
+        credentials_lines.append(f"API_SECRET={api_secret}")
+        if workspace_uid:
+            credentials_lines.append(f"WORKSPACE_UID={workspace_uid}")
+    else:
+        api_key = click.prompt("Enter API Key")
+        credentials_lines.append(f"API_KEY={api_key}")
+        credentials_lines.append(f"API_SECRET={api_secret}")
+
     api_endpoint = click.prompt("Enter API Endpoint")
+    credentials_lines.insert(0, f"API_ENDPOINT={api_endpoint}")
 
     # write to env file
     credentials_path.parent.mkdir(parents=True, exist_ok=True)
-    credentials_path.write_text(
-        f"API_ENDPOINT={api_endpoint}\nAPI_KEY={api_key}\nAPI_SECRET={api_secret}\n"
-    )
+    credentials_path.write_text("\n".join(credentials_lines) + "\n")
     console.success(f"Credentials written to '{credentials_path}'.")

@@ -16,7 +16,26 @@ pip install paradime-io
 
 ## SDK Usage
 
-Generate your API key, secret and endpoint from Paradime workspace settings.
+Generate your API credentials from Paradime workspace settings.
+
+You can authenticate with a bearer token (recommended) — either a workspace-level token
+(`prdm_wsp_...`) or a company-level token (`prdm_cmp_...`, requires `workspace_uid` to
+select which workspace requests target). Pass it as `api_secret`; the SDK detects the
+token type automatically from its prefix and `api_key` is not needed:
+
+```python
+from paradime import Paradime
+
+paradime = Paradime(
+    api_endpoint="API_ENDPOINT",
+    api_secret="API_TOKEN",  # e.g. prdm_wsp_... or prdm_cmp_...
+    # workspace_uid="WORKSPACE_UID",  # required when using a company-level (prdm_cmp_) token
+)
+
+# Use the paradime client to interact with the API
+```
+
+Or with the legacy API key + secret pair:
 
 ```python
 from paradime import Paradime
@@ -37,13 +56,25 @@ For the full specification of the CLI, run:
 paradime --help
 ```
 
-Generate your API key, secret and endpoint from Paradime workspace settings. Then set the environment variables:
+Generate your API credentials from Paradime workspace settings. Then set the environment variables.
+
+Using a bearer token (recommended):
+
+```bash
+export PARADIME_API_ENDPOINT="YOUR_API_ENDPOINT"
+export PARADIME_API_SECRET="YOUR_API_TOKEN" # e.g. prdm_wsp_... or prdm_cmp_...
+export PARADIME_WORKSPACE_UID="YOUR_WORKSPACE_UID" # required when using a company-level (prdm_cmp_) token
+```
+
+Or using the legacy API key + secret pair:
 
 ```bash
 export PARADIME_API_ENDPOINT="YOUR_API_ENDPOINT"
 export PARADIME_API_KEY="YOUR_API_KEY"
 export PARADIME_API_SECRET="YOUR_API_SECRET
 ```
+
+Alternatively, run `paradime login` to be prompted for either set of credentials, which will be stored locally.
 
 ## Examples
 

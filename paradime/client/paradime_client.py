@@ -1,3 +1,5 @@
+from typing import Optional
+
 from paradime.apis.audit_log.client import AuditLogClient
 from paradime.apis.bolt.client import BoltClient
 from paradime.apis.catalog.client import CatalogClient
@@ -27,8 +29,14 @@ class Paradime(APIClient):
         workspaces (WorkspacesClient): The workspaces API client.
 
     Args:
-        api_key (str): The API key for authentication. Generate this from Paradime account settings.
-        api_secret (str): The API secret for authentication. Generate this from Paradime account settings.
+        api_key (str, optional): The API key for authentication. Required when `api_secret`
+            is a legacy secret; not needed when `api_secret` is a bearer token. Generate this
+            from Paradime account settings.
+        api_secret (str): The API secret, or a workspace-level (`prdm_wsp_`) or company-level
+            (`prdm_cmp_`) bearer token, for authentication. Generate this from Paradime
+            account settings.
+        workspace_uid (str, optional): The workspace uid to target. Required when
+            `api_secret` is a company-level (`prdm_cmp_`) token; not used otherwise.
         api_endpoint (str): The API endpoint URL. Generate this from Paradime account settings.
     """
 
@@ -42,8 +50,20 @@ class Paradime(APIClient):
     users: UsersClient
     workspaces: WorkspacesClient
 
-    def __init__(self, *, api_key: str, api_secret: str, api_endpoint: str):
-        super().__init__(api_key=api_key, api_secret=api_secret, api_endpoint=api_endpoint)
+    def __init__(
+        self,
+        *,
+        api_key: Optional[str] = None,
+        api_secret: str,
+        workspace_uid: Optional[str] = None,
+        api_endpoint: str,
+    ):
+        super().__init__(
+            api_key=api_key,
+            api_secret=api_secret,
+            workspace_uid=workspace_uid,
+            api_endpoint=api_endpoint,
+        )
 
         check_for_new_version()
 
