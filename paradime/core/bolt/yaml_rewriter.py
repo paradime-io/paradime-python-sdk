@@ -293,35 +293,35 @@ def migrate_yaml_to_v3(
                     entry.insert(1, "slug", db_slug)  # type: ignore[attr-defined]
                     changed = True
 
-            # Fix deferred_schedule cross-reference
+            # Migrate deferred_schedule: replace deferred_schedule_name → deferred_schedule_slug
             deferred = entry.get("deferred_schedule")
             if isinstance(deferred, dict):
                 ref = deferred.get("deferred_schedule_name")
-                if ref and str(ref) in name_to_slug:
-                    new_ref = name_to_slug[str(ref)]
-                    if new_ref != str(ref):
-                        deferred["deferred_schedule_slug"] = new_ref
-                        changed = True
+                if ref:
+                    slug_val = name_to_slug.get(str(ref), str(ref))
+                    deferred["deferred_schedule_slug"] = slug_val
+                    del deferred["deferred_schedule_name"]
+                    changed = True
 
-            # Fix turbo_ci cross-reference
+            # Migrate turbo_ci: replace deferred_schedule_name → deferred_schedule_slug
             turbo = entry.get("turbo_ci")
             if isinstance(turbo, dict):
                 ref = turbo.get("deferred_schedule_name")
-                if ref and str(ref) in name_to_slug:
-                    new_ref = name_to_slug[str(ref)]
-                    if new_ref != str(ref):
-                        turbo["deferred_schedule_slug"] = new_ref
-                        changed = True
+                if ref:
+                    slug_val = name_to_slug.get(str(ref), str(ref))
+                    turbo["deferred_schedule_slug"] = slug_val
+                    del turbo["deferred_schedule_name"]
+                    changed = True
 
-            # Fix schedule_trigger cross-reference
+            # Migrate schedule_trigger: replace schedule_name → schedule_slug
             trigger = entry.get("schedule_trigger")
             if isinstance(trigger, dict):
                 ref = trigger.get("schedule_name")
-                if ref and str(ref) in name_to_slug:
-                    new_ref = name_to_slug[str(ref)]
-                    if new_ref != str(ref):
-                        trigger["schedule_slug"] = new_ref
-                        changed = True
+                if ref:
+                    slug_val = name_to_slug.get(str(ref), str(ref))
+                    trigger["schedule_slug"] = slug_val
+                    del trigger["schedule_name"]
+                    changed = True
 
         if changed:
             yaml.dump(doc, filepath)
