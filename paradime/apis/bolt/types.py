@@ -52,6 +52,7 @@ class BoltSchedule(BaseModel):
     id: int
     uuid: str
     source: str
+    suspended: bool
     deferred_schedule: Optional[BoltDeferredSchedule]
     turbo_ci: Optional[BoltDeferredSchedule]
     commands: Optional[List[str]]
@@ -76,6 +77,7 @@ class BoltScheduleInfo(BaseModel):
     source: str
     owner: Optional[str]
     latest_run_id: Optional[int]
+    suspended: bool
 
 
 class BoltCommand(BaseModel):

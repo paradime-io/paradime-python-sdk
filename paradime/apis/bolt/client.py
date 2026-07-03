@@ -343,6 +343,7 @@ class BoltClient:
         offset: int = 0,
         limit: int = 100,
         show_inactive: bool = False,
+        suspended: Optional[bool] = None,
     ) -> BoltSchedules:
         """
         Get a list of Bolt schedules. The list is paginated. The total count of schedules is also returned.
@@ -351,14 +352,17 @@ class BoltClient:
             offset (int): The offset value for pagination. Default is 0.
             limit (int): The limit value for pagination. Default is 100.
             show_inactive (bool): Flag to indicate whether to return inactive schedules instead of active schedules. Default is False.
+            suspended (Optional[bool]): Filter by paused (suspended) state. Leave as None to
+                return all schedules; pass True for only paused schedules, or False for only
+                active (non-paused) schedules. Default is None.
 
         Returns:
             BoltSchedules: An object containing the list of Bolt schedules and the total count of schedules.
         """
 
         query = """
-            query listBoltSchedules($offset: Int!, $limit: Int!, $showInactive: Boolean!) {
-                listBoltSchedules(offset: $offset, limit: $limit, showInactive: $showInactive) {
+            query listBoltSchedules($offset: Int!, $limit: Int!, $showInactive: Boolean!, $filter: BoltScheduleFilter) {
+                listBoltSchedules(offset: $offset, limit: $limit, showInactive: $showInactive, filter: $filter) {
                     schedules {
                         name
                         slug
@@ -370,6 +374,7 @@ class BoltClient:
                         id
                         uuid
                         source
+                        suspended
                         turboCi {
                             enabled
                             deferredScheduleName
@@ -414,9 +419,18 @@ class BoltClient:
             }
         """
 
+        # Only send the filter object when a value is provided; omitting it (null)
+        # returns all schedules regardless of paused state.
+        schedule_filter = None if suspended is None else {"suspended": suspended}
+
         response_json = self.client._call_gql(
             query=query,
-            variables={"offset": offset, "limit": limit, "showInactive": show_inactive},
+            variables={
+                "offset": offset,
+                "limit": limit,
+                "showInactive": show_inactive,
+                "filter": schedule_filter,
+            },
         )["listBoltSchedules"]
 
         schedules: List[BoltSchedule] = []
@@ -433,6 +447,7 @@ class BoltClient:
                     id=schedule_json["id"],
                     uuid=schedule_json["uuid"],
                     source=schedule_json["source"],
+                    suspended=schedule_json["suspended"],
                     deferred_schedule=(
                         BoltDeferredSchedule(
                             enabled=schedule_json["deferredSchedule"]["enabled"],
@@ -592,6 +607,7 @@ class BoltClient:
                     schedule
                     uuid
                     source
+                    suspended
                 }
             }
         """
@@ -608,6 +624,7 @@ class BoltClient:
             source=response_json["source"],
             owner=response_json["owner"],
             latest_run_id=response_json["latestRunId"],
+            suspended=response_json["suspended"],
         )
 
     def get_run_status(self, run_id: int) -> Optional[BoltRunState]:
