@@ -16,4 +16,3 @@ for s in schedules:
 #   suspended=False -> only active (non-paused) schedules
 #   suspended=None  -> all schedules (default)
 paused_schedules = paradime.bolt.list_schedules(suspended=True).schedules
-
