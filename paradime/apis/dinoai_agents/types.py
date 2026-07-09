@@ -9,6 +9,7 @@ class DinoaiAgentRunStatus(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    EXPIRED = "EXPIRED"  # terminal: the agent pod never started
 
     @classmethod
     def from_str(cls, value: str) -> Optional["DinoaiAgentRunStatus"]:
