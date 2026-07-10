@@ -64,15 +64,18 @@ def dinoai(
     if not sys.stdin.isatty() and not message:
         message = sys.stdin.read().strip()
 
-    # Run-once mode: --message provided (or piped via stdin) → fire one turn and exit
+    # Run-once mode: --message provided (or piped via stdin) → fire one turn and
+    # exit, non-zero on failure so scripts and Bolt schedules can detect it
     if message:
-        _send(
+        _, final_status = _send(
             client,
             agent=agent,
             message=message,
             session_id=session_id,
             rendered=rendered,
         )
+        if final_status in (DinoaiAgentRunStatus.FAILED, DinoaiAgentRunStatus.EXPIRED):
+            sys.exit(1)
         return
 
     # No message and no TTY — nothing to do
@@ -94,7 +97,7 @@ def dinoai(
             break
 
         try:
-            new_session_id = _send(
+            new_session_id, _ = _send(
                 client,
                 agent=agent,
                 message=user_input,
@@ -121,7 +124,7 @@ def _send(
     message: str,
     session_id: Optional[str],
     rendered: Set[str],
-) -> str:
+) -> tuple[str, Optional[DinoaiAgentRunStatus]]:
     new_session = session_id is None
     if session_id is None:
         result = client.dinoai_agents.trigger_run(
@@ -136,19 +139,24 @@ def _send(
     if new_session:
         console.console.print(f"[dim]Session {session_id}[/]")
 
-    _poll(client, session_id=session_id, rendered=rendered)
-    return session_id
+    final_status = _poll(client, session_id=session_id, rendered=rendered)
+    return session_id, final_status
 
 
-def _poll(client: Paradime, *, session_id: str, rendered: Set[str]) -> None:
-    """Poll until COMPLETED or FAILED, streaming new messages to the console.
+def _poll(
+    client: Paradime, *, session_id: str, rendered: Set[str]
+) -> Optional[DinoaiAgentRunStatus]:
+    """Poll until a terminal status, streaming new messages to the console.
+
+    Returns the terminal status, or None if the user aborted with Ctrl-C.
 
     Dedup is done by ts (message timestamp), tracked across all turns — this is
     resilient to backend re-ordering or re-emission of the messages list.
 
-    The break condition requires an actual agent message to have streamed in —
-    we don't trust a stale COMPLETED status carrying over from the previous
-    turn. The user can Ctrl-C if a run hangs server-side; the chat continues.
+    For COMPLETED/FAILED the break condition requires an actual agent message to
+    have streamed in — we don't trust a stale terminal status carrying over from
+    the previous turn. EXPIRED breaks immediately: the pod never started, so no
+    message will ever arrive.
 
     Ctrl-C aborts the current turn without killing the chat — the run continues
     server-side and can be rejoined with `--session <id>`.
@@ -181,6 +189,13 @@ def _poll(client: Paradime, *, session_id: str, rendered: Set[str]) -> None:
                     last_content = msg.content
                     new_agent_messages += 1
 
+                if run.status == DinoaiAgentRunStatus.EXPIRED:
+                    console.error(
+                        "The agent never started (expired). Retry the run — if this "
+                        "persists, check the workspace's agent configuration."
+                    )
+                    return run.status
+
                 is_terminal = run.status in (
                     DinoaiAgentRunStatus.COMPLETED,
                     DinoaiAgentRunStatus.FAILED,
@@ -190,7 +205,7 @@ def _poll(client: Paradime, *, session_id: str, rendered: Set[str]) -> None:
                     if run.status == DinoaiAgentRunStatus.FAILED:
                         last = run.messages[-1].content if run.messages else "no details"
                         console.error(f"Run failed: {last}")
-                    break
+                    return run.status
 
                 # If the status is still terminal but no agent message has streamed
                 # yet, we're seeing a stale carry-over from the previous turn —
@@ -207,6 +222,7 @@ def _poll(client: Paradime, *, session_id: str, rendered: Set[str]) -> None:
             f"[muted]↩ aborted local view — run still {display_status} server-side. "
             f"Rejoin with: paradime dinoai --session {session_id}[/]"
         )
+        return None
 
 
 def _spinner_label(status_text: str, start: float) -> str:
