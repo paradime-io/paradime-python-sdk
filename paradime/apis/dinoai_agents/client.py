@@ -27,6 +27,7 @@ class DinoaiAgentsClient:
         message: Optional[str] = None,
         slack_channel: Optional[str] = None,
         slack_thread: Optional[str] = None,
+        base_branch: Optional[str] = None,
     ) -> DinoaiAgentTriggerResult:
         """
         Triggers a DinoAI programmable agent run.
@@ -41,6 +42,8 @@ class DinoaiAgentsClient:
             slack_channel (str, optional): Override the Slack channel for this run
                 (e.g. ``"#alerts"``).
             slack_thread (str, optional): Override the Slack thread timestamp for this run.
+            base_branch (str, optional): Git branch the agent checks out before creating its
+                working branch. Defaults to the repository's default branch.
 
         Returns:
             DinoaiAgentTriggerResult: Contains ``ok``, ``agent_session_id``, and ``status``.
@@ -53,8 +56,14 @@ class DinoaiAgentsClient:
                 $agent: String
                 $message: String
                 $slack: DinoAiAgentSlackInput
+                $baseBranch: String
             ) {
-                triggerDinoaiAgentRun(agent: $agent, message: $message, slack: $slack) {
+                triggerDinoaiAgentRun(
+                    agent: $agent
+                    message: $message
+                    slack: $slack
+                    baseBranch: $baseBranch
+                ) {
                     ok
                     agentSessionId
                     status
@@ -72,6 +81,7 @@ class DinoaiAgentsClient:
             "agent": agent,
             "message": message,
             "slack": slack,
+            "baseBranch": base_branch,
         }
 
         response = self.client._call_gql(query, variables)["triggerDinoaiAgentRun"]
@@ -164,6 +174,7 @@ class DinoaiAgentsClient:
         message: Optional[str] = None,
         slack_channel: Optional[str] = None,
         slack_thread: Optional[str] = None,
+        base_branch: Optional[str] = None,
         timeout: int = 3600,
         poll_interval: int = 10,
     ) -> DinoaiAgentRun:
@@ -175,6 +186,8 @@ class DinoaiAgentsClient:
             message (str, optional): Custom prompt appended to the agent's context.
             slack_channel (str, optional): Override the Slack channel for this run.
             slack_thread (str, optional): Override the Slack thread timestamp for this run.
+            base_branch (str, optional): Git branch the agent checks out before creating its
+                working branch. Defaults to the repository's default branch.
             timeout (int): Maximum seconds to wait before raising ``TimeoutError``. Defaults to 3600.
             poll_interval (int): Seconds between status polls. Defaults to 10.
 
@@ -190,6 +203,7 @@ class DinoaiAgentsClient:
             message=message,
             slack_channel=slack_channel,
             slack_thread=slack_thread,
+            base_branch=base_branch,
         )
 
         logger.info(
