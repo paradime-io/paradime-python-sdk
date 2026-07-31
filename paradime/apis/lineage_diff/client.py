@@ -7,7 +7,6 @@ from paradime.apis.lineage_diff.exception import LineageDiffReportFailedExceptio
 from paradime.apis.lineage_diff.types import Report, ReportStatus
 from paradime.client.api_client import APIClient
 
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

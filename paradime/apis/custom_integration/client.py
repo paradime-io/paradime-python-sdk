@@ -1,3 +1,4 @@
+import math
 from typing import List, Optional
 
 from paradime.apis.custom_integration.types import (
@@ -334,7 +335,10 @@ class CustomIntegrationClient:
             nodes (List[Node]): The list of all nodes to be added to the integration.
         """
         num_nodes_per_request = 10
-        num_of_requests = len(nodes) // num_nodes_per_request + 1
+        # An exact multiple of the batch size must not produce a trailing empty request.
+        # An empty `nodes` list still sends one request, which creates the empty snapshot
+        # that clears the integration's existing nodes.
+        num_of_requests = max(1, math.ceil(len(nodes) / num_nodes_per_request))
 
         snapshot_id = None
 

@@ -1,3 +1,4 @@
+import logging
 import os
 
 import click
@@ -21,6 +22,10 @@ def cli(ctx: click.Context) -> None:
     """
     Work seamlessly with Paradime from the command line.
     """
+    # Configuring the root logger is the application's job, not the library's, so it
+    # happens here at the CLI entry point rather than at module import time.
+    logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
+
     credentials_path = get_credentials_path()
     if credentials_path.exists():
         load_dotenv(dotenv_path=credentials_path)

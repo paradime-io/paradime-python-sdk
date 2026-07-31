@@ -12,7 +12,6 @@ from paradime.apis.dinoai_agents.types import (
 )
 from paradime.client.api_client import APIClient
 
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -195,7 +194,8 @@ class DinoaiAgentsClient:
             DinoaiAgentRun: The final run state with all messages.
 
         Raises:
-            DinoaiAgentRunFailedException: If the agent run finishes with status ``FAILED``.
+            DinoaiAgentRunFailedException: If the agent run finishes with status ``FAILED``,
+                or with status ``EXPIRED`` (the agent pod never started).
             TimeoutError: If the run does not complete within ``timeout`` seconds.
         """
         result = self.trigger_run(
@@ -222,6 +222,16 @@ class DinoaiAgentsClient:
             if run.status == DinoaiAgentRunStatus.FAILED:
                 last_content = run.messages[-1].content if run.messages else "no messages"
                 error_message = f"[ERROR] DinoAI agent run failed. Last message: {last_content}"
+                logger.info(error_message)
+                raise DinoaiAgentRunFailedException(error_message)
+
+            if run.status == DinoaiAgentRunStatus.EXPIRED:
+                # Terminal: the agent pod never started, so no further messages will
+                # arrive and polling on would just burn the full timeout.
+                error_message = (
+                    "[ERROR] DinoAI agent run expired: the agent never started. Retry the"
+                    " run — if this persists, check the workspace's agent configuration."
+                )
                 logger.info(error_message)
                 raise DinoaiAgentRunFailedException(error_message)
 
