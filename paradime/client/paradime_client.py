@@ -9,7 +9,7 @@ from paradime.apis.lineage_diff.client import LineageDiffClient
 from paradime.apis.metadata.client import MetadataClient
 from paradime.apis.users.client import UsersClient
 from paradime.apis.workspaces.client import WorkspacesClient
-from paradime.client.api_client import APIClient
+from paradime.client.api_client import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT_SECONDS, APIClient
 from paradime.version_check import check_for_new_version
 
 
@@ -38,6 +38,10 @@ class Paradime(APIClient):
         workspace_uid (str, optional): The workspace uid to target. Required when
             `api_secret` is a company-level (`prdm_cmp_`) token; not used otherwise.
         api_endpoint (str): The API endpoint URL. Generate this from Paradime account settings.
+        timeout (int, optional): The timeout for API requests in seconds. Defaults to 60.
+        max_retries (int, optional): How many times to attempt a request before giving up.
+            Retries cover connection errors, timeouts, and the 429/502/503/504 statuses,
+            with exponential backoff. Set to 1 to disable retries. Defaults to 3.
     """
 
     audit_log: AuditLogClient
@@ -57,12 +61,16 @@ class Paradime(APIClient):
         api_secret: str,
         workspace_uid: Optional[str] = None,
         api_endpoint: str,
+        timeout: int = DEFAULT_TIMEOUT_SECONDS,
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ):
         super().__init__(
             api_key=api_key,
             api_secret=api_secret,
             workspace_uid=workspace_uid,
             api_endpoint=api_endpoint,
+            timeout=timeout,
+            max_retries=max_retries,
         )
 
         check_for_new_version()

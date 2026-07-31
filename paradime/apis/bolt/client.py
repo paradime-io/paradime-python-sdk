@@ -33,6 +33,11 @@ from paradime.apis.bolt.types import (
     _BoltInputBase,
 )
 from paradime.client.api_client import APIClient
+from paradime.client.api_exception import (
+    ParadimeAPIException,
+    ParadimeConnectionError,
+    ParadimeTimeoutError,
+)
 
 
 def _serialize_input(
@@ -85,6 +90,34 @@ def _resolve_slug_or_schedule_name(
             stacklevel=3,
         )
     return slug or schedule_name  # type: ignore[return-value]
+
+
+def _download_artifact_json(url: str, *, timeout: int) -> Any:
+    """Fetch a Bolt artifact from its presigned URL and parse it as JSON.
+
+    Artifact URLs point at object storage rather than the Paradime API, so they are
+    fetched directly. A timeout is required — without one a stalled connection hangs
+    the caller indefinitely — and a non-2xx response must not be parsed as JSON.
+    """
+
+    try:
+        response = requests.get(url, timeout=timeout)
+    except requests.Timeout as e:
+        raise ParadimeTimeoutError(f"Downloading the artifact timed out after {timeout}s.") from e
+    except requests.RequestException as e:
+        raise ParadimeConnectionError(f"Could not download the artifact: {e}") from e
+
+    if not response.ok:
+        raise ParadimeAPIException(
+            f"Error downloading artifact: {response.status_code} - {response.text}",
+            status_code=response.status_code,
+            response_text=response.text,
+        )
+
+    try:
+        return response.json()
+    except ValueError as e:
+        raise ParadimeAPIException("The downloaded artifact is not valid JSON.") from e
 
 
 def _parse_notification_items(
@@ -1051,7 +1084,7 @@ class BoltClient:
             max_runs=max_runs,
         )
 
-        return requests.get(manifest_url).json()
+        return _download_artifact_json(manifest_url, timeout=self.client.timeout)
 
     def _get_latest_run_results_json(
         self,
@@ -1080,7 +1113,7 @@ class BoltClient:
                 command_index=command_index,
                 max_runs=1,
             )
-            return requests.get(run_results_url).json()
+            return _download_artifact_json(run_results_url, timeout=self.client.timeout)
 
         # Get the latest runs for the schedule
         latest_runs = self.list_runs(slug=schedule_name, offset=0, limit=1).runs
@@ -1112,7 +1145,9 @@ class BoltClient:
                 for artifact in artifacts:
                     if artifact.path == "target/run_results.json":
                         artifact_url = self.get_artifact_url(artifact.id)
-                        run_results = requests.get(artifact_url).json()
+                        run_results = _download_artifact_json(
+                            artifact_url, timeout=self.client.timeout
+                        )
                         all_run_results.append(run_results)
                         if not merge:
                             # Return first found when merge=False (consistent behavior)
@@ -1161,7 +1196,7 @@ class BoltClient:
                 command_index=command_index,
                 max_runs=1,
             )
-            return requests.get(sources_url).json()
+            return _download_artifact_json(sources_url, timeout=self.client.timeout)
 
         latest_runs = self.list_runs(slug=schedule_name, offset=0, limit=1).runs
 
@@ -1186,7 +1221,7 @@ class BoltClient:
                 for artifact in artifacts:
                     if artifact.path == "target/sources.json":
                         artifact_url = self.get_artifact_url(artifact.id)
-                        sources = requests.get(artifact_url).json()
+                        sources = _download_artifact_json(artifact_url, timeout=self.client.timeout)
                         all_sources.append(sources)
                         if not merge:
                             return sources
