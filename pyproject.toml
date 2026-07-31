@@ -52,6 +52,8 @@ dev = [
     "isort>=5.13.2,<6.0.0",
     "ruff>=0.3.5,<0.4.0",
     "flake8>=7.1.0,<8.0.0",
+    "pytest>=8.0.0,<9.0.0",
+    "responses>=0.25.0,<0.26.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -83,3 +85,8 @@ extend-exclude = ".venv"
 
 [tool.ruff]
 exclude = [".venv"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# tests/flake8 holds a flake8 plugin, not a test suite.
+norecursedirs = ["tests/flake8", "tests/scripts"]
