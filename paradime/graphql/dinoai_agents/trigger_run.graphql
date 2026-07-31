@@ -1,0 +1,17 @@
+mutation TriggerDinoaiAgentRun(
+    $agent: String
+    $message: String
+    $slack: DinoAiAgentSlackInput
+    $baseBranch: String
+) {
+    triggerDinoaiAgentRun(
+        agent: $agent
+        message: $message
+        slack: $slack
+        baseBranch: $baseBranch
+    ) {
+        ok
+        agentSessionId
+        status
+    }
+}

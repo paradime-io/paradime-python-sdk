@@ -1,0 +1,5 @@
+mutation updateUserAccountType($uid: String!, $accountType: UserAccountType!) {
+    updateUserAccountType(uid: $uid, accountType: $accountType){
+        ok
+    }
+}

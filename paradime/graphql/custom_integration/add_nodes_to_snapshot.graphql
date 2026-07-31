@@ -1,0 +1,20 @@
+mutation addCustomIntegrationNodes(
+    $chartLikeNodes: [IntegrationNodeChartLike!]!,
+    $dashboardLikeNodes: [IntegrationNodeDashboardLike!]!,
+    $datasourceLikeNodes: [IntegrationNodeDatasourceLike!]!,
+    $integrationUid: String!,
+    $snapshotHasMoreNodes: Boolean!,
+    $snapshotId: Int
+) {
+    addCustomIntegrationNodes(
+        chartLikeNodes: $chartLikeNodes,
+        dashboardLikeNodes: $dashboardLikeNodes,
+        datasourceLikeNodes: $datasourceLikeNodes,
+        integrationUid: $integrationUid,
+        snapshotHasMoreNodes: $snapshotHasMoreNodes,
+        snapshotId: $snapshotId
+    ) {
+        ok
+        snapshotId
+    }
+}

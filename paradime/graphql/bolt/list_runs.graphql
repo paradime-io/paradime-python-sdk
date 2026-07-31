@@ -1,0 +1,19 @@
+query listBoltRuns($slug: String, $offset: Int!, $limit: Int!) {
+    listBoltRuns(slug: $slug, offset: $offset, limit: $limit) {
+        ok
+        runs {
+            id
+            state
+            actor
+            actorEmail
+            startDttm
+            endDttm
+            parentScheduleRunId
+            gitInfo {
+                branch
+                commitHash
+                pullRequestId
+            }
+        }
+    }
+}

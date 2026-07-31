@@ -1,0 +1,13 @@
+query DinoaiAgentRun($id: String!) {
+    dinoaiAgentRun(agentSessionId: $id) {
+        ok
+        status
+        messages {
+            ts
+            role
+            content
+        }
+        childSessionIds
+        workspaceUid
+    }
+}

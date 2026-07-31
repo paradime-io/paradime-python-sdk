@@ -1,0 +1,9 @@
+query listInvitedUsers {
+    listUsers{
+        invitedUsers{
+            email
+            accountType
+            inviteStatus
+        }
+    }
+}

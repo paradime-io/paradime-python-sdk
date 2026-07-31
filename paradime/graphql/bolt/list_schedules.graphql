@@ -1,0 +1,56 @@
+query listBoltSchedules($offset: Int!, $limit: Int!, $showInactive: Boolean!, $filter: BoltScheduleFilter) {
+    listBoltSchedules(offset: $offset, limit: $limit, showInactive: $showInactive, filter: $filter) {
+        schedules {
+            name
+            slug
+            schedule
+            owner
+            lastRunAt
+            lastRunState
+            nextRunAt
+            id
+            uuid
+            source
+            suspended
+            turboCi {
+                enabled
+                deferredScheduleName
+                deferredScheduleSlug
+                successfulRunOnly
+            }
+            deferredSchedule {
+                enabled
+                deferredScheduleName
+                deferredScheduleSlug
+                successfulRunOnly
+            }
+            commands
+            gitBranch
+            slackOn
+            slackNotify
+            emailOn
+            emailNotify
+            notifications {
+                emailNotifications {
+                    channel
+                    events
+                    templateSlug
+                    templateName
+                }
+                slackNotifications {
+                    channel
+                    events
+                    templateSlug
+                    templateName
+                }
+                msTeamsNotifications {
+                    channel
+                    events
+                    templateSlug
+                    templateName
+                }
+            }
+        }
+        totalCount
+    }
+}

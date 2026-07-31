@@ -1,0 +1,13 @@
+query FetchLineageDiffReport($uuid: String!) {
+    fetchLineageDiffReport(uuid: $uuid) {
+        ok
+        report {
+            message
+            resultJson
+            resultMarkdown
+            status
+            url
+            uuid
+        }
+    }
+}

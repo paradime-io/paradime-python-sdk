@@ -1,0 +1,15 @@
+query listCustomIntegrations {
+    listCustomIntegrations {
+        ok
+        integrations {
+            uid
+            name
+            isActive
+            nodeTypes {
+                nodeType
+                iconName
+                color
+            }
+        }
+    }
+}

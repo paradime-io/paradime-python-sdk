@@ -1,0 +1,5 @@
+mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int, $reason: String) {
+    triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber, reason: $reason){
+        runId
+    }
+}

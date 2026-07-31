@@ -1,0 +1,16 @@
+mutation TriggerLineageDiffReport(
+    $boltRunId: Int!
+    $pullRequestNumber: Int!
+    $userEmail: String!
+    $changedFilePaths: [String!]!
+) {
+    triggerLineageDiffReport(
+        boltRunId: $boltRunId
+        pullRequestNumber: $pullRequestNumber
+        userEmail: $userEmail
+        changedFilePaths: $changedFilePaths
+    ) {
+        ok
+        uuid
+    }
+}

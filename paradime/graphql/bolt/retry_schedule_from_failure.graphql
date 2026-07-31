@@ -1,0 +1,5 @@
+mutation RetryBoltRunFromFailure($slug: String) {
+    retryBoltRunFromFailure(slug: $slug) {
+        runId
+    }
+}

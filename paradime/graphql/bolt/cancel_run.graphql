@@ -1,0 +1,5 @@
+mutation CancelBoltRun($runId: Int!) {
+    cancelBoltRun(scheduleRunId: $runId) {
+        ok
+    }
+}

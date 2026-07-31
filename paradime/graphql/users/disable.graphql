@@ -1,0 +1,5 @@
+mutation disableUser($uid: String!) {
+    disableUser(uid: $uid){
+        ok
+    }
+}

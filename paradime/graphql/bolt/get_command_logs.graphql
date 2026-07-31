@@ -1,0 +1,7 @@
+query boltCommandLogs($commandId: Int!, $cursor: String) {
+    boltCommandLogs(commandId: $commandId, cursor: $cursor) {
+        lines { stream line }
+        cursor
+        finished
+    }
+}

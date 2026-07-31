@@ -1,0 +1,7 @@
+mutation SendDinoaiAgentMessage($id: String!, $message: String!) {
+    sendDinoaiAgentMessage(agentSessionId: $id, message: $message) {
+        ok
+        agentSessionId
+        status
+    }
+}

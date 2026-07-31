@@ -1,0 +1,8 @@
+query listWorkspaces {
+    listWorkspaces{
+        workspaces{
+            uid
+            name
+        }
+    }
+}

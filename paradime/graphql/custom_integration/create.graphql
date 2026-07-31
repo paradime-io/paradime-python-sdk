@@ -1,0 +1,14 @@
+mutation addCustomIntegration(
+    $logoUrl: String,
+    $name: String!,
+    $nodeTypes: [IntegrationNodeTypeInfo!]!
+) {
+    addCustomIntegration(
+        logoUrl: $logoUrl,
+        name: $name,
+        nodeTypes: $nodeTypes
+    ) {
+        ok
+        integrationUid
+    }
+}

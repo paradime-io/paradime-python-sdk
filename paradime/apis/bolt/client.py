@@ -31,6 +31,7 @@ from paradime.client.api_exception import (
     ParadimeConnectionError,
     ParadimeTimeoutError,
 )
+from paradime.graphql import load_operation
 from paradime.tools.pydantic import parse_obj_as
 
 
@@ -147,13 +148,7 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="trigger_run"
         )
 
-        query = """
-            mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int, $reason: String) {
-                triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber, reason: $reason){
-                    runId
-                }
-            }
-        """
+        query = load_operation("bolt", "trigger_run")
 
         response_json = self.client._call_gql(
             query=query,
@@ -190,13 +185,7 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="suspend_schedule"
         )
 
-        query = """
-            mutation SuspendBoltSchedule($slug: String, $suspend: Boolean!) {
-                suspendBoltSchedule(slug: $slug, suspend: $suspend) {
-                    ok
-                }
-            }
-        """
+        query = load_operation("bolt", "suspend_schedule")
 
         self.client._call_gql(query=query, variables={"slug": resolved_slug, "suspend": suspend})[
             "suspendBoltSchedule"
@@ -302,13 +291,7 @@ class BoltClient:
             if value is not None:
                 schedule_input[key] = value
 
-        query = """
-            mutation CreateBoltSchedule($schedule: BoltScheduleInput!) {
-                createBoltSchedule(schedule: $schedule) {
-                    slug
-                }
-            }
-        """
+        query = load_operation("bolt", "create_schedule")
 
         result = self.client._call_gql(query=query, variables={"schedule": schedule_input})
         return result["createBoltSchedule"]["slug"]
@@ -324,13 +307,7 @@ class BoltClient:
             None
         """
 
-        query = """
-            mutation DeleteBoltSchedule($slug: String!) {
-                deleteBoltSchedule(slug: $slug) {
-                    ok
-                }
-            }
-        """
+        query = load_operation("bolt", "delete_schedule")
 
         self.client._call_gql(query=query, variables={"slug": slug})
 
@@ -357,64 +334,7 @@ class BoltClient:
             BoltSchedules: An object containing the list of Bolt schedules and the total count of schedules.
         """
 
-        query = """
-            query listBoltSchedules($offset: Int!, $limit: Int!, $showInactive: Boolean!, $filter: BoltScheduleFilter) {
-                listBoltSchedules(offset: $offset, limit: $limit, showInactive: $showInactive, filter: $filter) {
-                    schedules {
-                        name
-                        slug
-                        schedule
-                        owner
-                        lastRunAt
-                        lastRunState
-                        nextRunAt
-                        id
-                        uuid
-                        source
-                        suspended
-                        turboCi {
-                            enabled
-                            deferredScheduleName
-                            deferredScheduleSlug
-                            successfulRunOnly
-                        }
-                        deferredSchedule {
-                            enabled
-                            deferredScheduleName
-                            deferredScheduleSlug
-                            successfulRunOnly
-                        }
-                        commands
-                        gitBranch
-                        slackOn
-                        slackNotify
-                        emailOn
-                        emailNotify
-                        notifications {
-                            emailNotifications {
-                                channel
-                                events
-                                templateSlug
-                                templateName
-                            }
-                            slackNotifications {
-                                channel
-                                events
-                                templateSlug
-                                templateName
-                            }
-                            msTeamsNotifications {
-                                channel
-                                events
-                                templateSlug
-                                templateName
-                            }
-                        }
-                    }
-                    totalCount
-                }
-            }
-        """
+        query = load_operation("bolt", "list_schedules")
 
         # Only send the filter object when a value is provided; omitting it (null)
         # returns all schedules regardless of paused state.
@@ -466,27 +386,7 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="list_runs"
         )
 
-        query = """
-            query listBoltRuns($slug: String, $offset: Int!, $limit: Int!) {
-                listBoltRuns(slug: $slug, offset: $offset, limit: $limit) {
-                    ok
-                    runs {
-                        id
-                        state
-                        actor
-                        actorEmail
-                        startDttm
-                        endDttm
-                        parentScheduleRunId
-                        gitInfo {
-                            branch
-                            commitHash
-                            pullRequestId
-                        }
-                    }
-                }
-            }
-        """
+        query = load_operation("bolt", "list_runs")
 
         response_json = self.client._call_gql(
             query=query,
@@ -516,20 +416,7 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="get_schedule"
         )
 
-        query = """
-            query boltScheduleName($slug: String) {
-                boltScheduleName(slug: $slug) {
-                    ok
-                    latestRunId
-                    commands
-                    owner
-                    schedule
-                    uuid
-                    source
-                    suspended
-                }
-            }
-        """
+        query = load_operation("bolt", "get_schedule")
 
         response_json = self.client._call_gql(query=query, variables={"slug": resolved_slug})[
             "boltScheduleName"
@@ -548,13 +435,7 @@ class BoltClient:
             str: The state of the run.
         """
 
-        query = """
-            query boltRunStatus($runId: Int!) {
-                boltRunStatus(runId: $runId) {
-                    state
-                }
-            }
-        """
+        query = load_operation("bolt", "get_run_status")
 
         response_json = self.client._call_gql(query=query, variables={"runId": int(run_id)})[
             "boltRunStatus"
@@ -573,21 +454,7 @@ class BoltClient:
             List[BoltCommand]: The list of Bolt commands for the run, sorted by command ID.
         """
 
-        query = """
-            query boltRunStatus($runId: Int!) {
-                boltRunStatus(runId: $runId) {
-                    commands {
-                        id
-                        command
-                        startDttm
-                        endDttm
-                        stdout
-                        stderr
-                        returnCode
-                    }
-                }
-            }
-        """
+        query = load_operation("bolt", "list_run_commands")
 
         response_json = self.client._call_gql(query=query, variables={"runId": int(run_id)})[
             "boltRunStatus"
@@ -614,15 +481,7 @@ class BoltClient:
             and a `finished` flag that flips to True once the command exits.
         """
 
-        query = """
-            query boltCommandLogs($commandId: Int!, $cursor: String) {
-                boltCommandLogs(commandId: $commandId, cursor: $cursor) {
-                    lines { stream line }
-                    cursor
-                    finished
-                }
-            }
-        """
+        query = load_operation("bolt", "get_command_logs")
 
         response_json = self.client._call_gql(
             query=query, variables={"commandId": int(command_id), "cursor": cursor}
@@ -669,16 +528,7 @@ class BoltClient:
             List[BoltResource]: A list of BoltResource objects representing the artifacts.
         """
 
-        query = """
-            query boltCommand($commandId: Int!) {
-                boltCommand(commandId: $commandId) {
-                    resources {
-                        id
-                        path
-                    }
-                }
-            }
-        """
+        query = load_operation("bolt", "list_command_artifacts")
 
         response_json = self.client._call_gql(
             query=query, variables={"commandId": int(command_id)}
@@ -697,13 +547,7 @@ class BoltClient:
             str: The URL of the artifact.
         """
 
-        query = """
-            query boltResourceUrl($resourceId: Int!) {
-                boltResourceUrl(resourceId: $resourceId) {
-                    url
-                }
-            }
-        """
+        query = load_operation("bolt", "get_artifact_url")
 
         response_json = self.client._call_gql(
             query=query, variables={"resourceId": int(artifact_id)}
@@ -722,13 +566,7 @@ class BoltClient:
             None
         """
 
-        query = """
-            mutation CancelBoltRun($runId: Int!) {
-                cancelBoltRun(scheduleRunId: $runId) {
-                    ok
-                }
-            }
-        """
+        query = load_operation("bolt", "cancel_run")
 
         self.client._call_gql(query=query, variables={"runId": int(run_id)})
 
@@ -747,13 +585,7 @@ class BoltClient:
             int: The ID of the newly created retry run.
         """
 
-        query = """
-            mutation RetryBoltRun($scheduleRunId: Int!) {
-                retryBoltRun(scheduleRunId: $scheduleRunId) {
-                    runId
-                }
-            }
-        """
+        query = load_operation("bolt", "retry_run")
 
         response_json = self.client._call_gql(
             query=query, variables={"scheduleRunId": int(run_id)}
@@ -775,13 +607,7 @@ class BoltClient:
             int: The ID of the newly created retry run.
         """
 
-        query = """
-            mutation RetryAllBoltRun($scheduleRunId: Int!) {
-                retryAllBoltRun(scheduleRunId: $scheduleRunId) {
-                    runId
-                }
-            }
-        """
+        query = load_operation("bolt", "retry_run_all")
 
         response_json = self.client._call_gql(
             query=query, variables={"scheduleRunId": int(run_id)}
@@ -813,13 +639,7 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="retry_schedule_from_failure"
         )
 
-        query = """
-            mutation RetryBoltRunFromFailure($slug: String) {
-                retryBoltRunFromFailure(slug: $slug) {
-                    runId
-                }
-            }
-        """
+        query = load_operation("bolt", "retry_schedule_from_failure")
 
         response_json = self.client._call_gql(query=query, variables={"slug": resolved_slug})[
             "retryBoltRunFromFailure"
@@ -1187,17 +1007,7 @@ class BoltClient:
         Returns:
             A list of ``(workspace_name, schedule_name)`` tuples.
         """
-        query = """
-            query listAllScheduleNames {
-                listAllScheduleNames {
-                    ok
-                    schedules {
-                        name
-                        workspaceName
-                    }
-                }
-            }
-        """
+        query = load_operation("bolt", "list_all_schedule_names")
         response = self.client._call_gql(query=query)["listAllScheduleNames"]
         return [(s["workspaceName"], s["name"]) for s in response["schedules"]]
 
@@ -1210,14 +1020,7 @@ class BoltClient:
         Returns:
             List of minted slugs in the same order as the input display names.
         """
-        query = """
-            mutation createScheduleSlugs($displayNames: [String!]!) {
-                createScheduleSlugs(displayNames: $displayNames) {
-                    ok
-                    slugs
-                }
-            }
-        """
+        query = load_operation("bolt", "create_schedule_slugs")
         response = self.client._call_gql(
             query=query,
             variables={"displayNames": display_names},

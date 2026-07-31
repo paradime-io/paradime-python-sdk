@@ -1,0 +1,5 @@
+mutation RetryBoltRun($scheduleRunId: Int!) {
+    retryBoltRun(scheduleRunId: $scheduleRunId) {
+        runId
+    }
+}

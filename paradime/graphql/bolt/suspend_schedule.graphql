@@ -1,0 +1,5 @@
+mutation SuspendBoltSchedule($slug: String, $suspend: Boolean!) {
+    suspendBoltSchedule(slug: $slug, suspend: $suspend) {
+        ok
+    }
+}

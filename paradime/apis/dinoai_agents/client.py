@@ -10,6 +10,7 @@ from paradime.apis.dinoai_agents.types import (
     DinoaiAgentTriggerResult,
 )
 from paradime.client.api_client import APIClient
+from paradime.graphql import load_operation
 from paradime.tools.pydantic import parse_obj_as
 
 logger = logging.getLogger(__name__)
@@ -50,25 +51,7 @@ class DinoaiAgentsClient:
         if agent is None and message is None:
             raise ValueError("At least one of 'agent' or 'message' must be provided.")
 
-        query = """
-            mutation TriggerDinoaiAgentRun(
-                $agent: String
-                $message: String
-                $slack: DinoAiAgentSlackInput
-                $baseBranch: String
-            ) {
-                triggerDinoaiAgentRun(
-                    agent: $agent
-                    message: $message
-                    slack: $slack
-                    baseBranch: $baseBranch
-                ) {
-                    ok
-                    agentSessionId
-                    status
-                }
-            }
-        """
+        query = load_operation("dinoai_agents", "trigger_run")
 
         slack: Optional[dict] = None
         if slack_channel is not None or slack_thread is not None:
@@ -99,21 +82,7 @@ class DinoaiAgentsClient:
             DinoaiAgentRun: Contains ``ok``, ``status``, ``messages``, ``child_session_ids``,
                 and ``workspace_uid``.
         """
-        query = """
-            query DinoaiAgentRun($id: String!) {
-                dinoaiAgentRun(agentSessionId: $id) {
-                    ok
-                    status
-                    messages {
-                        ts
-                        role
-                        content
-                    }
-                    childSessionIds
-                    workspaceUid
-                }
-            }
-        """
+        query = load_operation("dinoai_agents", "get_run")
 
         response = self.client._call_gql(query, {"id": agent_session_id})["dinoaiAgentRun"]
 
@@ -133,15 +102,7 @@ class DinoaiAgentsClient:
         Returns:
             DinoaiAgentTriggerResult: Contains ``ok``, ``agent_session_id``, and ``status``.
         """
-        query = """
-            mutation SendDinoaiAgentMessage($id: String!, $message: String!) {
-                sendDinoaiAgentMessage(agentSessionId: $id, message: $message) {
-                    ok
-                    agentSessionId
-                    status
-                }
-            }
-        """
+        query = load_operation("dinoai_agents", "send_message")
 
         response = self.client._call_gql(query, {"id": agent_session_id, "message": message})[
             "sendDinoaiAgentMessage"

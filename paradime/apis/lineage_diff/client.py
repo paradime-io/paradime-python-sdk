@@ -6,6 +6,7 @@ from typing import List
 from paradime.apis.lineage_diff.exception import LineageDiffReportFailedException
 from paradime.apis.lineage_diff.types import Report, ReportStatus
 from paradime.client.api_client import APIClient
+from paradime.graphql import load_operation
 from paradime.tools.pydantic import parse_obj_as
 
 logger = logging.getLogger(__name__)
@@ -35,24 +36,7 @@ class LineageDiffClient:
         Returns:
             str: The UUID of the triggered lineage diff report.
         """
-        query = """
-            mutation TriggerLineageDiffReport(
-                $boltRunId: Int!
-                $pullRequestNumber: Int!
-                $userEmail: String!
-                $changedFilePaths: [String!]!
-            ) {
-                triggerLineageDiffReport(
-                    boltRunId: $boltRunId
-                    pullRequestNumber: $pullRequestNumber
-                    userEmail: $userEmail
-                    changedFilePaths: $changedFilePaths
-                ) {
-                    ok
-                    uuid
-                }
-            }
-        """
+        query = load_operation("lineage_diff", "trigger_report")
 
         variables = {
             "boltRunId": bolt_run_id,
@@ -75,21 +59,7 @@ class LineageDiffClient:
         Returns:
             Report: The lineage diff report.
         """
-        query = """
-            query FetchLineageDiffReport($uuid: String!) {
-                fetchLineageDiffReport(uuid: $uuid) {
-                    ok
-                    report {
-                        message
-                        resultJson
-                        resultMarkdown
-                        status
-                        url
-                        uuid
-                    }
-                }
-            }
-        """
+        query = load_operation("lineage_diff", "fetch_report")
 
         variables = {"uuid": uuid}
 

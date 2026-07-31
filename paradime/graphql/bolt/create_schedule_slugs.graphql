@@ -1,0 +1,6 @@
+mutation createScheduleSlugs($displayNames: [String!]!) {
+    createScheduleSlugs(displayNames: $displayNames) {
+        ok
+        slugs
+    }
+}

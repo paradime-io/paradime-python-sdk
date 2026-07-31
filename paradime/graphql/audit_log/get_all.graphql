@@ -1,0 +1,19 @@
+query GetAuditLogs {
+    getAuditLogs {
+        auditLogs {
+            id
+            createdDttm
+            updatedDttm
+            workspaceId
+            workspaceName
+            actorType
+            actorUserId
+            actorEmail
+            eventSourceId
+            eventSource
+            eventId
+            eventType
+            metadataJson
+        }
+    }
+}

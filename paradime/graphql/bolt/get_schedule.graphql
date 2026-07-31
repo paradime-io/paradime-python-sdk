@@ -1,0 +1,12 @@
+query boltScheduleName($slug: String) {
+    boltScheduleName(slug: $slug) {
+        ok
+        latestRunId
+        commands
+        owner
+        schedule
+        uuid
+        source
+        suspended
+    }
+}
