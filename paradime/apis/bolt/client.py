@@ -12,19 +12,12 @@ from paradime.apis.bolt.types import (
     BoltCommand,
     BoltCommandArtifact,
     BoltCommandLogs,
-    BoltDeferredSchedule,
     BoltDeferredScheduleConfigInput,
     BoltEnvironmentVariableInput,
     BoltIntegrationsInput,
     BoltLogLine,
-    BoltLogStream,
-    BoltNotificationItem,
-    BoltNotifications,
     BoltNotificationsInput,
-    BoltRun,
-    BoltRunGitInfo,
     BoltRunState,
-    BoltSchedule,
     BoltScheduleInfo,
     BoltScheduleRuns,
     BoltSchedules,
@@ -38,6 +31,7 @@ from paradime.client.api_exception import (
     ParadimeConnectionError,
     ParadimeTimeoutError,
 )
+from paradime.tools.pydantic import parse_obj_as
 
 
 def _serialize_input(
@@ -118,36 +112,6 @@ def _download_artifact_json(url: str, *, timeout: int) -> Any:
         return response.json()
     except ValueError as e:
         raise ParadimeAPIException("The downloaded artifact is not valid JSON.") from e
-
-
-def _parse_notification_items(
-    items: Optional[list],
-) -> Optional[List[BoltNotificationItem]]:
-    if items is None:
-        return None
-    return [
-        BoltNotificationItem(
-            channel=item.get("channel"),
-            events=item.get("events"),
-            template_slug=item.get("templateSlug"),
-            template_name=item.get("templateName"),
-        )
-        for item in items
-    ]
-
-
-def _parse_notifications(
-    notifications_json: Optional[dict],
-) -> Optional[BoltNotifications]:
-    if notifications_json is None:
-        return None
-    return BoltNotifications(
-        email_notifications=_parse_notification_items(notifications_json.get("emailNotifications")),
-        slack_notifications=_parse_notification_items(notifications_json.get("slackNotifications")),
-        ms_teams_notifications=_parse_notification_items(
-            notifications_json.get("msTeamsNotifications")
-        ),
-    )
 
 
 class BoltClient:
@@ -466,63 +430,7 @@ class BoltClient:
             },
         )["listBoltSchedules"]
 
-        schedules: List[BoltSchedule] = []
-        for schedule_json in response_json["schedules"]:
-            schedules.append(
-                BoltSchedule(
-                    name=schedule_json["name"],
-                    slug=schedule_json.get("slug"),
-                    schedule=schedule_json["schedule"],
-                    owner=schedule_json["owner"],
-                    last_run_at=schedule_json["lastRunAt"],
-                    last_run_state=schedule_json["lastRunState"],
-                    next_run_at=schedule_json["nextRunAt"],
-                    id=schedule_json["id"],
-                    uuid=schedule_json["uuid"],
-                    source=schedule_json["source"],
-                    suspended=schedule_json["suspended"],
-                    deferred_schedule=(
-                        BoltDeferredSchedule(
-                            enabled=schedule_json["deferredSchedule"]["enabled"],
-                            deferred_schedule_name=schedule_json["deferredSchedule"][
-                                "deferredScheduleName"
-                            ],
-                            deferred_schedule_slug=schedule_json["deferredSchedule"].get(
-                                "deferredScheduleSlug"
-                            ),
-                            successful_run_only=schedule_json["deferredSchedule"][
-                                "successfulRunOnly"
-                            ],
-                        )
-                        if schedule_json["deferredSchedule"]
-                        else None
-                    ),
-                    turbo_ci=(
-                        BoltDeferredSchedule(
-                            enabled=schedule_json["turboCi"]["enabled"],
-                            deferred_schedule_name=schedule_json["turboCi"]["deferredScheduleName"],
-                            deferred_schedule_slug=schedule_json["turboCi"].get(
-                                "deferredScheduleSlug"
-                            ),
-                            successful_run_only=schedule_json["turboCi"]["successfulRunOnly"],
-                        )
-                        if schedule_json["turboCi"]
-                        else None
-                    ),
-                    commands=schedule_json["commands"],
-                    git_branch=schedule_json["gitBranch"],
-                    slack_on=schedule_json["slackOn"],
-                    slack_notify=schedule_json["slackNotify"],
-                    email_on=schedule_json["emailOn"],
-                    email_notify=schedule_json["emailNotify"],
-                    notifications=_parse_notifications(schedule_json.get("notifications")),
-                )
-            )
-
-        return BoltSchedules(
-            schedules=schedules,
-            total_count=response_json["totalCount"],
-        )
+        return parse_obj_as(BoltSchedules, response_json)
 
     def list_runs(
         self,
@@ -585,29 +493,7 @@ class BoltClient:
             variables={"slug": resolved_slug, "offset": offset, "limit": limit},
         )["listBoltRuns"]
 
-        runs: List[BoltRun] = []
-        for run_json in response_json["runs"]:
-            runs.append(
-                BoltRun(
-                    id=run_json["id"],
-                    state=run_json["state"],
-                    actor=run_json["actor"],
-                    actor_email=run_json.get("actorEmail"),
-                    parent_schedule_run_id=run_json.get("parentScheduleRunId"),
-                    start_dttm=run_json["startDttm"],
-                    end_dttm=run_json.get("endDttm"),
-                    git_info=BoltRunGitInfo(
-                        branch=run_json["gitInfo"].get("branch"),
-                        commit_hash=run_json["gitInfo"].get("commitHash"),
-                        pull_request_id=run_json["gitInfo"].get("pullRequestId"),
-                    ),
-                )
-            )
-
-        return BoltScheduleRuns(
-            ok=response_json["ok"],
-            runs=runs,
-        )
+        return parse_obj_as(BoltScheduleRuns, response_json)
 
     def get_schedule(
         self,
@@ -649,16 +535,7 @@ class BoltClient:
             "boltScheduleName"
         ]
 
-        return BoltScheduleInfo(
-            name=resolved_slug,
-            commands=response_json["commands"],
-            schedule=response_json["schedule"],
-            uuid=response_json["uuid"],
-            source=response_json["source"],
-            owner=response_json["owner"],
-            latest_run_id=response_json["latestRunId"],
-            suspended=response_json["suspended"],
-        )
+        return parse_obj_as(BoltScheduleInfo, {**response_json, "name": resolved_slug})
 
     def get_run_status(self, run_id: int) -> Optional[BoltRunState]:
         """
@@ -716,19 +593,7 @@ class BoltClient:
             "boltRunStatus"
         ]
 
-        commands: List[BoltCommand] = []
-        for command_json in response_json["commands"]:
-            commands.append(
-                BoltCommand(
-                    id=command_json["id"],
-                    command=command_json["command"],
-                    start_dttm=command_json["startDttm"],
-                    end_dttm=command_json["endDttm"],
-                    stdout=command_json["stdout"],
-                    stderr=command_json["stderr"],
-                    return_code=command_json["returnCode"],
-                )
-            )
+        commands = parse_obj_as(List[BoltCommand], response_json["commands"])
 
         return sorted(commands, key=lambda command: command.id)
 
@@ -763,14 +628,7 @@ class BoltClient:
             query=query, variables={"commandId": int(command_id), "cursor": cursor}
         )["boltCommandLogs"]
 
-        return BoltCommandLogs(
-            lines=[
-                BoltLogLine(stream=BoltLogStream(item["stream"]), line=item["line"])
-                for item in response_json["lines"]
-            ],
-            cursor=response_json["cursor"],
-            finished=response_json["finished"],
-        )
+        return parse_obj_as(BoltCommandLogs, response_json)
 
     def stream_command_logs(
         self, command_id: int, poll_interval: float = 2.0
@@ -826,16 +684,7 @@ class BoltClient:
             query=query, variables={"commandId": int(command_id)}
         )["boltCommand"]
 
-        artifacts: List[BoltCommandArtifact] = []
-        for artifact_json in response_json["resources"]:
-            artifacts.append(
-                BoltCommandArtifact(
-                    id=artifact_json["id"],
-                    path=artifact_json["path"],
-                )
-            )
-
-        return artifacts
+        return parse_obj_as(List[BoltCommandArtifact], response_json["resources"])
 
     def get_artifact_url(self, artifact_id: int) -> str:
         """

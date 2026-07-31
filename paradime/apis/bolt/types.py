@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from paradime.tools.pydantic import BaseModel
+from paradime.tools.models import ParadimeInputModel, ParadimeResponseModel
 
 
 class BoltRunState(str, Enum):
@@ -21,27 +21,27 @@ class BoltRunState(str, Enum):
             return None
 
 
-class BoltDeferredSchedule(BaseModel):
+class BoltDeferredSchedule(ParadimeResponseModel):
     enabled: bool
     deferred_schedule_name: Optional[str]
     deferred_schedule_slug: Optional[str]
     successful_run_only: bool
 
 
-class BoltNotificationItem(BaseModel):
+class BoltNotificationItem(ParadimeResponseModel):
     channel: Optional[str]
     events: Optional[List[str]]
     template_slug: Optional[str]
     template_name: Optional[str]
 
 
-class BoltNotifications(BaseModel):
+class BoltNotifications(ParadimeResponseModel):
     email_notifications: Optional[List[BoltNotificationItem]]
     slack_notifications: Optional[List[BoltNotificationItem]]
     ms_teams_notifications: Optional[List[BoltNotificationItem]]
 
 
-class BoltSchedule(BaseModel):
+class BoltSchedule(ParadimeResponseModel):
     name: str
     slug: Optional[str]
     schedule: str
@@ -64,12 +64,12 @@ class BoltSchedule(BaseModel):
     notifications: Optional[BoltNotifications]
 
 
-class BoltSchedules(BaseModel):
+class BoltSchedules(ParadimeResponseModel):
     schedules: List[BoltSchedule]
     total_count: int
 
 
-class BoltScheduleInfo(BaseModel):
+class BoltScheduleInfo(ParadimeResponseModel):
     name: str
     commands: List[str]
     schedule: str
@@ -80,7 +80,7 @@ class BoltScheduleInfo(BaseModel):
     suspended: bool
 
 
-class BoltCommand(BaseModel):
+class BoltCommand(ParadimeResponseModel):
     id: int
     command: str
     start_dttm: str
@@ -90,18 +90,18 @@ class BoltCommand(BaseModel):
     return_code: Optional[int]
 
 
-class BoltCommandArtifact(BaseModel):
+class BoltCommandArtifact(ParadimeResponseModel):
     id: int
     path: str
 
 
-class BoltRunGitInfo(BaseModel):
+class BoltRunGitInfo(ParadimeResponseModel):
     branch: Optional[str]
     commit_hash: Optional[str]
     pull_request_id: Optional[str]
 
 
-class BoltRun(BaseModel):
+class BoltRun(ParadimeResponseModel):
     id: int
     state: str
     actor: str
@@ -112,7 +112,7 @@ class BoltRun(BaseModel):
     git_info: BoltRunGitInfo
 
 
-class BoltScheduleRuns(BaseModel):
+class BoltScheduleRuns(ParadimeResponseModel):
     ok: bool
     runs: List[BoltRun]
 
@@ -122,32 +122,23 @@ class BoltLogStream(str, Enum):
     STDERR = "STDERR"
 
 
-class BoltLogLine(BaseModel):
+class BoltLogLine(ParadimeResponseModel):
     stream: BoltLogStream
     line: str
 
 
-class BoltCommandLogs(BaseModel):
+class BoltCommandLogs(ParadimeResponseModel):
     lines: List[BoltLogLine]
     cursor: str
     finished: bool
 
 
-def _snake_to_camel(snake: str) -> str:
-    head, *tail = snake.split("_")
-    return head + "".join(part.title() for part in tail)
-
-
-class _BoltInputBase(BaseModel):
+class _BoltInputBase(ParadimeInputModel):
     """Base for ``create_schedule`` input models.
 
     Subclass fields use snake_case in Python and serialize to camelCase to
     match the GraphQL ``BoltScheduleInput`` shape.
     """
-
-    class Config:
-        alias_generator = _snake_to_camel
-        allow_population_by_field_name = True
 
 
 class BoltNotificationChannelInput(_BoltInputBase):

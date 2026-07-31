@@ -2,6 +2,7 @@ from typing import List
 
 from paradime.apis.audit_log.types import AuditLog
 from paradime.client.api_client import APIClient
+from paradime.tools.pydantic import parse_obj_as
 
 
 class AuditLogClient:
@@ -37,21 +38,4 @@ class AuditLogClient:
             }
         """
         response = self.client._call_gql(query)
-        return [
-            AuditLog(
-                id=audit_log["id"],
-                created_dttm=audit_log["createdDttm"],
-                updated_dttm=audit_log["updatedDttm"],
-                workspace_id=audit_log["workspaceId"],
-                workspace_name=audit_log["workspaceName"],
-                actor_type=audit_log["actorType"],
-                actor_user_id=audit_log["actorUserId"],
-                actor_email=audit_log["actorEmail"],
-                event_source_id=audit_log["eventSourceId"],
-                event_source=audit_log["eventSource"],
-                event_id=audit_log["eventId"],
-                event_type=audit_log["eventType"],
-                metadata_json=audit_log["metadataJson"],
-            )
-            for audit_log in response["getAuditLogs"]["auditLogs"]
-        ]
+        return parse_obj_as(List[AuditLog], response["getAuditLogs"]["auditLogs"])

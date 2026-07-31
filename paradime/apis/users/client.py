@@ -2,6 +2,7 @@ from typing import List
 
 from paradime.apis.users.types import ActiveUser, InvitedUser, UserAccountType
 from paradime.client.api_client import APIClient
+from paradime.tools.pydantic import parse_obj_as
 
 
 class UsersClient:
@@ -30,15 +31,7 @@ class UsersClient:
         """
 
         response = self.client._call_gql(query)
-        return [
-            ActiveUser(
-                uid=user["uid"],
-                email=user["email"],
-                name=user["name"],
-                account_type=user["accountType"],
-            )
-            for user in response["listUsers"]["activeUsers"]
-        ]
+        return parse_obj_as(List[ActiveUser], response["listUsers"]["activeUsers"])
 
     def get_by_email(self, email: str) -> ActiveUser:
         """
@@ -79,14 +72,7 @@ class UsersClient:
         """
 
         response = self.client._call_gql(query)
-        return [
-            InvitedUser(
-                email=user["email"],
-                account_type=user["accountType"],
-                invite_status=user["inviteStatus"],
-            )
-            for user in response["listUsers"]["invitedUsers"]
-        ]
+        return parse_obj_as(List[InvitedUser], response["listUsers"]["invitedUsers"])
 
     def invite(self, email: str, account_type: UserAccountType) -> None:
         """

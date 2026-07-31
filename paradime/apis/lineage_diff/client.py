@@ -6,6 +6,7 @@ from typing import List
 from paradime.apis.lineage_diff.exception import LineageDiffReportFailedException
 from paradime.apis.lineage_diff.types import Report, ReportStatus
 from paradime.client.api_client import APIClient
+from paradime.tools.pydantic import parse_obj_as
 
 logger = logging.getLogger(__name__)
 
@@ -96,14 +97,7 @@ class LineageDiffClient:
 
         report = response["fetchLineageDiffReport"]["report"]
 
-        return Report(
-            message=report["message"],
-            status=report["status"],
-            url=report["url"],
-            uuid=report["uuid"],
-            result_json=report["resultJson"],
-            result_markdown=report["resultMarkdown"],
-        )
+        return parse_obj_as(Report, report)
 
     def trigger_report_and_wait(
         self,

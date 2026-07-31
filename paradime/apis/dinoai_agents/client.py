@@ -5,12 +5,12 @@ from typing import Optional
 
 from paradime.apis.dinoai_agents.exception import DinoaiAgentRunFailedException
 from paradime.apis.dinoai_agents.types import (
-    DinoaiAgentMessage,
     DinoaiAgentRun,
     DinoaiAgentRunStatus,
     DinoaiAgentTriggerResult,
 )
 from paradime.client.api_client import APIClient
+from paradime.tools.pydantic import parse_obj_as
 
 logger = logging.getLogger(__name__)
 
@@ -85,11 +85,7 @@ class DinoaiAgentsClient:
 
         response = self.client._call_gql(query, variables)["triggerDinoaiAgentRun"]
 
-        return DinoaiAgentTriggerResult(
-            ok=response["ok"],
-            agent_session_id=response["agentSessionId"],
-            status=response["status"],
-        )
+        return parse_obj_as(DinoaiAgentTriggerResult, response)
 
     def get_run(self, *, agent_session_id: str) -> DinoaiAgentRun:
         """
@@ -121,16 +117,7 @@ class DinoaiAgentsClient:
 
         response = self.client._call_gql(query, {"id": agent_session_id})["dinoaiAgentRun"]
 
-        return DinoaiAgentRun(
-            ok=response["ok"],
-            status=DinoaiAgentRunStatus(response["status"]),
-            messages=[
-                DinoaiAgentMessage(ts=m["ts"], role=m["role"], content=m["content"])
-                for m in response["messages"]
-            ],
-            child_session_ids=response["childSessionIds"],
-            workspace_uid=response.get("workspaceUid"),
-        )
+        return parse_obj_as(DinoaiAgentRun, response)
 
     def send_message(self, *, agent_session_id: str, message: str) -> DinoaiAgentTriggerResult:
         """
@@ -160,11 +147,7 @@ class DinoaiAgentsClient:
             "sendDinoaiAgentMessage"
         ]
 
-        return DinoaiAgentTriggerResult(
-            ok=response["ok"],
-            agent_session_id=response["agentSessionId"],
-            status=response["status"],
-        )
+        return parse_obj_as(DinoaiAgentTriggerResult, response)
 
     def trigger_run_and_wait(
         self,

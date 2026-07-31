@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from paradime.tools.pydantic import BaseModel
+from paradime.tools.models import ParadimeResponseModel
 
 
 class DinoaiAgentRunStatus(str, Enum):
@@ -19,19 +19,19 @@ class DinoaiAgentRunStatus(str, Enum):
             return None
 
 
-class DinoaiAgentMessage(BaseModel):
+class DinoaiAgentMessage(ParadimeResponseModel):
     ts: str
     role: str
     content: str
 
 
-class DinoaiAgentTriggerResult(BaseModel):
+class DinoaiAgentTriggerResult(ParadimeResponseModel):
     ok: bool
     agent_session_id: str
     status: str
 
 
-class DinoaiAgentRun(BaseModel):
+class DinoaiAgentRun(ParadimeResponseModel):
     ok: bool
     status: DinoaiAgentRunStatus
     messages: List[DinoaiAgentMessage]
