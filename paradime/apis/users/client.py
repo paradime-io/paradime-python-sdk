@@ -2,6 +2,8 @@ from typing import List
 
 from paradime.apis.users.types import ActiveUser, InvitedUser, UserAccountType
 from paradime.client.api_client import APIClient
+from paradime.graphql import load_operation
+from paradime.tools.pydantic import parse_obj_as
 
 
 class UsersClient:
@@ -16,29 +18,10 @@ class UsersClient:
             List[ActiveUser]: A list of active user objects.
         """
 
-        query = """
-            query listActiveUsers {
-                listUsers{
-                    activeUsers{
-                        uid
-                        email
-                        name
-                        accountType
-                    }
-                }
-            }
-        """
+        query = load_operation("users", "list_active")
 
         response = self.client._call_gql(query)
-        return [
-            ActiveUser(
-                uid=user["uid"],
-                email=user["email"],
-                name=user["name"],
-                account_type=user["accountType"],
-            )
-            for user in response["listUsers"]["activeUsers"]
-        ]
+        return parse_obj_as(List[ActiveUser], response["listUsers"]["activeUsers"])
 
     def get_by_email(self, email: str) -> ActiveUser:
         """
@@ -66,27 +49,10 @@ class UsersClient:
             List[InvitedUser]: A list of invited user objects.
         """
 
-        query = """
-            query listInvitedUsers {
-                listUsers{
-                    invitedUsers{
-                        email
-                        accountType
-                        inviteStatus
-                    }
-                }
-            }
-        """
+        query = load_operation("users", "list_invited")
 
         response = self.client._call_gql(query)
-        return [
-            InvitedUser(
-                email=user["email"],
-                account_type=user["accountType"],
-                invite_status=user["inviteStatus"],
-            )
-            for user in response["listUsers"]["invitedUsers"]
-        ]
+        return parse_obj_as(List[InvitedUser], response["listUsers"]["invitedUsers"])
 
     def invite(self, email: str, account_type: UserAccountType) -> None:
         """
@@ -97,13 +63,7 @@ class UsersClient:
             account_type (UserAccountType): The account type of the user to invite.
         """
 
-        query = """
-            mutation inviteUser($email: String!, $accountType: UserAccountType!) {
-                inviteUser(email: $email, accountType: $accountType){
-                    ok
-                }
-            }
-        """
+        query = load_operation("users", "invite")
 
         self.client._call_gql(
             query=query,
@@ -119,13 +79,7 @@ class UsersClient:
             account_type (UserAccountType): The new account type for the user.
         """
 
-        query = """
-            mutation updateUserAccountType($uid: String!, $accountType: UserAccountType!) {
-                updateUserAccountType(uid: $uid, accountType: $accountType){
-                    ok
-                }
-            }
-        """
+        query = load_operation("users", "update_account_type")
 
         self.client._call_gql(
             query=query,
@@ -133,12 +87,6 @@ class UsersClient:
         )
 
     def disable(self, user_uid: str) -> None:
-        query = """
-                mutation disableUser($uid: String!) {
-                    disableUser(uid: $uid){
-                        ok
-                    }
-                }
-            """
+        query = load_operation("users", "disable")
 
         self.client._call_gql(query=query, variables={"uid": user_uid})

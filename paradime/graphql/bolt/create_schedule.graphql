@@ -1,0 +1,5 @@
+mutation CreateBoltSchedule($schedule: BoltScheduleInput!) {
+    createBoltSchedule(schedule: $schedule) {
+        slug
+    }
+}

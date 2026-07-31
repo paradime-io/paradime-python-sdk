@@ -1,10 +1,10 @@
 from datetime import datetime
 from typing import Optional
 
-from paradime.tools.pydantic import BaseModel
+from paradime.tools.models import ParadimeResponseModel
 
 
-class AuditLog(BaseModel):
+class AuditLog(ParadimeResponseModel):
     id: int
     created_dttm: datetime
     updated_dttm: datetime

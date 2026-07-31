@@ -1,18 +1,17 @@
 import logging
-import time
-from datetime import datetime, timedelta
 from typing import Optional
 
 from paradime.apis.dinoai_agents.exception import DinoaiAgentRunFailedException
 from paradime.apis.dinoai_agents.types import (
-    DinoaiAgentMessage,
     DinoaiAgentRun,
     DinoaiAgentRunStatus,
     DinoaiAgentTriggerResult,
 )
 from paradime.client.api_client import APIClient
+from paradime.graphql import load_operation
+from paradime.tools.polling import poll_until
+from paradime.tools.pydantic import parse_obj_as
 
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -51,25 +50,7 @@ class DinoaiAgentsClient:
         if agent is None and message is None:
             raise ValueError("At least one of 'agent' or 'message' must be provided.")
 
-        query = """
-            mutation TriggerDinoaiAgentRun(
-                $agent: String
-                $message: String
-                $slack: DinoAiAgentSlackInput
-                $baseBranch: String
-            ) {
-                triggerDinoaiAgentRun(
-                    agent: $agent
-                    message: $message
-                    slack: $slack
-                    baseBranch: $baseBranch
-                ) {
-                    ok
-                    agentSessionId
-                    status
-                }
-            }
-        """
+        query = load_operation("dinoai_agents", "trigger_run")
 
         slack: Optional[dict] = None
         if slack_channel is not None or slack_thread is not None:
@@ -86,11 +67,7 @@ class DinoaiAgentsClient:
 
         response = self.client._call_gql(query, variables)["triggerDinoaiAgentRun"]
 
-        return DinoaiAgentTriggerResult(
-            ok=response["ok"],
-            agent_session_id=response["agentSessionId"],
-            status=response["status"],
-        )
+        return parse_obj_as(DinoaiAgentTriggerResult, response)
 
     def get_run(self, *, agent_session_id: str) -> DinoaiAgentRun:
         """
@@ -104,34 +81,11 @@ class DinoaiAgentsClient:
             DinoaiAgentRun: Contains ``ok``, ``status``, ``messages``, ``child_session_ids``,
                 and ``workspace_uid``.
         """
-        query = """
-            query DinoaiAgentRun($id: String!) {
-                dinoaiAgentRun(agentSessionId: $id) {
-                    ok
-                    status
-                    messages {
-                        ts
-                        role
-                        content
-                    }
-                    childSessionIds
-                    workspaceUid
-                }
-            }
-        """
+        query = load_operation("dinoai_agents", "get_run")
 
         response = self.client._call_gql(query, {"id": agent_session_id})["dinoaiAgentRun"]
 
-        return DinoaiAgentRun(
-            ok=response["ok"],
-            status=DinoaiAgentRunStatus(response["status"]),
-            messages=[
-                DinoaiAgentMessage(ts=m["ts"], role=m["role"], content=m["content"])
-                for m in response["messages"]
-            ],
-            child_session_ids=response["childSessionIds"],
-            workspace_uid=response.get("workspaceUid"),
-        )
+        return parse_obj_as(DinoaiAgentRun, response)
 
     def send_message(self, *, agent_session_id: str, message: str) -> DinoaiAgentTriggerResult:
         """
@@ -147,25 +101,13 @@ class DinoaiAgentsClient:
         Returns:
             DinoaiAgentTriggerResult: Contains ``ok``, ``agent_session_id``, and ``status``.
         """
-        query = """
-            mutation SendDinoaiAgentMessage($id: String!, $message: String!) {
-                sendDinoaiAgentMessage(agentSessionId: $id, message: $message) {
-                    ok
-                    agentSessionId
-                    status
-                }
-            }
-        """
+        query = load_operation("dinoai_agents", "send_message")
 
         response = self.client._call_gql(query, {"id": agent_session_id, "message": message})[
             "sendDinoaiAgentMessage"
         ]
 
-        return DinoaiAgentTriggerResult(
-            ok=response["ok"],
-            agent_session_id=response["agentSessionId"],
-            status=response["status"],
-        )
+        return parse_obj_as(DinoaiAgentTriggerResult, response)
 
     def trigger_run_and_wait(
         self,
@@ -176,7 +118,7 @@ class DinoaiAgentsClient:
         slack_thread: Optional[str] = None,
         base_branch: Optional[str] = None,
         timeout: int = 3600,
-        poll_interval: int = 10,
+        poll_interval: float = 10.0,
     ) -> DinoaiAgentRun:
         """
         Triggers a DinoAI agent run and blocks until it completes or fails.
@@ -195,7 +137,8 @@ class DinoaiAgentsClient:
             DinoaiAgentRun: The final run state with all messages.
 
         Raises:
-            DinoaiAgentRunFailedException: If the agent run finishes with status ``FAILED``.
+            DinoaiAgentRunFailedException: If the agent run finishes with status ``FAILED``,
+                or with status ``EXPIRED`` (the agent pod never started).
             TimeoutError: If the run does not complete within ``timeout`` seconds.
         """
         result = self.trigger_run(
@@ -211,25 +154,36 @@ class DinoaiAgentsClient:
             " Waiting for completion..."
         )
 
-        start_time = datetime.now()
-        while True:
-            run = self.get_run(agent_session_id=result.agent_session_id)
-
-            if run.status == DinoaiAgentRunStatus.COMPLETED:
-                logger.info("[COMPLETED] DinoAI agent run finished successfully.")
-                return run
-
+        def is_terminal(run: DinoaiAgentRun) -> bool:
             if run.status == DinoaiAgentRunStatus.FAILED:
                 last_content = run.messages[-1].content if run.messages else "no messages"
                 error_message = f"[ERROR] DinoAI agent run failed. Last message: {last_content}"
                 logger.info(error_message)
                 raise DinoaiAgentRunFailedException(error_message)
 
-            if datetime.now() - start_time > timedelta(seconds=timeout):
-                raise TimeoutError(
-                    f"[TIMEOUT] Timed out waiting for DinoAI agent run to complete."
-                    f" Last status: {run.status}. Session ID: {result.agent_session_id}"
+            if run.status == DinoaiAgentRunStatus.EXPIRED:
+                # Terminal: the agent pod never started, so no further messages will
+                # arrive and polling on would just burn the full timeout.
+                error_message = (
+                    "[ERROR] DinoAI agent run expired: the agent never started. Retry the"
+                    " run — if this persists, check the workspace's agent configuration."
                 )
+                logger.info(error_message)
+                raise DinoaiAgentRunFailedException(error_message)
 
-            logger.info(f"[IN PROGRESS] DinoAI agent run status: {run.status}.")
-            time.sleep(poll_interval)
+            return run.status == DinoaiAgentRunStatus.COMPLETED
+
+        run = poll_until(
+            lambda: self.get_run(agent_session_id=result.agent_session_id),
+            is_terminal,
+            timeout=timeout,
+            interval=poll_interval,
+            on_poll=lambda r: logger.info(f"[IN PROGRESS] DinoAI agent run status: {r.status}."),
+            timeout_message=lambda r: (
+                "[TIMEOUT] Timed out waiting for DinoAI agent run to complete."
+                f" Last status: {r.status}. Session ID: {result.agent_session_id}"
+            ),
+        )
+
+        logger.info("[COMPLETED] DinoAI agent run finished successfully.")
+        return run

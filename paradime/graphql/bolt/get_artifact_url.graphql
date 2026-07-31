@@ -1,0 +1,5 @@
+query boltResourceUrl($resourceId: Int!) {
+    boltResourceUrl(resourceId: $resourceId) {
+        url
+    }
+}

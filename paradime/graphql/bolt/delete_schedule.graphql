@@ -1,0 +1,5 @@
+mutation DeleteBoltSchedule($slug: String!) {
+    deleteBoltSchedule(slug: $slug) {
+        ok
+    }
+}

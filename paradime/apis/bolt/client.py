@@ -12,17 +12,12 @@ from paradime.apis.bolt.types import (
     BoltCommand,
     BoltCommandArtifact,
     BoltCommandLogs,
-    BoltDeferredSchedule,
     BoltDeferredScheduleConfigInput,
     BoltEnvironmentVariableInput,
     BoltIntegrationsInput,
     BoltLogLine,
-    BoltLogStream,
-    BoltNotificationItem,
-    BoltNotifications,
     BoltNotificationsInput,
     BoltRun,
-    BoltRunGitInfo,
     BoltRunState,
     BoltSchedule,
     BoltScheduleInfo,
@@ -33,6 +28,13 @@ from paradime.apis.bolt.types import (
     _BoltInputBase,
 )
 from paradime.client.api_client import APIClient
+from paradime.client.api_exception import (
+    ParadimeAPIException,
+    ParadimeConnectionError,
+    ParadimeTimeoutError,
+)
+from paradime.graphql import load_operation
+from paradime.tools.pydantic import parse_obj_as
 
 
 def _serialize_input(
@@ -87,34 +89,32 @@ def _resolve_slug_or_schedule_name(
     return slug or schedule_name  # type: ignore[return-value]
 
 
-def _parse_notification_items(
-    items: Optional[list],
-) -> Optional[List[BoltNotificationItem]]:
-    if items is None:
-        return None
-    return [
-        BoltNotificationItem(
-            channel=item.get("channel"),
-            events=item.get("events"),
-            template_slug=item.get("templateSlug"),
-            template_name=item.get("templateName"),
+def _download_artifact_json(url: str, *, timeout: int) -> Any:
+    """Fetch a Bolt artifact from its presigned URL and parse it as JSON.
+
+    Artifact URLs point at object storage rather than the Paradime API, so they are
+    fetched directly. A timeout is required — without one a stalled connection hangs
+    the caller indefinitely — and a non-2xx response must not be parsed as JSON.
+    """
+
+    try:
+        response = requests.get(url, timeout=timeout)
+    except requests.Timeout as e:
+        raise ParadimeTimeoutError(f"Downloading the artifact timed out after {timeout}s.") from e
+    except requests.RequestException as e:
+        raise ParadimeConnectionError(f"Could not download the artifact: {e}") from e
+
+    if not response.ok:
+        raise ParadimeAPIException(
+            f"Error downloading artifact: {response.status_code} - {response.text}",
+            status_code=response.status_code,
+            response_text=response.text,
         )
-        for item in items
-    ]
 
-
-def _parse_notifications(
-    notifications_json: Optional[dict],
-) -> Optional[BoltNotifications]:
-    if notifications_json is None:
-        return None
-    return BoltNotifications(
-        email_notifications=_parse_notification_items(notifications_json.get("emailNotifications")),
-        slack_notifications=_parse_notification_items(notifications_json.get("slackNotifications")),
-        ms_teams_notifications=_parse_notification_items(
-            notifications_json.get("msTeamsNotifications")
-        ),
-    )
+    try:
+        return response.json()
+    except ValueError as e:
+        raise ParadimeAPIException("The downloaded artifact is not valid JSON.") from e
 
 
 class BoltClient:
@@ -150,13 +150,7 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="trigger_run"
         )
 
-        query = """
-            mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int, $reason: String) {
-                triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber, reason: $reason){
-                    runId
-                }
-            }
-        """
+        query = load_operation("bolt", "trigger_run")
 
         response_json = self.client._call_gql(
             query=query,
@@ -193,13 +187,7 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="suspend_schedule"
         )
 
-        query = """
-            mutation SuspendBoltSchedule($slug: String, $suspend: Boolean!) {
-                suspendBoltSchedule(slug: $slug, suspend: $suspend) {
-                    ok
-                }
-            }
-        """
+        query = load_operation("bolt", "suspend_schedule")
 
         self.client._call_gql(query=query, variables={"slug": resolved_slug, "suspend": suspend})[
             "suspendBoltSchedule"
@@ -305,13 +293,7 @@ class BoltClient:
             if value is not None:
                 schedule_input[key] = value
 
-        query = """
-            mutation CreateBoltSchedule($schedule: BoltScheduleInput!) {
-                createBoltSchedule(schedule: $schedule) {
-                    slug
-                }
-            }
-        """
+        query = load_operation("bolt", "create_schedule")
 
         result = self.client._call_gql(query=query, variables={"schedule": schedule_input})
         return result["createBoltSchedule"]["slug"]
@@ -327,13 +309,7 @@ class BoltClient:
             None
         """
 
-        query = """
-            mutation DeleteBoltSchedule($slug: String!) {
-                deleteBoltSchedule(slug: $slug) {
-                    ok
-                }
-            }
-        """
+        query = load_operation("bolt", "delete_schedule")
 
         self.client._call_gql(query=query, variables={"slug": slug})
 
@@ -360,64 +336,7 @@ class BoltClient:
             BoltSchedules: An object containing the list of Bolt schedules and the total count of schedules.
         """
 
-        query = """
-            query listBoltSchedules($offset: Int!, $limit: Int!, $showInactive: Boolean!, $filter: BoltScheduleFilter) {
-                listBoltSchedules(offset: $offset, limit: $limit, showInactive: $showInactive, filter: $filter) {
-                    schedules {
-                        name
-                        slug
-                        schedule
-                        owner
-                        lastRunAt
-                        lastRunState
-                        nextRunAt
-                        id
-                        uuid
-                        source
-                        suspended
-                        turboCi {
-                            enabled
-                            deferredScheduleName
-                            deferredScheduleSlug
-                            successfulRunOnly
-                        }
-                        deferredSchedule {
-                            enabled
-                            deferredScheduleName
-                            deferredScheduleSlug
-                            successfulRunOnly
-                        }
-                        commands
-                        gitBranch
-                        slackOn
-                        slackNotify
-                        emailOn
-                        emailNotify
-                        notifications {
-                            emailNotifications {
-                                channel
-                                events
-                                templateSlug
-                                templateName
-                            }
-                            slackNotifications {
-                                channel
-                                events
-                                templateSlug
-                                templateName
-                            }
-                            msTeamsNotifications {
-                                channel
-                                events
-                                templateSlug
-                                templateName
-                            }
-                        }
-                    }
-                    totalCount
-                }
-            }
-        """
+        query = load_operation("bolt", "list_schedules")
 
         # Only send the filter object when a value is provided; omitting it (null)
         # returns all schedules regardless of paused state.
@@ -433,63 +352,46 @@ class BoltClient:
             },
         )["listBoltSchedules"]
 
-        schedules: List[BoltSchedule] = []
-        for schedule_json in response_json["schedules"]:
-            schedules.append(
-                BoltSchedule(
-                    name=schedule_json["name"],
-                    slug=schedule_json.get("slug"),
-                    schedule=schedule_json["schedule"],
-                    owner=schedule_json["owner"],
-                    last_run_at=schedule_json["lastRunAt"],
-                    last_run_state=schedule_json["lastRunState"],
-                    next_run_at=schedule_json["nextRunAt"],
-                    id=schedule_json["id"],
-                    uuid=schedule_json["uuid"],
-                    source=schedule_json["source"],
-                    suspended=schedule_json["suspended"],
-                    deferred_schedule=(
-                        BoltDeferredSchedule(
-                            enabled=schedule_json["deferredSchedule"]["enabled"],
-                            deferred_schedule_name=schedule_json["deferredSchedule"][
-                                "deferredScheduleName"
-                            ],
-                            deferred_schedule_slug=schedule_json["deferredSchedule"].get(
-                                "deferredScheduleSlug"
-                            ),
-                            successful_run_only=schedule_json["deferredSchedule"][
-                                "successfulRunOnly"
-                            ],
-                        )
-                        if schedule_json["deferredSchedule"]
-                        else None
-                    ),
-                    turbo_ci=(
-                        BoltDeferredSchedule(
-                            enabled=schedule_json["turboCi"]["enabled"],
-                            deferred_schedule_name=schedule_json["turboCi"]["deferredScheduleName"],
-                            deferred_schedule_slug=schedule_json["turboCi"].get(
-                                "deferredScheduleSlug"
-                            ),
-                            successful_run_only=schedule_json["turboCi"]["successfulRunOnly"],
-                        )
-                        if schedule_json["turboCi"]
-                        else None
-                    ),
-                    commands=schedule_json["commands"],
-                    git_branch=schedule_json["gitBranch"],
-                    slack_on=schedule_json["slackOn"],
-                    slack_notify=schedule_json["slackNotify"],
-                    email_on=schedule_json["emailOn"],
-                    email_notify=schedule_json["emailNotify"],
-                    notifications=_parse_notifications(schedule_json.get("notifications")),
-                )
+        return parse_obj_as(BoltSchedules, response_json)
+
+    def iter_schedules(
+        self,
+        *,
+        page_size: int = 100,
+        show_inactive: bool = False,
+        suspended: Optional[bool] = None,
+    ) -> Iterator[BoltSchedule]:
+        """
+        Yield every Bolt schedule, fetching pages as needed.
+
+        Wraps :meth:`list_schedules` so callers do not have to drive `offset`/`limit`
+        against `total_count` themselves.
+
+        Args:
+            page_size (int): How many schedules to fetch per request. Default is 100.
+            show_inactive (bool): Return inactive schedules instead of active ones.
+            suspended (Optional[bool]): Filter by paused state. None returns all.
+
+        Yields:
+            BoltSchedule: Each schedule, in the order the API returns them.
+        """
+
+        offset = 0
+        while True:
+            page = self.list_schedules(
+                offset=offset,
+                limit=page_size,
+                show_inactive=show_inactive,
+                suspended=suspended,
             )
 
-        return BoltSchedules(
-            schedules=schedules,
-            total_count=response_json["totalCount"],
-        )
+            yield from page.schedules
+
+            offset += len(page.schedules)
+            # Stop on an empty page as well as on the count, so a total_count that
+            # disagrees with the returned rows cannot spin forever.
+            if not page.schedules or offset >= page.total_count:
+                return
 
     def list_runs(
         self,
@@ -525,56 +427,50 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="list_runs"
         )
 
-        query = """
-            query listBoltRuns($slug: String, $offset: Int!, $limit: Int!) {
-                listBoltRuns(slug: $slug, offset: $offset, limit: $limit) {
-                    ok
-                    runs {
-                        id
-                        state
-                        actor
-                        actorEmail
-                        startDttm
-                        endDttm
-                        parentScheduleRunId
-                        gitInfo {
-                            branch
-                            commitHash
-                            pullRequestId
-                        }
-                    }
-                }
-            }
-        """
+        query = load_operation("bolt", "list_runs")
 
         response_json = self.client._call_gql(
             query=query,
             variables={"slug": resolved_slug, "offset": offset, "limit": limit},
         )["listBoltRuns"]
 
-        runs: List[BoltRun] = []
-        for run_json in response_json["runs"]:
-            runs.append(
-                BoltRun(
-                    id=run_json["id"],
-                    state=run_json["state"],
-                    actor=run_json["actor"],
-                    actor_email=run_json.get("actorEmail"),
-                    parent_schedule_run_id=run_json.get("parentScheduleRunId"),
-                    start_dttm=run_json["startDttm"],
-                    end_dttm=run_json.get("endDttm"),
-                    git_info=BoltRunGitInfo(
-                        branch=run_json["gitInfo"].get("branch"),
-                        commit_hash=run_json["gitInfo"].get("commitHash"),
-                        pull_request_id=run_json["gitInfo"].get("pullRequestId"),
-                    ),
-                )
-            )
+        return parse_obj_as(BoltScheduleRuns, response_json)
 
-        return BoltScheduleRuns(
-            ok=response_json["ok"],
-            runs=runs,
+    def iter_runs(
+        self,
+        *,
+        slug: Optional[str] = None,
+        schedule_name: Optional[str] = None,
+        page_size: int = 50,
+    ) -> Iterator[BoltRun]:
+        """
+        Yield every run for a schedule, fetching pages as needed.
+
+        Wraps :meth:`list_runs`. Unlike `list_schedules`, the runs query returns no
+        total count, so paging stops on the first short page.
+
+        Args:
+            slug (Optional[str]): The schedule slug. Preferred over ``schedule_name``.
+            schedule_name (Optional[str]): Deprecated alias for ``slug``.
+            page_size (int): How many runs to fetch per request. Default is 50.
+
+        Yields:
+            BoltRun: Each run, newest first.
+        """
+
+        resolved_slug = _resolve_slug_or_schedule_name(
+            slug=slug, schedule_name=schedule_name, method="iter_runs"
         )
+
+        offset = 0
+        while True:
+            page = self.list_runs(slug=resolved_slug, offset=offset, limit=page_size)
+
+            yield from page.runs
+
+            if len(page.runs) < page_size:
+                return
+            offset += len(page.runs)
 
     def get_schedule(
         self,
@@ -597,35 +493,13 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="get_schedule"
         )
 
-        query = """
-            query boltScheduleName($slug: String) {
-                boltScheduleName(slug: $slug) {
-                    ok
-                    latestRunId
-                    commands
-                    owner
-                    schedule
-                    uuid
-                    source
-                    suspended
-                }
-            }
-        """
+        query = load_operation("bolt", "get_schedule")
 
         response_json = self.client._call_gql(query=query, variables={"slug": resolved_slug})[
             "boltScheduleName"
         ]
 
-        return BoltScheduleInfo(
-            name=resolved_slug,
-            commands=response_json["commands"],
-            schedule=response_json["schedule"],
-            uuid=response_json["uuid"],
-            source=response_json["source"],
-            owner=response_json["owner"],
-            latest_run_id=response_json["latestRunId"],
-            suspended=response_json["suspended"],
-        )
+        return parse_obj_as(BoltScheduleInfo, {**response_json, "name": resolved_slug})
 
     def get_run_status(self, run_id: int) -> Optional[BoltRunState]:
         """
@@ -638,13 +512,7 @@ class BoltClient:
             str: The state of the run.
         """
 
-        query = """
-            query boltRunStatus($runId: Int!) {
-                boltRunStatus(runId: $runId) {
-                    state
-                }
-            }
-        """
+        query = load_operation("bolt", "get_run_status")
 
         response_json = self.client._call_gql(query=query, variables={"runId": int(run_id)})[
             "boltRunStatus"
@@ -663,39 +531,13 @@ class BoltClient:
             List[BoltCommand]: The list of Bolt commands for the run, sorted by command ID.
         """
 
-        query = """
-            query boltRunStatus($runId: Int!) {
-                boltRunStatus(runId: $runId) {
-                    commands {
-                        id
-                        command
-                        startDttm
-                        endDttm
-                        stdout
-                        stderr
-                        returnCode
-                    }
-                }
-            }
-        """
+        query = load_operation("bolt", "list_run_commands")
 
         response_json = self.client._call_gql(query=query, variables={"runId": int(run_id)})[
             "boltRunStatus"
         ]
 
-        commands: List[BoltCommand] = []
-        for command_json in response_json["commands"]:
-            commands.append(
-                BoltCommand(
-                    id=command_json["id"],
-                    command=command_json["command"],
-                    start_dttm=command_json["startDttm"],
-                    end_dttm=command_json["endDttm"],
-                    stdout=command_json["stdout"],
-                    stderr=command_json["stderr"],
-                    return_code=command_json["returnCode"],
-                )
-            )
+        commands = parse_obj_as(List[BoltCommand], response_json["commands"])
 
         return sorted(commands, key=lambda command: command.id)
 
@@ -716,28 +558,13 @@ class BoltClient:
             and a `finished` flag that flips to True once the command exits.
         """
 
-        query = """
-            query boltCommandLogs($commandId: Int!, $cursor: String) {
-                boltCommandLogs(commandId: $commandId, cursor: $cursor) {
-                    lines { stream line }
-                    cursor
-                    finished
-                }
-            }
-        """
+        query = load_operation("bolt", "get_command_logs")
 
         response_json = self.client._call_gql(
             query=query, variables={"commandId": int(command_id), "cursor": cursor}
         )["boltCommandLogs"]
 
-        return BoltCommandLogs(
-            lines=[
-                BoltLogLine(stream=BoltLogStream(item["stream"]), line=item["line"])
-                for item in response_json["lines"]
-            ],
-            cursor=response_json["cursor"],
-            finished=response_json["finished"],
-        )
+        return parse_obj_as(BoltCommandLogs, response_json)
 
     def stream_command_logs(
         self, command_id: int, poll_interval: float = 2.0
@@ -778,31 +605,13 @@ class BoltClient:
             List[BoltResource]: A list of BoltResource objects representing the artifacts.
         """
 
-        query = """
-            query boltCommand($commandId: Int!) {
-                boltCommand(commandId: $commandId) {
-                    resources {
-                        id
-                        path
-                    }
-                }
-            }
-        """
+        query = load_operation("bolt", "list_command_artifacts")
 
         response_json = self.client._call_gql(
             query=query, variables={"commandId": int(command_id)}
         )["boltCommand"]
 
-        artifacts: List[BoltCommandArtifact] = []
-        for artifact_json in response_json["resources"]:
-            artifacts.append(
-                BoltCommandArtifact(
-                    id=artifact_json["id"],
-                    path=artifact_json["path"],
-                )
-            )
-
-        return artifacts
+        return parse_obj_as(List[BoltCommandArtifact], response_json["resources"])
 
     def get_artifact_url(self, artifact_id: int) -> str:
         """
@@ -815,13 +624,7 @@ class BoltClient:
             str: The URL of the artifact.
         """
 
-        query = """
-            query boltResourceUrl($resourceId: Int!) {
-                boltResourceUrl(resourceId: $resourceId) {
-                    url
-                }
-            }
-        """
+        query = load_operation("bolt", "get_artifact_url")
 
         response_json = self.client._call_gql(
             query=query, variables={"resourceId": int(artifact_id)}
@@ -840,13 +643,7 @@ class BoltClient:
             None
         """
 
-        query = """
-            mutation CancelBoltRun($runId: Int!) {
-                cancelBoltRun(scheduleRunId: $runId) {
-                    ok
-                }
-            }
-        """
+        query = load_operation("bolt", "cancel_run")
 
         self.client._call_gql(query=query, variables={"runId": int(run_id)})
 
@@ -865,13 +662,7 @@ class BoltClient:
             int: The ID of the newly created retry run.
         """
 
-        query = """
-            mutation RetryBoltRun($scheduleRunId: Int!) {
-                retryBoltRun(scheduleRunId: $scheduleRunId) {
-                    runId
-                }
-            }
-        """
+        query = load_operation("bolt", "retry_run")
 
         response_json = self.client._call_gql(
             query=query, variables={"scheduleRunId": int(run_id)}
@@ -893,13 +684,7 @@ class BoltClient:
             int: The ID of the newly created retry run.
         """
 
-        query = """
-            mutation RetryAllBoltRun($scheduleRunId: Int!) {
-                retryAllBoltRun(scheduleRunId: $scheduleRunId) {
-                    runId
-                }
-            }
-        """
+        query = load_operation("bolt", "retry_run_all")
 
         response_json = self.client._call_gql(
             query=query, variables={"scheduleRunId": int(run_id)}
@@ -931,13 +716,7 @@ class BoltClient:
             slug=slug, schedule_name=schedule_name, method="retry_schedule_from_failure"
         )
 
-        query = """
-            mutation RetryBoltRunFromFailure($slug: String) {
-                retryBoltRunFromFailure(slug: $slug) {
-                    runId
-                }
-            }
-        """
+        query = load_operation("bolt", "retry_schedule_from_failure")
 
         response_json = self.client._call_gql(query=query, variables={"slug": resolved_slug})[
             "retryBoltRunFromFailure"
@@ -1051,7 +830,7 @@ class BoltClient:
             max_runs=max_runs,
         )
 
-        return requests.get(manifest_url).json()
+        return _download_artifact_json(manifest_url, timeout=self.client.timeout)
 
     def _get_latest_run_results_json(
         self,
@@ -1080,7 +859,7 @@ class BoltClient:
                 command_index=command_index,
                 max_runs=1,
             )
-            return requests.get(run_results_url).json()
+            return _download_artifact_json(run_results_url, timeout=self.client.timeout)
 
         # Get the latest runs for the schedule
         latest_runs = self.list_runs(slug=schedule_name, offset=0, limit=1).runs
@@ -1112,7 +891,9 @@ class BoltClient:
                 for artifact in artifacts:
                     if artifact.path == "target/run_results.json":
                         artifact_url = self.get_artifact_url(artifact.id)
-                        run_results = requests.get(artifact_url).json()
+                        run_results = _download_artifact_json(
+                            artifact_url, timeout=self.client.timeout
+                        )
                         all_run_results.append(run_results)
                         if not merge:
                             # Return first found when merge=False (consistent behavior)
@@ -1161,7 +942,7 @@ class BoltClient:
                 command_index=command_index,
                 max_runs=1,
             )
-            return requests.get(sources_url).json()
+            return _download_artifact_json(sources_url, timeout=self.client.timeout)
 
         latest_runs = self.list_runs(slug=schedule_name, offset=0, limit=1).runs
 
@@ -1186,7 +967,7 @@ class BoltClient:
                 for artifact in artifacts:
                     if artifact.path == "target/sources.json":
                         artifact_url = self.get_artifact_url(artifact.id)
-                        sources = requests.get(artifact_url).json()
+                        sources = _download_artifact_json(artifact_url, timeout=self.client.timeout)
                         all_sources.append(sources)
                         if not merge:
                             return sources
@@ -1303,17 +1084,7 @@ class BoltClient:
         Returns:
             A list of ``(workspace_name, schedule_name)`` tuples.
         """
-        query = """
-            query listAllScheduleNames {
-                listAllScheduleNames {
-                    ok
-                    schedules {
-                        name
-                        workspaceName
-                    }
-                }
-            }
-        """
+        query = load_operation("bolt", "list_all_schedule_names")
         response = self.client._call_gql(query=query)["listAllScheduleNames"]
         return [(s["workspaceName"], s["name"]) for s in response["schedules"]]
 
@@ -1326,14 +1097,7 @@ class BoltClient:
         Returns:
             List of minted slugs in the same order as the input display names.
         """
-        query = """
-            mutation createScheduleSlugs($displayNames: [String!]!) {
-                createScheduleSlugs(displayNames: $displayNames) {
-                    ok
-                    slugs
-                }
-            }
-        """
+        query = load_operation("bolt", "create_schedule_slugs")
         response = self.client._call_gql(
             query=query,
             variables={"displayNames": display_names},

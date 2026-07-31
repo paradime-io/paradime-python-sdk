@@ -1,0 +1,5 @@
+mutation inviteUser($email: String!, $accountType: UserAccountType!) {
+    inviteUser(email: $email, accountType: $accountType){
+        ok
+    }
+}

@@ -14,6 +14,26 @@
 pip install paradime-io
 ```
 
+This installs the SDK client only — a small dependency set (`pydantic`, `requests`).
+Everything else lives behind extras, so you only install what you use:
+
+| Extra | Install | Needed for |
+|---|---|---|
+| `cli` | `pip install 'paradime-io[cli]'` | the `paradime` command-line tool |
+| `metadata` | `pip install 'paradime-io[metadata]'` | `paradime.metadata` (DuckDB/polars dbt analytics) |
+| `aws` | `pip install 'paradime-io[aws]'` | `paradime run aws-*` integrations |
+| `gcp` | `pip install 'paradime-io[gcp]'` | `paradime run gcp-*` integrations |
+| `azure` | `pip install 'paradime-io[azure]'` | `paradime run power-bi-*` integrations |
+| `all` | `pip install 'paradime-io[all]'` | everything |
+
+Combine them as needed, e.g. `pip install 'paradime-io[cli,aws]'`.
+
+> **Upgrading from 6.x?** Before 7.0.0 a plain `pip install paradime-io` pulled in
+> every dependency, including `boto3`, the `google-cloud-*` packages, `duckdb`,
+> `polars` and `pyarrow` (~450 MB installed; the default install is now ~15 MB).
+> If you relied on any of those, install `paradime-io[all]` to get the old
+> behaviour, or pick the specific extras you need. No code changes are required.
+
 ## SDK Usage
 
 Generate your API credentials from Paradime workspace settings.
@@ -34,6 +54,23 @@ paradime = Paradime(
 
 # Use the paradime client to interact with the API
 ```
+
+Errors are typed, so you can branch on the failure rather than matching on message text:
+
+```python
+from paradime import ParadimeAuthException, ParadimeRateLimitException
+
+try:
+    paradime.bolt.trigger_run(slug="daily-abc")
+except ParadimeRateLimitException as e:
+    print(f"Rate limited; retry after {e.retry_after}s")
+except ParadimeAuthException:
+    print("Check your API credentials")
+```
+
+Transient failures (connection errors, timeouts, 429/502/503/504) are retried
+automatically with exponential backoff. Tune with `timeout=` and `max_retries=`,
+or pass `max_retries=1` to disable retries.
 
 Or with the legacy API key + secret pair:
 

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Optional
 
-from paradime.tools.pydantic import BaseModel
+from paradime.tools.models import ParadimeResponseModel
 
 
 class ReportStatus(str, Enum):
@@ -10,7 +10,7 @@ class ReportStatus(str, Enum):
     IN_PROGRESS = "IN_PROGRESS"
 
 
-class Report(BaseModel):
+class Report(ParadimeResponseModel):
     uuid: str
     message: Optional[str] = None
     status: ReportStatus

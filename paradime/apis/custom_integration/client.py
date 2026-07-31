@@ -1,3 +1,4 @@
+import math
 from typing import List, Optional
 
 from paradime.apis.custom_integration.types import (
@@ -10,6 +11,7 @@ from paradime.apis.custom_integration.types import (
 )
 from paradime.client.api_client import APIClient
 from paradime.client.api_exception import ParadimeException
+from paradime.graphql import load_operation
 
 
 class CustomIntegrationClient:
@@ -29,22 +31,7 @@ class CustomIntegrationClient:
             str: The integration UID of the created custom integration.
         """
 
-        query = """
-            mutation addCustomIntegration(
-                $logoUrl: String,
-                $name: String!,
-                $nodeTypes: [IntegrationNodeTypeInfo!]!
-            ) {
-                addCustomIntegration(
-                    logoUrl: $logoUrl,
-                    name: $name,
-                    nodeTypes: $nodeTypes
-                ) {
-                    ok
-                    integrationUid
-                }
-            }
-        """
+        query = load_operation("custom_integration", "create")
 
         variables = {
             "logoUrl": logo_url,
@@ -84,25 +71,7 @@ class CustomIntegrationClient:
             active (bool, optional): Whether the integration should be active. Defaults to None.
         """
 
-        query = """
-            mutation updateCustomIntegration(
-                $integrationUid: String!,
-                $name: String,
-                $logoUrl: String,
-                $nodeTypes: [IntegrationNodeTypeInfo!],
-                $active: Boolean
-            ) {
-                updateCustomIntegration(
-                    integrationUid: $integrationUid,
-                    name: $name,
-                    logoUrl: $logoUrl,
-                    nodeTypes: $nodeTypes,
-                    active: $active
-                ) {
-                    ok
-                }
-            }
-        """
+        query = load_operation("custom_integration", "update")
 
         variables = {
             "integrationUid": integration_uid,
@@ -126,23 +95,7 @@ class CustomIntegrationClient:
             List[Integration]: A list of Integration objects representing the custom integrations.
         """
 
-        query = """
-            query listCustomIntegrations {
-                listCustomIntegrations {
-                    ok
-                    integrations {
-                        uid
-                        name
-                        isActive
-                        nodeTypes {
-                            nodeType
-                            iconName
-                            color
-                        }
-                    }
-                }
-            }
-        """
+        query = load_operation("custom_integration", "list_all")
 
         response = self.client._call_gql(query)
 
@@ -276,28 +229,7 @@ class CustomIntegrationClient:
             int: The ID of the snapshot after adding the nodes.
         """
 
-        query = """
-            mutation addCustomIntegrationNodes(
-                $chartLikeNodes: [IntegrationNodeChartLike!]!,
-                $dashboardLikeNodes: [IntegrationNodeDashboardLike!]!,
-                $datasourceLikeNodes: [IntegrationNodeDatasourceLike!]!,
-                $integrationUid: String!,
-                $snapshotHasMoreNodes: Boolean!,
-                $snapshotId: Int
-            ) {
-                addCustomIntegrationNodes(
-                    chartLikeNodes: $chartLikeNodes,
-                    dashboardLikeNodes: $dashboardLikeNodes,
-                    datasourceLikeNodes: $datasourceLikeNodes,
-                    integrationUid: $integrationUid,
-                    snapshotHasMoreNodes: $snapshotHasMoreNodes,
-                    snapshotId: $snapshotId
-                ) {
-                    ok
-                    snapshotId
-                }
-            }
-        """
+        query = load_operation("custom_integration", "add_nodes_to_snapshot")
 
         variables = {
             "chartLikeNodes": [
@@ -334,7 +266,10 @@ class CustomIntegrationClient:
             nodes (List[Node]): The list of all nodes to be added to the integration.
         """
         num_nodes_per_request = 10
-        num_of_requests = len(nodes) // num_nodes_per_request + 1
+        # An exact multiple of the batch size must not produce a trailing empty request.
+        # An empty `nodes` list still sends one request, which creates the empty snapshot
+        # that clears the integration's existing nodes.
+        num_of_requests = max(1, math.ceil(len(nodes) / num_nodes_per_request))
 
         snapshot_id = None
 

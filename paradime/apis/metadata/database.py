@@ -1,10 +1,13 @@
 import json
+import logging
 from typing import Any, Dict, List, Optional
 
 import duckdb
 import polars as pl
 
 from .types import HealthStatus, ModelHealth, SourceFreshness, TestResult
+
+logger = logging.getLogger(__name__)
 
 
 class MetadataDatabase:
@@ -599,7 +602,7 @@ class MetadataDatabase:
                 try:
                     self.conn.execute(insert_sql, row_data)
                 except Exception as row_error:
-                    print(f"Warning: Could not insert row {row_data[0]}: {row_error}")
+                    logger.warning("Could not insert row %s: %s", row_data[0], row_error)
 
     def load_source_freshness(self, source_data: List[Dict[str, Any]], schedule_name: str) -> None:
         """Load source freshness data into dbt_source_freshness_results table"""

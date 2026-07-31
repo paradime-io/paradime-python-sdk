@@ -1,0 +1,5 @@
+query boltRunStatus($runId: Int!) {
+    boltRunStatus(runId: $runId) {
+        state
+    }
+}

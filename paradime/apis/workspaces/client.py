@@ -2,6 +2,7 @@ from typing import List
 
 from paradime.apis.workspaces.types import Workspace
 from paradime.client.api_client import APIClient
+from paradime.graphql import load_operation
 from paradime.tools.pydantic import parse_obj_as
 
 
@@ -17,16 +18,7 @@ class WorkspacesClient:
             List[Workspace]: A list of active workspaces
         """
 
-        query = """
-            query listWorkspaces {
-                listWorkspaces{
-                    workspaces{
-                        uid
-                        name
-                    }
-                }
-            }
-        """
+        query = load_operation("workspaces", "list_all")
 
         response = self.client._call_gql(query)
         return parse_obj_as(List[Workspace], response["listWorkspaces"]["workspaces"])

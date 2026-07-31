@@ -45,10 +45,7 @@ class MetadataClient:
         self.parser = ArtifactParser()
         self._loaded_schedules: set[str] = set()  # Track which schedules have been loaded
         self._cache_ttl = cache_ttl_seconds
-        self._cache: dict[str, dict[str, Any]] = {}  # Simple in-memory cache
-        self._dependency_cache: dict[str, dict[str, Any]] = (
-            {}
-        )  # Cache for computed dependency graphs
+        self._cache: dict[str, dict[str, Any]] = {}  # Simple in-memory, TTL-checked cache
 
     def _ensure_metadata_loaded(self, schedule_name: str, force_refresh: bool = False) -> None:
         """
@@ -125,15 +122,11 @@ class MetadataClient:
         """Clear cache entries, optionally for a specific schedule"""
         if schedule_name is None:
             self._cache.clear()
-            self._dependency_cache.clear()
         else:
             # Clear entries that contain the schedule name
             keys_to_remove = [k for k in self._cache.keys() if schedule_name in k]
             for key in keys_to_remove:
                 del self._cache[key]
-
-            if schedule_name in self._dependency_cache:
-                del self._dependency_cache[schedule_name]
 
     def refresh_metadata(self, schedule_name: str) -> None:
         """
@@ -562,29 +555,38 @@ class MetadataClient:
         return self._dependency_graph
 
     def get_dependency_graph_cached(self, schedule_name: str) -> dict[str, dict[str, Any]]:
-        """Get or compute dependency graph with caching"""
-        if schedule_name not in self._dependency_cache:
-            self._ensure_metadata_loaded(schedule_name)
+        """Get or compute dependency graph, cached under the client's TTL.
 
-            # Build dependency graph from database
-            sql = """
-                SELECT unique_id, name, depends_on, children_l1 as children
-                FROM model_metadata
-                WHERE schedule_name = ?
-            """
-            df = self.db.conn.execute(sql, [schedule_name]).pl()
+        Uses the same TTL-checked cache as every other cached method, so a long-lived
+        client cannot hold a stale graph — or an unbounded number of them — forever.
+        """
+        cache_key = self._get_cache_key("dependency_graph", schedule_name)
 
-            graph: dict[str, dict[str, Any]] = {}
-            for row in df.iter_rows(named=True):
-                graph[str(row["unique_id"])] = {
-                    "name": row["name"],
-                    "parents": row["depends_on"] if row["depends_on"] else [],
-                    "children": row["children"] if row["children"] else [],
-                }
+        # An empty graph is a valid result, so test for a miss with `is None`.
+        cached = self._get_from_cache(cache_key)
+        if cached is not None:
+            return cached  # type: ignore[no-any-return]
 
-            self._dependency_cache[schedule_name] = graph
+        self._ensure_metadata_loaded(schedule_name)
 
-        return self._dependency_cache[schedule_name]
+        # Build dependency graph from database
+        sql = """
+            SELECT unique_id, name, depends_on, children_l1 as children
+            FROM model_metadata
+            WHERE schedule_name = ?
+        """
+        df = self.db.conn.execute(sql, [schedule_name]).pl()
+
+        graph: dict[str, dict[str, Any]] = {}
+        for row in df.iter_rows(named=True):
+            graph[str(row["unique_id"])] = {
+                "name": row["name"],
+                "parents": row["depends_on"] if row["depends_on"] else [],
+                "children": row["children"] if row["children"] else [],
+            }
+
+        self._set_cache(cache_key, graph)
+        return graph
 
     def close(self) -> None:
         """Close database connection"""

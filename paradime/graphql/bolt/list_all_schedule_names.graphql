@@ -1,0 +1,9 @@
+query listAllScheduleNames {
+    listAllScheduleNames {
+        ok
+        schedules {
+            name
+            workspaceName
+        }
+    }
+}

@@ -1,6 +1,6 @@
 from enum import Enum
 
-from paradime.tools.pydantic import BaseModel
+from paradime.tools.models import ParadimeResponseModel
 
 
 class UserAccountType(str, Enum):
@@ -20,14 +20,14 @@ class InviteStatus(str, Enum):
     EXPIRED = "EXPIRED"
 
 
-class ActiveUser(BaseModel):
+class ActiveUser(ParadimeResponseModel):
     uid: str
     email: str
     name: str
     account_type: str
 
 
-class InvitedUser(BaseModel):
+class InvitedUser(ParadimeResponseModel):
     email: str
     account_type: str
     invite_status: str

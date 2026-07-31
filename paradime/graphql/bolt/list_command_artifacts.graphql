@@ -1,0 +1,8 @@
+query boltCommand($commandId: Int!) {
+    boltCommand(commandId: $commandId) {
+        resources {
+            id
+            path
+        }
+    }
+}

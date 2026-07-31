@@ -1,6 +1,6 @@
-from paradime.tools.pydantic import BaseModel
+from paradime.tools.models import ParadimeResponseModel
 
 
-class Workspace(BaseModel):
+class Workspace(ParadimeResponseModel):
     name: str
     uid: str

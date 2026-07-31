@@ -5,7 +5,6 @@ from typing import Any, List, Optional
 
 from paradime.core.scripts.gcp_utils import get_gcp_credentials, get_gcp_id_token_credentials
 
-logging.basicConfig(format="%(asctime)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

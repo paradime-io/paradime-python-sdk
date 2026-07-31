@@ -1,7 +1,10 @@
+import logging
 from datetime import datetime
 from typing import Any, Dict, List
 
 from .types import ParsedArtifacts
+
+logger = logging.getLogger(__name__)
 
 
 class ArtifactParser:
@@ -951,7 +954,7 @@ class ArtifactParser:
                 if unique_id and unique_id.startswith("test."):
                     run_results_lookup[unique_id] = result
         except Exception as e:
-            print(f"Warning: Could not parse run results for tests: {e}")
+            logger.warning("Could not parse run results for tests: %s", e)
 
         # Extract test metadata from manifest
         manifest_tests = {}
@@ -970,7 +973,7 @@ class ArtifactParser:
                         manifest_tests[unique_id] = node
 
             except Exception as e:
-                print(f"Warning: Could not parse manifest for tests: {e}")
+                logger.warning("Could not parse manifest for tests: %s", e)
 
         # Process each test from run results and merge with manifest data
         for unique_id, run_result in run_results_lookup.items():
@@ -1164,7 +1167,7 @@ class ArtifactParser:
                 test_data.append(test_record)
 
             except Exception as e:
-                print(f"Warning: Could not process test {unique_id}: {e}")
+                logger.warning("Could not process test %s: %s", unique_id, e)
                 continue
 
         return test_data
@@ -1192,7 +1195,7 @@ class ArtifactParser:
                     manifest_exposures[unique_id] = exposure
 
         except Exception as e:
-            print(f"Warning: Could not parse manifest for exposures: {e}")
+            logger.warning("Could not parse manifest for exposures: %s", e)
 
         # Process each exposure from manifest
         for unique_id, exposure in manifest_exposures.items():
@@ -1311,7 +1314,7 @@ class ArtifactParser:
                 exposure_data.append(exposure_record)
 
             except Exception as e:
-                print(f"Warning: Could not process exposure {unique_id}: {e}")
+                logger.warning("Could not process exposure %s: %s", unique_id, e)
                 continue
 
         return exposure_data

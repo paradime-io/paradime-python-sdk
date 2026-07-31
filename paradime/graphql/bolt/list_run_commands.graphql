@@ -1,0 +1,13 @@
+query boltRunStatus($runId: Int!) {
+    boltRunStatus(runId: $runId) {
+        commands {
+            id
+            command
+            startDttm
+            endDttm
+            stdout
+            stderr
+            returnCode
+        }
+    }
+}

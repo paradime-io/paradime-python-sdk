@@ -1,0 +1,17 @@
+mutation updateCustomIntegration(
+    $integrationUid: String!,
+    $name: String,
+    $logoUrl: String,
+    $nodeTypes: [IntegrationNodeTypeInfo!],
+    $active: Boolean
+) {
+    updateCustomIntegration(
+        integrationUid: $integrationUid,
+        name: $name,
+        logoUrl: $logoUrl,
+        nodeTypes: $nodeTypes,
+        active: $active
+    ) {
+        ok
+    }
+}

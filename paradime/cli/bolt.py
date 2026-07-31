@@ -488,7 +488,9 @@ def artifact(
         else:
             output_file_path = Path(output_path)
 
-        output_file_path.write_text(requests.get(artifact_url).text)
+        artifact_response = requests.get(artifact_url, timeout=client.timeout)
+        artifact_response.raise_for_status()
+        output_file_path.write_text(artifact_response.text)
 
         print_artifact_downloaded(output_file_path)
     except ParadimeException as e:

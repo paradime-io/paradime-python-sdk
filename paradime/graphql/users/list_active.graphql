@@ -1,0 +1,10 @@
+query listActiveUsers {
+    listUsers{
+        activeUsers{
+            uid
+            email
+            name
+            accountType
+        }
+    }
+}
