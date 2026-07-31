@@ -17,7 +17,9 @@ from paradime.apis.bolt.types import (
     BoltIntegrationsInput,
     BoltLogLine,
     BoltNotificationsInput,
+    BoltRun,
     BoltRunState,
+    BoltSchedule,
     BoltScheduleInfo,
     BoltScheduleRuns,
     BoltSchedules,
@@ -352,6 +354,45 @@ class BoltClient:
 
         return parse_obj_as(BoltSchedules, response_json)
 
+    def iter_schedules(
+        self,
+        *,
+        page_size: int = 100,
+        show_inactive: bool = False,
+        suspended: Optional[bool] = None,
+    ) -> Iterator[BoltSchedule]:
+        """
+        Yield every Bolt schedule, fetching pages as needed.
+
+        Wraps :meth:`list_schedules` so callers do not have to drive `offset`/`limit`
+        against `total_count` themselves.
+
+        Args:
+            page_size (int): How many schedules to fetch per request. Default is 100.
+            show_inactive (bool): Return inactive schedules instead of active ones.
+            suspended (Optional[bool]): Filter by paused state. None returns all.
+
+        Yields:
+            BoltSchedule: Each schedule, in the order the API returns them.
+        """
+
+        offset = 0
+        while True:
+            page = self.list_schedules(
+                offset=offset,
+                limit=page_size,
+                show_inactive=show_inactive,
+                suspended=suspended,
+            )
+
+            yield from page.schedules
+
+            offset += len(page.schedules)
+            # Stop on an empty page as well as on the count, so a total_count that
+            # disagrees with the returned rows cannot spin forever.
+            if not page.schedules or offset >= page.total_count:
+                return
+
     def list_runs(
         self,
         *,
@@ -394,6 +435,42 @@ class BoltClient:
         )["listBoltRuns"]
 
         return parse_obj_as(BoltScheduleRuns, response_json)
+
+    def iter_runs(
+        self,
+        *,
+        slug: Optional[str] = None,
+        schedule_name: Optional[str] = None,
+        page_size: int = 50,
+    ) -> Iterator[BoltRun]:
+        """
+        Yield every run for a schedule, fetching pages as needed.
+
+        Wraps :meth:`list_runs`. Unlike `list_schedules`, the runs query returns no
+        total count, so paging stops on the first short page.
+
+        Args:
+            slug (Optional[str]): The schedule slug. Preferred over ``schedule_name``.
+            schedule_name (Optional[str]): Deprecated alias for ``slug``.
+            page_size (int): How many runs to fetch per request. Default is 50.
+
+        Yields:
+            BoltRun: Each run, newest first.
+        """
+
+        resolved_slug = _resolve_slug_or_schedule_name(
+            slug=slug, schedule_name=schedule_name, method="iter_runs"
+        )
+
+        offset = 0
+        while True:
+            page = self.list_runs(slug=resolved_slug, offset=offset, limit=page_size)
+
+            yield from page.runs
+
+            if len(page.runs) < page_size:
+                return
+            offset += len(page.runs)
 
     def get_schedule(
         self,

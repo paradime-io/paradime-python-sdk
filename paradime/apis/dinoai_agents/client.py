@@ -1,6 +1,4 @@
 import logging
-import time
-from datetime import datetime, timedelta
 from typing import Optional
 
 from paradime.apis.dinoai_agents.exception import DinoaiAgentRunFailedException
@@ -11,6 +9,7 @@ from paradime.apis.dinoai_agents.types import (
 )
 from paradime.client.api_client import APIClient
 from paradime.graphql import load_operation
+from paradime.tools.polling import poll_until
 from paradime.tools.pydantic import parse_obj_as
 
 logger = logging.getLogger(__name__)
@@ -119,7 +118,7 @@ class DinoaiAgentsClient:
         slack_thread: Optional[str] = None,
         base_branch: Optional[str] = None,
         timeout: int = 3600,
-        poll_interval: int = 10,
+        poll_interval: float = 10.0,
     ) -> DinoaiAgentRun:
         """
         Triggers a DinoAI agent run and blocks until it completes or fails.
@@ -155,14 +154,7 @@ class DinoaiAgentsClient:
             " Waiting for completion..."
         )
 
-        start_time = datetime.now()
-        while True:
-            run = self.get_run(agent_session_id=result.agent_session_id)
-
-            if run.status == DinoaiAgentRunStatus.COMPLETED:
-                logger.info("[COMPLETED] DinoAI agent run finished successfully.")
-                return run
-
+        def is_terminal(run: DinoaiAgentRun) -> bool:
             if run.status == DinoaiAgentRunStatus.FAILED:
                 last_content = run.messages[-1].content if run.messages else "no messages"
                 error_message = f"[ERROR] DinoAI agent run failed. Last message: {last_content}"
@@ -179,11 +171,19 @@ class DinoaiAgentsClient:
                 logger.info(error_message)
                 raise DinoaiAgentRunFailedException(error_message)
 
-            if datetime.now() - start_time > timedelta(seconds=timeout):
-                raise TimeoutError(
-                    f"[TIMEOUT] Timed out waiting for DinoAI agent run to complete."
-                    f" Last status: {run.status}. Session ID: {result.agent_session_id}"
-                )
+            return run.status == DinoaiAgentRunStatus.COMPLETED
 
-            logger.info(f"[IN PROGRESS] DinoAI agent run status: {run.status}.")
-            time.sleep(poll_interval)
+        run = poll_until(
+            lambda: self.get_run(agent_session_id=result.agent_session_id),
+            is_terminal,
+            timeout=timeout,
+            interval=poll_interval,
+            on_poll=lambda r: logger.info(f"[IN PROGRESS] DinoAI agent run status: {r.status}."),
+            timeout_message=lambda r: (
+                "[TIMEOUT] Timed out waiting for DinoAI agent run to complete."
+                f" Last status: {r.status}. Session ID: {result.agent_session_id}"
+            ),
+        )
+
+        logger.info("[COMPLETED] DinoAI agent run finished successfully.")
+        return run

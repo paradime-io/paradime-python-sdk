@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from paradime.apis.audit_log.client import AuditLogClient
 from paradime.apis.bolt.client import BoltClient
@@ -6,11 +6,18 @@ from paradime.apis.catalog.client import CatalogClient
 from paradime.apis.custom_integration.client import CustomIntegrationClient
 from paradime.apis.dinoai_agents.client import DinoaiAgentsClient
 from paradime.apis.lineage_diff.client import LineageDiffClient
-from paradime.apis.metadata.client import MetadataClient
 from paradime.apis.users.client import UsersClient
 from paradime.apis.workspaces.client import WorkspacesClient
 from paradime.client.api_client import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT_SECONDS, APIClient
 from paradime.version_check import check_for_new_version
+
+if TYPE_CHECKING:
+    from paradime.apis.metadata.client import MetadataClient
+
+_METADATA_EXTRA_HINT = (
+    "The metadata API needs extra dependencies that are not installed by default. "
+    "Install them with:\n\n    pip install 'paradime-io[metadata]'\n"
+)
 
 
 class Paradime(APIClient):
@@ -24,7 +31,8 @@ class Paradime(APIClient):
         custom_integration (CustomIntegrationClient): The custom integration API client.
         dinoai_agents (DinoaiAgentsClient): The DinoAI programmable agents API client.
         lineage_diff (LineageDiffClient): The lineage diff API client.
-        metadata (MetadataClient): The metadata API client.
+        metadata (MetadataClient): The metadata API client. Constructed on first
+            access; requires the `metadata` extra (`pip install 'paradime-io[metadata]'`).
         users (UsersClient): The users API client.
         workspaces (WorkspacesClient): The workspaces API client.
 
@@ -42,6 +50,9 @@ class Paradime(APIClient):
         max_retries (int, optional): How many times to attempt a request before giving up.
             Retries cover connection errors, timeouts, and the 429/502/503/504 statuses,
             with exponential backoff. Set to 1 to disable retries. Defaults to 3.
+        check_for_updates (bool, optional): Check PyPI for a newer SDK release and print a
+            notice to stderr if one exists. Off by default so that constructing a client
+            never makes an unexpected outbound request. Defaults to False.
     """
 
     audit_log: AuditLogClient
@@ -50,7 +61,6 @@ class Paradime(APIClient):
     custom_integration: CustomIntegrationClient
     dinoai_agents: DinoaiAgentsClient
     lineage_diff: LineageDiffClient
-    metadata: MetadataClient
     users: UsersClient
     workspaces: WorkspacesClient
 
@@ -63,6 +73,7 @@ class Paradime(APIClient):
         api_endpoint: str,
         timeout: int = DEFAULT_TIMEOUT_SECONDS,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        check_for_updates: bool = False,
     ):
         super().__init__(
             api_key=api_key,
@@ -73,7 +84,10 @@ class Paradime(APIClient):
             max_retries=max_retries,
         )
 
-        check_for_new_version()
+        # Opt-in only. A library constructor should not reach out to pypi.org — that is
+        # surprising in a server or a Lambda. The CLI still checks on every invocation.
+        if check_for_updates:
+            check_for_new_version()
 
         self.audit_log = AuditLogClient(client=self)
         self.bolt = BoltClient(client=self)
@@ -81,6 +95,27 @@ class Paradime(APIClient):
         self.custom_integration = CustomIntegrationClient(client=self)
         self.dinoai_agents = DinoaiAgentsClient(client=self)
         self.lineage_diff = LineageDiffClient(client=self)
-        self.metadata = MetadataClient(bolt_client=self.bolt)
         self.users = UsersClient(client=self)
         self.workspaces = WorkspacesClient(client=self)
+
+        self._metadata: Optional["MetadataClient"] = None
+
+    @property
+    def metadata(self) -> "MetadataClient":
+        """The metadata API client, constructed on first access.
+
+        Unlike the other sub-clients this one is not an HTTP client — it downloads
+        dbt artifacts and queries them locally through DuckDB and polars. Those
+        dependencies ship in the `metadata` extra, so it is built lazily and only
+        raises if the caller actually reaches for it.
+        """
+
+        if self._metadata is None:
+            try:
+                from paradime.apis.metadata.client import MetadataClient
+            except ImportError as e:
+                raise ImportError(f"{_METADATA_EXTRA_HINT}\nOriginal error: {e}") from e
+
+            self._metadata = MetadataClient(bolt_client=self.bolt)
+
+        return self._metadata

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "paradime-io"
-version = "6.4.0"
+version = "7.0.0"
 description = "Paradime - Python SDK"
 authors = [
     { name = "Bhuvan Singla", email = "bhuvan@paradime.io" },
@@ -12,24 +12,39 @@ authors = [
 ]
 readme = "README.md"
 requires-python = ">=3.11"
+# Only what the SDK client itself needs. Everything else is an extra — see below.
 dependencies = [
     "pydantic>=1.10.14,<3.0.0",
     "requests>=2.31.0,<3.0.0",
-    "click>=8.1.7,<9.0.0",
-    "croniter>=6.0.0,<7.0.0",
-    "pyyaml>=6.0.1,<7.0.0",
-    "python-dotenv>=1.0.1,<2.0.0",
     "packaging>=22.0",
-    "msal>=1.31.0,<2.0.0",
+    "tenacity>=9.0.0,<10.0.0",
+]
+
+[project.optional-dependencies]
+# The `paradime` CLI and the paradime_schedules.yml tooling.
+cli = [
+    "click>=8.1.7,<9.0.0",
     "rich>=14.0.0,<15.0.0",
     "prompt-toolkit>=3.0.40,<4.0.0",
+    "pyyaml>=6.0.1,<7.0.0",
+    "python-dotenv>=1.0.1,<2.0.0",
+    "croniter>=6.0.0,<7.0.0",
+    "ruamel.yaml>=0.18.0,<0.19.0",
+]
+# paradime.metadata — local DuckDB/polars analytics over dbt artifacts.
+metadata = [
     "dbt-artifacts-parser>=0.12.0,<0.13.0",
     "duckdb>=1.0.0,<2.0.0",
     "polars>=0.20.0,<0.21.0",
     "pyarrow>=18.0.0,<19.0.0",
     "numpy>=1.26.0",
-    "tenacity>=9.0.0,<10.0.0",
+]
+# `paradime run aws-*` integrations.
+aws = [
     "boto3>=1.35.0,<2.0.0",
+]
+# `paradime run gcp-*` integrations.
+gcp = [
     "google-cloud-bigquery-datatransfer>=3.15.0,<4.0.0",
     "google-cloud-functions>=1.16.0,<2.0.0",
     "google-cloud-run>=0.10.0,<0.11.0",
@@ -37,11 +52,22 @@ dependencies = [
     "google-cloud-dataproc>=5.9.0,<6.0.0",
     "google-cloud-datastream>=1.9.0,<2.0.0",
     "google-auth>=2.29.0,<3.0.0",
-    "ruamel.yaml>=0.18.0,<0.19.0",
+]
+# `paradime run power-bi-*` integrations.
+azure = [
+    "msal>=1.31.0,<2.0.0",
+]
+# Everything, matching what `pip install paradime-io` pulled in before 7.0.0.
+all = [
+    "paradime-io[cli]",
+    "paradime-io[metadata]",
+    "paradime-io[aws]",
+    "paradime-io[gcp]",
+    "paradime-io[azure]",
 ]
 
 [project.scripts]
-paradime = "paradime.cli.cli:cli"
+paradime = "paradime.cli.entrypoint:main"
 
 [dependency-groups]
 dev = [

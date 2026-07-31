@@ -925,9 +925,17 @@ wheels = [
 
 [[package]]
 name = "paradime-io"
-version = "6.4.0"
+version = "7.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "packaging" },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "tenacity" },
+]
+
+[package.optional-dependencies]
+all = [
     { name = "boto3" },
     { name = "click" },
     { name = "croniter" },
@@ -942,17 +950,44 @@ dependencies = [
     { name = "google-cloud-run" },
     { name = "msal" },
     { name = "numpy" },
-    { name = "packaging" },
     { name = "polars" },
     { name = "prompt-toolkit" },
     { name = "pyarrow" },
-    { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
-    { name = "requests" },
     { name = "rich" },
     { name = "ruamel-yaml" },
-    { name = "tenacity" },
+]
+aws = [
+    { name = "boto3" },
+]
+azure = [
+    { name = "msal" },
+]
+cli = [
+    { name = "click" },
+    { name = "croniter" },
+    { name = "prompt-toolkit" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "ruamel-yaml" },
+]
+gcp = [
+    { name = "google-auth" },
+    { name = "google-cloud-bigquery-datatransfer" },
+    { name = "google-cloud-dataflow-client" },
+    { name = "google-cloud-dataproc" },
+    { name = "google-cloud-datastream" },
+    { name = "google-cloud-functions" },
+    { name = "google-cloud-run" },
+]
+metadata = [
+    { name = "dbt-artifacts-parser" },
+    { name = "duckdb" },
+    { name = "numpy" },
+    { name = "polars" },
+    { name = "pyarrow" },
 ]
 
 [package.dev-dependencies]
@@ -970,32 +1005,38 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "boto3", specifier = ">=1.35.0,<2.0.0" },
-    { name = "click", specifier = ">=8.1.7,<9.0.0" },
-    { name = "croniter", specifier = ">=6.0.0,<7.0.0" },
-    { name = "dbt-artifacts-parser", specifier = ">=0.12.0,<0.13.0" },
-    { name = "duckdb", specifier = ">=1.0.0,<2.0.0" },
-    { name = "google-auth", specifier = ">=2.29.0,<3.0.0" },
-    { name = "google-cloud-bigquery-datatransfer", specifier = ">=3.15.0,<4.0.0" },
-    { name = "google-cloud-dataflow-client", specifier = ">=0.8.0,<0.9.0" },
-    { name = "google-cloud-dataproc", specifier = ">=5.9.0,<6.0.0" },
-    { name = "google-cloud-datastream", specifier = ">=1.9.0,<2.0.0" },
-    { name = "google-cloud-functions", specifier = ">=1.16.0,<2.0.0" },
-    { name = "google-cloud-run", specifier = ">=0.10.0,<0.11.0" },
-    { name = "msal", specifier = ">=1.31.0,<2.0.0" },
-    { name = "numpy", specifier = ">=1.26.0" },
+    { name = "boto3", marker = "extra == 'aws'", specifier = ">=1.35.0,<2.0.0" },
+    { name = "click", marker = "extra == 'cli'", specifier = ">=8.1.7,<9.0.0" },
+    { name = "croniter", marker = "extra == 'cli'", specifier = ">=6.0.0,<7.0.0" },
+    { name = "dbt-artifacts-parser", marker = "extra == 'metadata'", specifier = ">=0.12.0,<0.13.0" },
+    { name = "duckdb", marker = "extra == 'metadata'", specifier = ">=1.0.0,<2.0.0" },
+    { name = "google-auth", marker = "extra == 'gcp'", specifier = ">=2.29.0,<3.0.0" },
+    { name = "google-cloud-bigquery-datatransfer", marker = "extra == 'gcp'", specifier = ">=3.15.0,<4.0.0" },
+    { name = "google-cloud-dataflow-client", marker = "extra == 'gcp'", specifier = ">=0.8.0,<0.9.0" },
+    { name = "google-cloud-dataproc", marker = "extra == 'gcp'", specifier = ">=5.9.0,<6.0.0" },
+    { name = "google-cloud-datastream", marker = "extra == 'gcp'", specifier = ">=1.9.0,<2.0.0" },
+    { name = "google-cloud-functions", marker = "extra == 'gcp'", specifier = ">=1.16.0,<2.0.0" },
+    { name = "google-cloud-run", marker = "extra == 'gcp'", specifier = ">=0.10.0,<0.11.0" },
+    { name = "msal", marker = "extra == 'azure'", specifier = ">=1.31.0,<2.0.0" },
+    { name = "numpy", marker = "extra == 'metadata'", specifier = ">=1.26.0" },
     { name = "packaging", specifier = ">=22.0" },
-    { name = "polars", specifier = ">=0.20.0,<0.21.0" },
-    { name = "prompt-toolkit", specifier = ">=3.0.40,<4.0.0" },
-    { name = "pyarrow", specifier = ">=18.0.0,<19.0.0" },
+    { name = "paradime-io", extras = ["aws"], marker = "extra == 'all'" },
+    { name = "paradime-io", extras = ["azure"], marker = "extra == 'all'" },
+    { name = "paradime-io", extras = ["cli"], marker = "extra == 'all'" },
+    { name = "paradime-io", extras = ["gcp"], marker = "extra == 'all'" },
+    { name = "paradime-io", extras = ["metadata"], marker = "extra == 'all'" },
+    { name = "polars", marker = "extra == 'metadata'", specifier = ">=0.20.0,<0.21.0" },
+    { name = "prompt-toolkit", marker = "extra == 'cli'", specifier = ">=3.0.40,<4.0.0" },
+    { name = "pyarrow", marker = "extra == 'metadata'", specifier = ">=18.0.0,<19.0.0" },
     { name = "pydantic", specifier = ">=1.10.14,<3.0.0" },
-    { name = "python-dotenv", specifier = ">=1.0.1,<2.0.0" },
-    { name = "pyyaml", specifier = ">=6.0.1,<7.0.0" },
+    { name = "python-dotenv", marker = "extra == 'cli'", specifier = ">=1.0.1,<2.0.0" },
+    { name = "pyyaml", marker = "extra == 'cli'", specifier = ">=6.0.1,<7.0.0" },
     { name = "requests", specifier = ">=2.31.0,<3.0.0" },
-    { name = "rich", specifier = ">=14.0.0,<15.0.0" },
-    { name = "ruamel-yaml", specifier = ">=0.18.0,<0.19.0" },
+    { name = "rich", marker = "extra == 'cli'", specifier = ">=14.0.0,<15.0.0" },
+    { name = "ruamel-yaml", marker = "extra == 'cli'", specifier = ">=0.18.0,<0.19.0" },
     { name = "tenacity", specifier = ">=9.0.0,<10.0.0" },
 ]
+provides-extras = ["cli", "metadata", "aws", "gcp", "azure", "all"]
 
 [package.metadata.requires-dev]
 dev = [
