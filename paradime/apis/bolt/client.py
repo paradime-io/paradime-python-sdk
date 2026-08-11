@@ -11,6 +11,7 @@ from paradime.apis.bolt.exception import (
 from paradime.apis.bolt.types import (
     BoltCommand,
     BoltCommandArtifact,
+    BoltCommandConfigInput,
     BoltCommandLogs,
     BoltDeferredSchedule,
     BoltDeferredScheduleConfigInput,
@@ -130,17 +131,21 @@ class BoltClient:
         *,
         slug: Optional[str] = None,
         reason: Optional[str] = None,
+        command_configs: Optional[List[Union[BoltCommandConfigInput, Dict[str, Any]]]] = None,
+        continue_on_error: Optional[bool] = None,
     ) -> int:
         """
         Triggers a run for a given schedule.
 
         Args:
             schedule_name (Optional[str]): Deprecated alias for ``slug`` — carries a schedule slug. Kept for backwards compatibility with older SDK callers. Exactly one of ``slug`` or ``schedule_name`` must be provided.
-            commands (Optional[List[str]], optional): The list of commands to execute in the run. This will override the commands defined in the schedule. Defaults to None.
+            commands (Optional[List[str]], optional): The list of commands to execute in the run. This will override the commands defined in the schedule. At most one of ``commands`` or ``command_configs`` may be provided. Defaults to None.
             branch (Optional[str], optional): The branch or commit hash to run the commands on. Defaults to None.
             pr_number (Optional[int], optional): The pull request number to associate with the run. Defaults to None.
             slug (Optional[str]): The schedule slug returned by ``createBoltSchedule``. Preferred over ``schedule_name``.
             reason (Optional[str], optional): A freeform reason/label describing why or from where the run was triggered (e.g. the application that made the call). Defaults to None.
+            command_configs (Optional[List[Union[BoltCommandConfigInput, Dict[str, Any]]]], optional): Command override with per-command settings, e.g. ``[BoltCommandConfigInput(command="dbt run", continue_on_error=True)]``. At most one of ``commands`` or ``command_configs`` may be provided. Requires the Bolt continue-on-error feature to be enabled for the workspace. Defaults to None.
+            continue_on_error (Optional[bool], optional): Run-level default for continuing past a failed command; overrides the schedule-level setting for this run only. Requires the Bolt continue-on-error feature to be enabled for the workspace. Defaults to None.
 
         Returns:
             int: The ID of the triggered run.
@@ -149,24 +154,43 @@ class BoltClient:
         resolved_slug = _resolve_slug_or_schedule_name(
             slug=slug, schedule_name=schedule_name, method="trigger_run"
         )
+        if commands is not None and command_configs is not None:
+            raise ValueError(
+                "`trigger_run` accepts at most one of `commands` or `command_configs`."
+            )
 
-        query = """
-            mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int, $reason: String) {
-                triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber, reason: $reason){
+        variables: Dict[str, Any] = {
+            "slug": resolved_slug,
+            "commands": commands,
+            "branch": branch,
+            "prNumber": pr_number,
+            "reason": reason,
+        }
+        # The continue-on-error arguments are only declared in the GraphQL
+        # document when actually used, so requests from existing callers stay
+        # unchanged and keep working against backends that predate them.
+        extra_declarations = ""
+        extra_arguments = ""
+        if command_configs is not None:
+            extra_declarations += ", $commandConfigs: [BoltCommandInput!]"
+            extra_arguments += ", commandConfigs: $commandConfigs"
+            variables["commandConfigs"] = _serialize_input_list(command_configs)
+        if continue_on_error is not None:
+            extra_declarations += ", $continueOnError: Boolean"
+            extra_arguments += ", continueOnError: $continueOnError"
+            variables["continueOnError"] = continue_on_error
+
+        query = f"""
+            mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int, $reason: String{extra_declarations}) {{
+                triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber, reason: $reason{extra_arguments}){{
                     runId
-                }
-            }
+                }}
+            }}
         """
 
         response_json = self.client._call_gql(
             query=query,
-            variables={
-                "slug": resolved_slug,
-                "commands": commands,
-                "branch": branch,
-                "prNumber": pr_number,
-                "reason": reason,
-            },
+            variables=variables,
         )["triggerBoltRun"]
 
         return response_json["runId"]
