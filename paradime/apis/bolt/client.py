@@ -14,6 +14,7 @@ from paradime.apis.bolt.types import (
     BoltCommandLogs,
     BoltDeferredSchedule,
     BoltDeferredScheduleConfigInput,
+    BoltEnvironment,
     BoltEnvironmentVariableInput,
     BoltIntegrationsInput,
     BoltLogLine,
@@ -1316,6 +1317,38 @@ class BoltClient:
         """
         response = self.client._call_gql(query=query)["listAllScheduleNames"]
         return [(s["workspaceName"], s["name"]) for s in response["schedules"]]
+
+    def list_environments(self) -> List[BoltEnvironment]:
+        """List the workspace's Bolt (scheduler) environments.
+
+        A schedule's ``environment`` field must name one of these slugs.
+
+        Returns:
+            A list of environments; ``slug`` is the immutable identifier that
+            schedules reference, ``display_name`` the human-facing label, and
+            ``is_default`` marks the workspace default environment.
+        """
+        query = """
+            query listBoltEnvironments {
+                environments(environmentType: SCHEDULER) {
+                    ok
+                    environments {
+                        slug
+                        displayName
+                        isDefault
+                    }
+                }
+            }
+        """
+        response = self.client._call_gql(query=query)["environments"]
+        return [
+            BoltEnvironment(
+                slug=environment["slug"],
+                display_name=environment["displayName"],
+                is_default=environment["isDefault"],
+            )
+            for environment in response["environments"]
+        ]
 
     def create_schedule_slugs(self, display_names: List[str]) -> List[str]:
         """Mint slugs for a list of display names via the backend.

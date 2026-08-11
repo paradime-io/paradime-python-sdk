@@ -28,6 +28,12 @@ class BoltDeferredSchedule(BaseModel):
     successful_run_only: bool
 
 
+class BoltEnvironment(BaseModel):
+    slug: str
+    display_name: str
+    is_default: bool
+
+
 class BoltNotificationItem(BaseModel):
     channel: Optional[str]
     events: Optional[List[str]]

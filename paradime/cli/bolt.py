@@ -286,6 +286,7 @@ def verify(path: str) -> None:
     # workspaces (used only to validate cross-workspace schedule_trigger refs).
     existing_names: set[str] = set()
     all_schedules_ref: set[tuple[str, str]] = set()
+    valid_environments: set[str] = set()
     try:
         client = get_cli_client_or_exit()
         try:
@@ -297,6 +298,10 @@ def verify(path: str) -> None:
             all_schedules_ref = set(client.bolt.list_all_schedule_names())
         except Exception:
             pass
+        try:
+            valid_environments = {e.slug for e in client.bolt.list_environments()}
+        except Exception:
+            pass
     except (ParadimeAPIException, ParadimeException):
         client = None
 
@@ -304,6 +309,7 @@ def verify(path: str) -> None:
         schedule_path,
         existing_names=existing_names,
         schedule_trigger_refs=all_schedules_ref or None,
+        valid_environments=valid_environments or None,
     )
     if error_string:
         _console.result_panel(error_string, style="error", title="Schedules Verification")
