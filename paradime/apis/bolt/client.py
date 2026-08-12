@@ -160,38 +160,25 @@ class BoltClient:
                 "`trigger_run` accepts at most one of `commands` or `command_configs`."
             )
 
-        variables: Dict[str, Any] = {
-            "slug": resolved_slug,
-            "commands": commands,
-            "branch": branch,
-            "prNumber": pr_number,
-            "reason": reason,
-        }
-        # The continue-on-error arguments are only declared in the GraphQL
-        # document when actually used, so requests from existing callers stay
-        # unchanged and keep working against backends that predate them.
-        extra_declarations = ""
-        extra_arguments = ""
-        if command_configs is not None:
-            extra_declarations += ", $commandConfigs: [BoltCommandInput!]"
-            extra_arguments += ", commandConfigs: $commandConfigs"
-            variables["commandConfigs"] = _serialize_input_list(command_configs)
-        if continue_on_error is not None:
-            extra_declarations += ", $continueOnError: Boolean"
-            extra_arguments += ", continueOnError: $continueOnError"
-            variables["continueOnError"] = continue_on_error
-
-        query = f"""
-            mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int, $reason: String{extra_declarations}) {{
-                triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber, reason: $reason{extra_arguments}){{
+        query = """
+            mutation triggerBoltRun($slug: String, $commands: [String!], $branch: String, $prNumber: Int, $reason: String, $commandConfigs: [BoltCommandInput!], $continueOnError: Boolean) {
+                triggerBoltRun(slug: $slug, commands: $commands, branch: $branch, prNumber: $prNumber, reason: $reason, commandConfigs: $commandConfigs, continueOnError: $continueOnError){
                     runId
-                }}
-            }}
+                }
+            }
         """
 
         response_json = self.client._call_gql(
             query=query,
-            variables=variables,
+            variables={
+                "slug": resolved_slug,
+                "commands": commands,
+                "branch": branch,
+                "prNumber": pr_number,
+                "reason": reason,
+                "commandConfigs": _serialize_input_list(command_configs),
+                "continueOnError": continue_on_error,
+            },
         )["triggerBoltRun"]
 
         return response_json["runId"]

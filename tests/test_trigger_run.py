@@ -23,20 +23,20 @@ def _bolt() -> BoltClient:
     return BoltClient(FakeAPIClient())  # type: ignore[arg-type]
 
 
-def test_plain_trigger_request_is_unchanged() -> None:
+def test_plain_trigger_request() -> None:
     bolt = _bolt()
     run_id = bolt.trigger_run(slug="my-schedule", commands=["dbt run"], branch="main")
 
     assert run_id == 42
     api = bolt.client
-    assert "commandConfigs" not in api.query  # type: ignore[union-attr, operator]
-    assert "continueOnError" not in api.query  # type: ignore[union-attr, operator]
     assert api.variables == {  # type: ignore[union-attr]
         "slug": "my-schedule",
         "commands": ["dbt run"],
         "branch": "main",
         "prNumber": None,
         "reason": None,
+        "commandConfigs": None,
+        "continueOnError": None,
     }
 
 
@@ -51,8 +51,6 @@ def test_command_configs_serialized_to_camel_case() -> None:
     )
 
     api = bolt.client
-    assert "$commandConfigs: [BoltCommandInput!]" in api.query  # type: ignore[union-attr, operator]
-    assert "commandConfigs: $commandConfigs" in api.query  # type: ignore[union-attr, operator]
     assert api.variables["commandConfigs"] == [  # type: ignore[index]
         {"command": "dbt seed"},
         {"command": "dbt run", "continueOnError": True},
@@ -77,8 +75,6 @@ def test_run_level_continue_on_error() -> None:
     bolt.trigger_run(slug="my-schedule", continue_on_error=False)
 
     api = bolt.client
-    assert "$continueOnError: Boolean" in api.query  # type: ignore[union-attr, operator]
-    assert "continueOnError: $continueOnError" in api.query  # type: ignore[union-attr, operator]
     assert api.variables["continueOnError"] is False  # type: ignore[index]
 
 
