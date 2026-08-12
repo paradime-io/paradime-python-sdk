@@ -270,3 +270,11 @@ class BoltEnvironmentVariableInput(_BoltInputBase):
 
     key: str
     value: str
+
+
+class BoltCommandConfigInput(_BoltInputBase):
+    """One ad-hoc command with per-command settings (``triggerBoltRun`` ``commandConfigs``)."""
+
+    command: str
+    continue_on_error: Optional[bool] = None
+    """Per-command override; ``None`` falls back to the run/schedule-level default."""
