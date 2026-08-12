@@ -380,6 +380,7 @@ def is_valid_schedule_at_path(
     file_path: Path,
     existing_names: Optional[Set[str]] = None,
     schedule_trigger_refs: Optional[Set[Tuple[str, str]]] = None,
+    valid_environments: Optional[Set[str]] = None,
 ) -> Optional[str]:
     """Validate a schedule YAML file.
 
@@ -395,6 +396,10 @@ def is_valid_schedule_at_path(
             ``schedule_trigger`` may point at a schedule in another workspace).
             When ``None`` (e.g. offline / API unavailable) the cross-workspace
             check is skipped.
+        valid_environments: Optional set of the workspace's Bolt environment
+            slugs. When provided, each schedule's ``environment`` must be one
+            of them. When ``None`` (e.g. offline / API unavailable) the check
+            is skipped.
     """
     try:
         schedules = _get_schedules(file_path)
@@ -438,6 +443,17 @@ def is_valid_schedule_at_path(
                 return (
                     f"Schedule trigger error: '{trigger.schedule_name}' does not refer to a known "
                     f"schedule in workspace '{trigger.workspace_name}'"
+                )
+
+    # check environments refer to known workspace environments (skipped when
+    # the environment list is unavailable, e.g. offline)
+    if valid_environments is not None:
+        for schedule in schedules.schedules:
+            if schedule.environment not in valid_environments:
+                return (
+                    f"{schedule.name}: Environment '{schedule.environment}' does not match any "
+                    f"Bolt environment in this workspace - "
+                    f"use one of: {', '.join(sorted(valid_environments))}."
                 )
 
     # Verify schedules individually
