@@ -74,7 +74,11 @@ def dinoai(
             session_id=session_id,
             rendered=rendered,
         )
-        if final_status in (DinoaiAgentRunStatus.FAILED, DinoaiAgentRunStatus.EXPIRED):
+        if final_status in (
+            DinoaiAgentRunStatus.FAILED,
+            DinoaiAgentRunStatus.EXPIRED,
+            DinoaiAgentRunStatus.STOPPED,
+        ):
             sys.exit(1)
         return
 
@@ -155,8 +159,12 @@ def _poll(
 
     For COMPLETED/FAILED the break condition requires an actual agent message to
     have streamed in — we don't trust a stale terminal status carrying over from
-    the previous turn. EXPIRED breaks immediately: the pod never started, so no
-    message will ever arrive.
+    the previous turn. STOPPED only needs the turn to have started, since a stopped
+    run may never emit a message. EXPIRED breaks immediately: the pod never started,
+    so no message will ever arrive.
+
+    An unknown status (a newer backend state this SDK doesn't model) is treated as
+    non-terminal, so polling continues rather than failing.
 
     Ctrl-C aborts the current turn without killing the chat — the run continues
     server-side and can be rejoined with `--session <id>`.
@@ -164,6 +172,7 @@ def _poll(
     start = time.monotonic()
     display_status = "QUEUED"
     new_agent_messages = 0
+    turn_started = False
     last_content: Optional[str] = None
     try:
         with console.spinner(_spinner_label(display_status, start)) as status:
@@ -199,7 +208,20 @@ def _poll(
                 is_terminal = run.status in (
                     DinoaiAgentRunStatus.COMPLETED,
                     DinoaiAgentRunStatus.FAILED,
+                    DinoaiAgentRunStatus.STOPPED,
                 )
+                # Evidence that *this* turn started: either the run is no longer in a
+                # terminal state, or an agent message has streamed in.
+                turn_started = turn_started or not is_terminal or new_agent_messages > 0
+
+                # A stopped run never emits another message, so seeing the turn start is
+                # enough — waiting for a message would hang if it was stopped while idle.
+                if run.status == DinoaiAgentRunStatus.STOPPED and turn_started:
+                    console.error(
+                        "The run was stopped before it finished. Send another message to "
+                        f"continue, or rejoin with: paradime dinoai --session {session_id}"
+                    )
+                    return run.status
 
                 if is_terminal and new_agent_messages > 0:
                     if run.status == DinoaiAgentRunStatus.FAILED:
