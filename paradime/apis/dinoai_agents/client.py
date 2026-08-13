@@ -195,7 +195,8 @@ class DinoaiAgentsClient:
             DinoaiAgentRun: The final run state with all messages.
 
         Raises:
-            DinoaiAgentRunFailedException: If the agent run finishes with status ``FAILED``.
+            DinoaiAgentRunFailedException: If the agent run ends without completing, i.e. with
+                status ``FAILED``, ``STOPPED`` or ``EXPIRED``.
             TimeoutError: If the run does not complete within ``timeout`` seconds.
         """
         result = self.trigger_run(
@@ -219,9 +220,16 @@ class DinoaiAgentsClient:
                 logger.info("[COMPLETED] DinoAI agent run finished successfully.")
                 return run
 
-            if run.status == DinoaiAgentRunStatus.FAILED:
+            if run.status in (
+                DinoaiAgentRunStatus.FAILED,
+                DinoaiAgentRunStatus.STOPPED,
+                DinoaiAgentRunStatus.EXPIRED,
+            ):
                 last_content = run.messages[-1].content if run.messages else "no messages"
-                error_message = f"[ERROR] DinoAI agent run failed. Last message: {last_content}"
+                error_message = (
+                    f"[ERROR] DinoAI agent run ended with status {run.status.value}."
+                    f" Last message: {last_content}"
+                )
                 logger.info(error_message)
                 raise DinoaiAgentRunFailedException(error_message)
 

@@ -10,13 +10,19 @@ class DinoaiAgentRunStatus(str, Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     EXPIRED = "EXPIRED"  # terminal: the agent pod never started
+    STOPPED = "STOPPED"  # terminal: the run was stopped before it finished
+    # Fallback for statuses this SDK version doesn't know about yet — treated as
+    # non-terminal so an older SDK keeps polling instead of crashing.
+    UNKNOWN = "UNKNOWN"
+
+    @classmethod
+    def _missing_(cls, value: object) -> "DinoaiAgentRunStatus":
+        return cls.UNKNOWN
 
     @classmethod
     def from_str(cls, value: str) -> Optional["DinoaiAgentRunStatus"]:
-        try:
-            return DinoaiAgentRunStatus(value)
-        except ValueError:
-            return None
+        status = cls(value)
+        return None if status is cls.UNKNOWN and value != cls.UNKNOWN.value else status
 
 
 class DinoaiAgentMessage(BaseModel):
