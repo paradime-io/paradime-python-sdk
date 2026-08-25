@@ -37,6 +37,14 @@ from paradime.core.scripts.datahub import push_artifacts_to_datahub
     required=False,
 )
 @env_click_option(
+    "glossary-path",
+    "DATAHUB_GLOSSARY_PATH",
+    help="Optional comma-separated globs (relative to the resources directory) locating "
+    "business glossary YAML files to ingest (e.g. metadata/glossary_terms/**/*.yaml). "
+    "Defaults to any file matching datahub_glossary*.yml or .yaml.",
+    required=False,
+)
+@env_click_option(
     "paradime-resources-directory",
     "PARADIME_RESOURCES_DIRECTORY",
     help="The directory where the paradime resources are stored.",
@@ -48,11 +56,12 @@ def datahub_artifacts_push(
     datahub_token: Optional[str],
     target_platform: str,
     domain: Optional[str],
+    glossary_path: Optional[str],
     paradime_resources_directory: Optional[str],
     json_output: bool,
 ) -> None:
     """
-    Push Bolt dbt artifacts (manifest + catalog) to DataHub
+    Push Bolt dbt artifacts (manifest + catalog) and business glossary files to DataHub
     """
     try:
         success, found_files = push_artifacts_to_datahub(
@@ -61,6 +70,7 @@ def datahub_artifacts_push(
             datahub_token=datahub_token,
             target_platform=target_platform,
             domain=domain,
+            glossary_path=glossary_path,
         )
     except Exception as e:
         if json_output:
