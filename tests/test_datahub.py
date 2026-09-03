@@ -36,10 +36,34 @@ def test_recipe_without_domain_has_no_transformers() -> None:
 
     assert "transformers" not in recipe
     assert recipe["source"]["config"]["target_platform"] == "snowflake"
-    # OVERRIDE so tag/term removals in dbt yml propagate; the PATCH default
-    # merges with server state and removed associations linger forever.
-    assert recipe["source"]["config"]["write_semantics"] == "OVERRIDE"
+    # PATCH is the non-destructive default (matches DataHub's own default and
+    # today's production behavior); OVERRIDE is opt-in via DATAHUB_WRITE_SEMANTICS.
+    assert recipe["source"]["config"]["write_semantics"] == "PATCH"
     assert "token" not in recipe["sink"]["config"]
+
+
+def test_recipe_write_semantics_override() -> None:
+    recipe = build_datahub_recipe(
+        manifest_path=Path("manifest.json"),
+        catalog_path=Path("catalog.json"),
+        datahub_server="https://gms.example.com",
+        target_platform="snowflake",
+        write_semantics="OVERRIDE",
+    )
+
+    assert recipe["source"]["config"]["write_semantics"] == "OVERRIDE"
+
+
+def test_push_rejects_invalid_write_semantics(tmp_path: Path) -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="PATCH or OVERRIDE"):
+        push_artifacts_to_datahub(
+            paradime_resources_directory=str(tmp_path),
+            datahub_server="https://gms.example.com",
+            target_platform="snowflake",
+            write_semantics="MERGE",
+        )
 
 
 def test_recipe_enables_column_meta_mapping() -> None:

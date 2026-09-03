@@ -15,6 +15,7 @@ DATAHUB_TOKEN_ENV_VAR: Final = "DATAHUB_GMS_TOKEN"
 DATAHUB_TARGET_PLATFORM_ENV_VAR: Final = "DATAHUB_TARGET_PLATFORM"
 DATAHUB_DOMAIN_ENV_VAR: Final = "DATAHUB_DOMAIN"
 DATAHUB_GLOSSARY_PATH_ENV_VAR: Final = "DATAHUB_GLOSSARY_PATH"
+DATAHUB_WRITE_SEMANTICS_ENV_VAR: Final = "DATAHUB_WRITE_SEMANTICS"
 
 DEFAULT_GLOSSARY_GLOBS: Final = ("**/datahub_glossary*.yml", "**/datahub_glossary*.yaml")
 
@@ -45,6 +46,7 @@ def build_datahub_recipe(
     target_platform: str,
     domain: Optional[str] = None,
     has_per_entity_domains: bool = False,
+    write_semantics: str = "PATCH",
 ) -> Dict[str, Any]:
     """
     Build an acryl-datahub ingestion recipe that reads dbt artifacts and emits to
@@ -66,6 +68,13 @@ def build_datahub_recipe(
     runs after the source and would overwrite the per-entity domains. The
     workspace domain is then applied as a per-entity fallback by rewriting the
     manifest instead (see ``inject_fallback_domain``).
+
+    ``write_semantics`` controls how emitted tags/terms/owners interact with what
+    already exists in DataHub. "PATCH" (the default, matching DataHub's own
+    default) merges with server state: nothing added outside dbt is touched, but
+    associations removed from dbt yml linger in DataHub. "OVERRIDE" makes the
+    dbt yml the source of truth: removals propagate, at the cost of wiping
+    tags/terms added to the dbt entities via the DataHub UI/API on every sync.
     """
     sink_config: Dict[str, Any] = {"server": datahub_server}
     if datahub_token:
@@ -79,10 +88,7 @@ def build_datahub_recipe(
                 "catalog_path": str(catalog_path),
                 "target_platform": target_platform,
                 "column_meta_mapping": _COLUMN_META_MAPPING_ACTIVATOR,
-                # The default ("PATCH") merges tags/terms/owners with existing
-                # server state, so associations removed from dbt yml would linger
-                # in DataHub forever. OVERRIDE makes the yml the source of truth.
-                "write_semantics": "OVERRIDE",
+                "write_semantics": write_semantics,
             },
         },
         "sink": {
@@ -212,6 +218,7 @@ def push_artifacts_to_datahub(
     target_platform: str,
     domain: Optional[str] = None,
     glossary_path: Optional[str] = None,
+    write_semantics: str = "PATCH",
 ) -> Tuple[bool, bool]:
     """
     Search the resources directory for dbt artifacts (``target/manifest.json`` and
@@ -220,6 +227,10 @@ def push_artifacts_to_datahub(
 
     Returns ``(success, found_files)`` mirroring the other artifact-based integrations.
     """
+    write_semantics = write_semantics.upper()
+    if write_semantics not in ("PATCH", "OVERRIDE"):
+        raise ValueError(f"write_semantics must be PATCH or OVERRIDE, got {write_semantics!r}")
+
     success, found_files = True, False
     for root, _dirs, _files in os.walk(paradime_resources_directory):
         # DataHub's dbt source needs both the manifest and the catalog. The catalog is
@@ -247,6 +258,7 @@ def push_artifacts_to_datahub(
                 datahub_token=datahub_token,
                 target_platform=target_platform,
                 domain=domain,
+                write_semantics=write_semantics,
             )
         except Exception as e:
             console.error(f"Error pushing artifacts to DataHub: {e!r}")
@@ -276,6 +288,7 @@ def _run_datahub_ingestion(
     datahub_token: Optional[str],
     target_platform: str,
     domain: Optional[str],
+    write_semantics: str = "PATCH",
 ) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         has_per_entity_domains = domain is not None and manifest_has_per_entity_domains(
@@ -299,6 +312,7 @@ def _run_datahub_ingestion(
             target_platform=target_platform,
             domain=domain,
             has_per_entity_domains=has_per_entity_domains,
+            write_semantics=write_semantics,
         )
         _run_datahub_ingest_command(recipe, tmpdir)
 

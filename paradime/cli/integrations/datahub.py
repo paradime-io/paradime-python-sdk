@@ -37,6 +37,18 @@ from paradime.core.scripts.datahub import push_artifacts_to_datahub
     required=False,
 )
 @env_click_option(
+    "write-semantics",
+    "DATAHUB_WRITE_SEMANTICS",
+    help="How synced tags/terms/owners interact with existing DataHub metadata. "
+    "PATCH (default) merges with what's already there: metadata added outside dbt is "
+    "preserved, but associations removed from dbt yml linger in DataHub. OVERRIDE makes "
+    "the dbt yml the source of truth: removals propagate, and tags/terms added to the "
+    "dbt entities via the DataHub UI are replaced on every sync.",
+    required=False,
+    default="PATCH",
+    type=click.Choice(["PATCH", "OVERRIDE"], case_sensitive=False),
+)
+@env_click_option(
     "glossary-path",
     "DATAHUB_GLOSSARY_PATH",
     help="Optional comma-separated globs (relative to the resources directory) locating "
@@ -56,6 +68,7 @@ def datahub_artifacts_push(
     datahub_token: Optional[str],
     target_platform: str,
     domain: Optional[str],
+    write_semantics: str,
     glossary_path: Optional[str],
     paradime_resources_directory: Optional[str],
     json_output: bool,
@@ -71,6 +84,7 @@ def datahub_artifacts_push(
             target_platform=target_platform,
             domain=domain,
             glossary_path=glossary_path,
+            write_semantics=write_semantics,
         )
     except Exception as e:
         if json_output:
