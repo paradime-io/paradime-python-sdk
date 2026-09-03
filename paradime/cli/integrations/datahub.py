@@ -49,6 +49,17 @@ from paradime.core.scripts.datahub import push_artifacts_to_datahub
     type=click.Choice(["PATCH", "OVERRIDE"], case_sensitive=False),
 )
 @env_click_option(
+    "remove-stale",
+    "DATAHUB_REMOVE_STALE",
+    help="When true, enables DataHub stateful ingestion: models/sources deleted or "
+    "renamed in the dbt project are soft-deleted in DataHub on the next push (they "
+    "otherwise linger forever). Requires a DataHub server that supports ingestion "
+    "checkpoints.",
+    required=False,
+    default=False,
+    type=click.BOOL,
+)
+@env_click_option(
     "glossary-path",
     "DATAHUB_GLOSSARY_PATH",
     help="Optional comma-separated globs (relative to the resources directory) locating "
@@ -69,6 +80,7 @@ def datahub_artifacts_push(
     target_platform: str,
     domain: Optional[str],
     write_semantics: str,
+    remove_stale: bool,
     glossary_path: Optional[str],
     paradime_resources_directory: Optional[str],
     json_output: bool,
@@ -85,6 +97,7 @@ def datahub_artifacts_push(
             domain=domain,
             glossary_path=glossary_path,
             write_semantics=write_semantics,
+            remove_stale=remove_stale,
         )
     except Exception as e:
         if json_output:

@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import tempfile
 from pathlib import Path
@@ -16,6 +17,7 @@ DATAHUB_TARGET_PLATFORM_ENV_VAR: Final = "DATAHUB_TARGET_PLATFORM"
 DATAHUB_DOMAIN_ENV_VAR: Final = "DATAHUB_DOMAIN"
 DATAHUB_GLOSSARY_PATH_ENV_VAR: Final = "DATAHUB_GLOSSARY_PATH"
 DATAHUB_WRITE_SEMANTICS_ENV_VAR: Final = "DATAHUB_WRITE_SEMANTICS"
+DATAHUB_REMOVE_STALE_ENV_VAR: Final = "DATAHUB_REMOVE_STALE"
 
 DEFAULT_GLOSSARY_GLOBS: Final = ("**/datahub_glossary*.yml", "**/datahub_glossary*.yaml")
 
@@ -47,6 +49,7 @@ def build_datahub_recipe(
     domain: Optional[str] = None,
     has_per_entity_domains: bool = False,
     write_semantics: str = "PATCH",
+    stateful_pipeline_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Build an acryl-datahub ingestion recipe that reads dbt artifacts and emits to
@@ -75,27 +78,48 @@ def build_datahub_recipe(
     associations removed from dbt yml linger in DataHub. "OVERRIDE" makes the
     dbt yml the source of truth: removals propagate, at the cost of wiping
     tags/terms added to the dbt entities via the DataHub UI/API on every sync.
+
+    When ``stateful_pipeline_name`` is provided, stateful ingestion is enabled:
+    DataHub checkpoints the entities emitted under that pipeline name and
+    soft-deletes any that were present in the previous run but are missing from
+    this one (i.e. models deleted or renamed in the dbt project). The name must
+    be STABLE across runs for the same project — if it changes, DataHub sees a
+    brand-new pipeline and the previous run's entities are never cleaned up; if
+    two different projects share a name, each run soft-deletes the other
+    project's entities.
     """
     sink_config: Dict[str, Any] = {"server": datahub_server}
     if datahub_token:
         sink_config["token"] = datahub_token
 
+    source_config: Dict[str, Any] = {
+        "manifest_path": str(manifest_path),
+        "catalog_path": str(catalog_path),
+        "target_platform": target_platform,
+        "column_meta_mapping": _COLUMN_META_MAPPING_ACTIVATOR,
+        "write_semantics": write_semantics,
+    }
+
     recipe: Dict[str, Any] = {
         "source": {
             "type": "dbt",
-            "config": {
-                "manifest_path": str(manifest_path),
-                "catalog_path": str(catalog_path),
-                "target_platform": target_platform,
-                "column_meta_mapping": _COLUMN_META_MAPPING_ACTIVATOR,
-                "write_semantics": write_semantics,
-            },
+            "config": source_config,
         },
         "sink": {
             "type": "datahub-rest",
             "config": sink_config,
         },
     }
+
+    if stateful_pipeline_name:
+        recipe["pipeline_name"] = stateful_pipeline_name
+        source_config["stateful_ingestion"] = {
+            "enabled": True,
+            "remove_stale_metadata": True,
+        }
+        # The stale-entity checkpoint is stored in DataHub itself; with the
+        # datahub-rest sink the state provider reuses the sink's connection.
+        recipe["datahub_api"] = dict(sink_config)
 
     if domain and not has_per_entity_domains:
         recipe["transformers"] = [
@@ -135,6 +159,22 @@ def build_glossary_recipe(
             "config": sink_config,
         },
     }
+
+
+def stateful_pipeline_name_for_project(resources_directory: str, project_root: Path) -> str:
+    """
+    Deterministic, path-derived pipeline name for stateful ingestion.
+
+    Uses the project's path RELATIVE to the resources directory so the name is
+    stable across runs even though the checkout lands in a different absolute
+    directory each time, and unique per project within a repo.
+    """
+    try:
+        rel = project_root.resolve().relative_to(Path(resources_directory).resolve())
+    except ValueError:
+        rel = project_root.resolve()
+    slug = re.sub(r"[^a-zA-Z0-9]+", "-", str(rel)).strip("-").lower() or "root"
+    return f"paradime-dbt-{slug}"
 
 
 def _dataset_entities(manifest: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
@@ -219,6 +259,7 @@ def push_artifacts_to_datahub(
     domain: Optional[str] = None,
     glossary_path: Optional[str] = None,
     write_semantics: str = "PATCH",
+    remove_stale: bool = False,
 ) -> Tuple[bool, bool]:
     """
     Search the resources directory for dbt artifacts (``target/manifest.json`` and
@@ -250,6 +291,12 @@ def push_artifacts_to_datahub(
 
         found_files = True
 
+        stateful_pipeline_name = None
+        if remove_stale:
+            stateful_pipeline_name = stateful_pipeline_name_for_project(
+                paradime_resources_directory, Path(root)
+            )
+
         try:
             _run_datahub_ingestion(
                 manifest_path=manifest_path,
@@ -259,6 +306,7 @@ def push_artifacts_to_datahub(
                 target_platform=target_platform,
                 domain=domain,
                 write_semantics=write_semantics,
+                stateful_pipeline_name=stateful_pipeline_name,
             )
         except Exception as e:
             console.error(f"Error pushing artifacts to DataHub: {e!r}")
@@ -289,6 +337,7 @@ def _run_datahub_ingestion(
     target_platform: str,
     domain: Optional[str],
     write_semantics: str = "PATCH",
+    stateful_pipeline_name: Optional[str] = None,
 ) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         has_per_entity_domains = domain is not None and manifest_has_per_entity_domains(
@@ -313,6 +362,7 @@ def _run_datahub_ingestion(
             domain=domain,
             has_per_entity_domains=has_per_entity_domains,
             write_semantics=write_semantics,
+            stateful_pipeline_name=stateful_pipeline_name,
         )
         _run_datahub_ingest_command(recipe, tmpdir)
 

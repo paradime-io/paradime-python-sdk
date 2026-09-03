@@ -10,6 +10,7 @@ from paradime.core.scripts.datahub import (
     inject_fallback_domain,
     manifest_has_per_entity_domains,
     push_artifacts_to_datahub,
+    stateful_pipeline_name_for_project,
 )
 
 DOMAIN = "urn:li:domain:workspace"
@@ -52,6 +53,49 @@ def test_recipe_write_semantics_override() -> None:
     )
 
     assert recipe["source"]["config"]["write_semantics"] == "OVERRIDE"
+
+
+def test_recipe_without_remove_stale_has_no_stateful_config() -> None:
+    recipe = build_datahub_recipe(
+        manifest_path=Path("manifest.json"),
+        catalog_path=Path("catalog.json"),
+        datahub_server="https://gms.example.com",
+        target_platform="snowflake",
+    )
+
+    assert "pipeline_name" not in recipe
+    assert "stateful_ingestion" not in recipe["source"]["config"]
+
+
+def test_recipe_with_stateful_pipeline_name() -> None:
+    recipe = build_datahub_recipe(
+        manifest_path=Path("manifest.json"),
+        catalog_path=Path("catalog.json"),
+        datahub_server="https://gms.example.com",
+        datahub_token="secret",
+        target_platform="snowflake",
+        stateful_pipeline_name="paradime-dbt-analytics",
+    )
+
+    assert recipe["pipeline_name"] == "paradime-dbt-analytics"
+    assert recipe["source"]["config"]["stateful_ingestion"] == {
+        "enabled": True,
+        "remove_stale_metadata": True,
+    }
+    assert recipe["datahub_api"] == {"server": "https://gms.example.com", "token": "secret"}
+
+
+def test_stateful_pipeline_name_is_stable_and_path_derived(tmp_path: Path) -> None:
+    project = tmp_path / "repos" / "Analytics Project"
+    project.mkdir(parents=True)
+
+    name = stateful_pipeline_name_for_project(str(tmp_path), project)
+
+    assert name == "paradime-dbt-repos-analytics-project"
+    # Stable regardless of how the paths are spelled.
+    assert stateful_pipeline_name_for_project(str(tmp_path) + "/", project) == name
+    # The resources-directory root itself gets a stable fallback slug.
+    assert stateful_pipeline_name_for_project(str(tmp_path), tmp_path) == "paradime-dbt-root"
 
 
 def test_push_rejects_invalid_write_semantics(tmp_path: Path) -> None:
