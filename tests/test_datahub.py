@@ -36,6 +36,9 @@ def test_recipe_without_domain_has_no_transformers() -> None:
 
     assert "transformers" not in recipe
     assert recipe["source"]["config"]["target_platform"] == "snowflake"
+    # OVERRIDE so tag/term removals in dbt yml propagate; the PATCH default
+    # merges with server state and removed associations linger forever.
+    assert recipe["source"]["config"]["write_semantics"] == "OVERRIDE"
     assert "token" not in recipe["sink"]["config"]
 
 

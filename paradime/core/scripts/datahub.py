@@ -79,6 +79,10 @@ def build_datahub_recipe(
                 "catalog_path": str(catalog_path),
                 "target_platform": target_platform,
                 "column_meta_mapping": _COLUMN_META_MAPPING_ACTIVATOR,
+                # The default ("PATCH") merges tags/terms/owners with existing
+                # server state, so associations removed from dbt yml would linger
+                # in DataHub forever. OVERRIDE makes the yml the source of truth.
+                "write_semantics": "OVERRIDE",
             },
         },
         "sink": {
