@@ -68,6 +68,18 @@ from paradime.core.scripts.datahub import push_artifacts_to_datahub
     required=False,
 )
 @env_click_option(
+    "glossary-auto-id",
+    "DATAHUB_GLOSSARY_AUTO_ID",
+    help="How glossary term/node URNs are minted, and it must match whatever created the "
+    "terms already in your DataHub. False (default) uses readable path ids "
+    "(urn:li:glossaryTerm:My-Node.My-Term); true uses DataHub's deterministic guid of the "
+    "same path. The wrong setting silently creates a duplicate glossary under the other "
+    "scheme instead of updating the existing terms.",
+    required=False,
+    default=False,
+    type=click.BOOL,
+)
+@env_click_option(
     "paradime-resources-directory",
     "PARADIME_RESOURCES_DIRECTORY",
     help="The directory where the paradime resources are stored.",
@@ -82,6 +94,7 @@ def datahub_artifacts_push(
     write_semantics: str,
     remove_stale: bool,
     glossary_path: Optional[str],
+    glossary_auto_id: bool,
     paradime_resources_directory: Optional[str],
     json_output: bool,
 ) -> None:
@@ -98,6 +111,7 @@ def datahub_artifacts_push(
             glossary_path=glossary_path,
             write_semantics=write_semantics,
             remove_stale=remove_stale,
+            glossary_auto_id=glossary_auto_id,
         )
     except Exception as e:
         if json_output:

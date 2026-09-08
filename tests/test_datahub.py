@@ -283,9 +283,20 @@ def test_build_glossary_recipe() -> None:
 
     assert recipe["source"] == {
         "type": "datahub-business-glossary",
-        "config": {"file": "glossary.yml"},
+        # auto_id off by default: readable path urns, DataHub's own default.
+        "config": {"file": "glossary.yml", "enable_auto_id": False},
     }
     assert recipe["sink"]["config"] == {"server": "https://gms.example.com", "token": "secret"}
+
+
+def test_build_glossary_recipe_auto_id() -> None:
+    recipe = build_glossary_recipe(
+        glossary_path=Path("glossary.yml"),
+        datahub_server="https://gms.example.com",
+        enable_auto_id=True,
+    )
+
+    assert recipe["source"]["config"]["enable_auto_id"] is True
 
 
 # --- end to end (subprocess mocked) ---
@@ -373,6 +384,15 @@ def test_push_ingests_glossary_files(tmp_path: Path) -> None:
     assert len(recipes) == 2
     assert recipes[1]["source"]["type"] == "datahub-business-glossary"
     assert recipes[1]["source"]["config"]["file"].endswith("datahub_glossary.yml")
+
+
+def test_push_passes_glossary_auto_id_through(tmp_path: Path) -> None:
+    (tmp_path / "datahub_glossary.yml").write_text("version: '1'")
+
+    success, _, recipes = _run_push(tmp_path, glossary_auto_id=True)
+
+    assert success
+    assert recipes[0]["source"]["config"]["enable_auto_id"] is True
 
 
 def test_push_glossary_only_counts_as_found(tmp_path: Path) -> None:

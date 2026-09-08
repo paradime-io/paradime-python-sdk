@@ -18,6 +18,7 @@ DATAHUB_DOMAIN_ENV_VAR: Final = "DATAHUB_DOMAIN"
 DATAHUB_GLOSSARY_PATH_ENV_VAR: Final = "DATAHUB_GLOSSARY_PATH"
 DATAHUB_WRITE_SEMANTICS_ENV_VAR: Final = "DATAHUB_WRITE_SEMANTICS"
 DATAHUB_REMOVE_STALE_ENV_VAR: Final = "DATAHUB_REMOVE_STALE"
+DATAHUB_GLOSSARY_AUTO_ID_ENV_VAR: Final = "DATAHUB_GLOSSARY_AUTO_ID"
 
 DEFAULT_GLOSSARY_GLOBS: Final = ("**/datahub_glossary*.yml", "**/datahub_glossary*.yaml")
 
@@ -140,10 +141,18 @@ def build_glossary_recipe(
     glossary_path: Path,
     datahub_server: str,
     datahub_token: Optional[str] = None,
+    enable_auto_id: bool = False,
 ) -> Dict[str, Any]:
     """
     Build a recipe that ingests a business glossary YAML file (DataHub's native
     ``datahub-business-glossary`` source format: version/source/owners/nodes/terms).
+
+    ``enable_auto_id`` picks how DataHub mints term/node URNs from the glossary
+    hierarchy, and must match whatever created the terms already in the instance:
+    False (DataHub's default) gives readable path ids (``Consumption-Entities.Account``),
+    True gives a deterministic guid of the raw dotted path. Both are pure functions
+    of the hierarchy, so the matching setting updates existing terms in place while
+    the wrong one silently creates a duplicate glossary under the other scheme.
     """
     sink_config: Dict[str, Any] = {"server": datahub_server}
     if datahub_token:
@@ -152,7 +161,7 @@ def build_glossary_recipe(
     return {
         "source": {
             "type": "datahub-business-glossary",
-            "config": {"file": str(glossary_path)},
+            "config": {"file": str(glossary_path), "enable_auto_id": enable_auto_id},
         },
         "sink": {
             "type": "datahub-rest",
@@ -260,6 +269,7 @@ def push_artifacts_to_datahub(
     glossary_path: Optional[str] = None,
     write_semantics: str = "PATCH",
     remove_stale: bool = False,
+    glossary_auto_id: bool = False,
 ) -> Tuple[bool, bool]:
     """
     Search the resources directory for dbt artifacts (``target/manifest.json`` and
@@ -320,6 +330,7 @@ def push_artifacts_to_datahub(
                 glossary_path=glossary_file,
                 datahub_server=datahub_server,
                 datahub_token=datahub_token,
+                enable_auto_id=glossary_auto_id,
             )
         except Exception as e:
             console.error(f"Error pushing glossary {glossary_file} to DataHub: {e!r}")
@@ -372,11 +383,13 @@ def _run_glossary_ingestion(
     glossary_path: Path,
     datahub_server: str,
     datahub_token: Optional[str],
+    enable_auto_id: bool = False,
 ) -> None:
     recipe = build_glossary_recipe(
         glossary_path=glossary_path,
         datahub_server=datahub_server,
         datahub_token=datahub_token,
+        enable_auto_id=enable_auto_id,
     )
     with tempfile.TemporaryDirectory() as tmpdir:
         _run_datahub_ingest_command(recipe, tmpdir)
