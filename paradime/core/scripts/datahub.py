@@ -319,7 +319,8 @@ def push_artifacts_to_datahub(
                 stateful_pipeline_name=stateful_pipeline_name,
             )
         except Exception as e:
-            console.error(f"Error pushing artifacts to DataHub: {e!r}")
+            console.error("Error pushing artifacts to DataHub")
+            console.detail(str(e), error=True)
             success = False
 
     glossary_files = find_glossary_files(paradime_resources_directory, glossary_path)
@@ -333,7 +334,8 @@ def push_artifacts_to_datahub(
                 enable_auto_id=glossary_auto_id,
             )
         except Exception as e:
-            console.error(f"Error pushing glossary {glossary_file} to DataHub: {e!r}")
+            console.error(f"Error pushing glossary {glossary_file} to DataHub")
+            console.detail(str(e), error=True)
             success = False
 
     return success, found_files
@@ -395,19 +397,47 @@ def _run_glossary_ingestion(
         _run_datahub_ingest_command(recipe, tmpdir)
 
 
+def ingest_verdict(*outputs: Optional[str]) -> str:
+    """
+    DataHub's one-line end-of-run summary, e.g. "Pipeline finished successfully;
+    produced 42 events in 3.1 seconds" (or "...with at least 2 warnings").
+
+    It is the only line that says whether the push actually landed, so it is
+    worth surfacing even when the rest of the ingest output is suppressed.
+    """
+    for output in outputs:
+        for line in reversed((output or "").splitlines()):
+            if "Pipeline finished" in line:
+                return line.strip()
+    return ""
+
+
 def _run_datahub_ingest_command(recipe: Dict[str, Any], tmpdir: str) -> None:
     recipe_path = Path(tmpdir) / "datahub_recipe.yml"
     recipe_path.write_text(yaml.safe_dump(recipe, sort_keys=False))
 
     command = ["datahub", "ingest", "-c", str(recipe_path)]
+    console.debug(f"Running datahub ingest command: {command!r}")
+
+    # Under debug the ingest streams straight to the terminal, so a long run shows
+    # progress instead of looking frozen; otherwise capture it and surface the verdict.
+    capture = not console.is_debug()
     try:
-        console.debug(f"Running datahub ingest command: {command!r}")
-        result = subprocess.run(command, check=True, capture_output=True, text=True, env=os.environ)
-        console.debug(f"datahub ingest result: {result.stdout} {result.stderr}")
+        result = subprocess.run(
+            command, check=True, capture_output=capture, text=True, env=os.environ
+        )
     except FileNotFoundError:
         raise Exception(
             "The 'datahub' CLI was not found. acryl-datahub must be installed in the "
             "runtime environment (it is provided by the Paradime dbt base image)."
         )
     except subprocess.CalledProcessError as e:
-        raise Exception(f"Error running datahub ingest: {e.stdout!r} {e.stderr!r}")
+        # Not repr(): DataHub's validation errors are multi-line, and repr collapses
+        # them into one line of escaped "\n" that nobody can read.
+        details = "\n".join(part.strip() for part in (e.stdout, e.stderr) if part)
+        raise Exception(
+            f"datahub ingest exited with code {e.returncode}" + (f"\n{details}" if details else "")
+        )
+
+    if capture:
+        console.detail(ingest_verdict(result.stdout, result.stderr) or "datahub ingest finished")

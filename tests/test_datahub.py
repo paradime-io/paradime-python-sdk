@@ -1,12 +1,17 @@
 import json
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 from unittest.mock import patch
 
+import pytest
+
 from paradime.core.scripts.datahub import (
+    _run_datahub_ingest_command,
     build_datahub_recipe,
     build_glossary_recipe,
     find_glossary_files,
+    ingest_verdict,
     inject_fallback_domain,
     manifest_has_per_entity_domains,
     push_artifacts_to_datahub,
@@ -411,3 +416,44 @@ def test_push_finds_nothing(tmp_path: Path) -> None:
     assert success
     assert not found_files
     assert recipes == []
+
+
+# --- ingest output ---
+
+
+def test_ingest_verdict_finds_the_summary_line() -> None:
+    stderr = "\n".join(
+        [
+            "[2026-09-14 16:53:01,123] INFO  {datahub.cli.ingest_cli:145} - Starting metadata ingestion",
+            "[2026-09-14 16:53:09,001] INFO  {datahub.ingestion.run.pipeline:308} - Processing...",
+            " Pipeline finished successfully; produced 42 events in 8.1 seconds.",
+        ]
+    )
+
+    assert ingest_verdict(None, stderr) == (
+        "Pipeline finished successfully; produced 42 events in 8.1 seconds."
+    )
+    # Warnings still count as the verdict - it is the line that says what landed.
+    assert "warnings" in ingest_verdict("Pipeline finished with at least 2 warnings; produced 3")
+    assert ingest_verdict("", None) == ""
+
+
+def test_ingest_failure_message_is_readable(tmp_path: Path) -> None:
+    # DataHub's validation errors are multi-line; repr() used to collapse them
+    # into a single line of escaped newlines that customers could not read.
+    stderr = (
+        "pydantic.ValidationError: 1 validation error for BusinessGlossaryConfig\n"
+        "nodes.9.terms.4.associated_assets\n"
+        "  Extra inputs are not permitted"
+    )
+    error = subprocess.CalledProcessError(1, "datahub", output="", stderr=stderr)
+
+    with patch("paradime.core.scripts.datahub.subprocess.run", side_effect=error):
+        with pytest.raises(Exception) as excinfo:
+            _run_datahub_ingest_command({"source": {}}, str(tmp_path))
+
+    message = str(excinfo.value)
+    assert "\\n" not in message  # not repr()-escaped
+    assert "nodes.9.terms.4.associated_assets" in message
+    assert "Extra inputs are not permitted" in message
+    assert "exited with code 1" in message

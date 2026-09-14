@@ -83,6 +83,20 @@ def debug(message: str) -> None:
         console.print(f"[muted]  {message}[/]")
 
 
+def is_debug() -> bool:
+    """True when PARADIME_LOG_LEVEL=debug."""
+    return _LOG_LEVEL == "debug"
+
+
+def detail(message: str, *, error: bool = False) -> None:
+    """Print captured output verbatim.
+
+    Markup is off so log lines like ``[2026-01-01 12:00:00]`` aren't parsed as
+    Rich tags (which mangles them, or raises on an unknown style).
+    """
+    (err_console if error else console).print(message, markup=False, highlight=False)
+
+
 def result_panel(
     message: str,
     *,
