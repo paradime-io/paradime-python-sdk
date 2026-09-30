@@ -37,6 +37,49 @@ from paradime.core.scripts.datahub import push_artifacts_to_datahub
     required=False,
 )
 @env_click_option(
+    "write-semantics",
+    "DATAHUB_WRITE_SEMANTICS",
+    help="How synced tags/terms/owners interact with existing DataHub metadata. "
+    "PATCH (default) merges with what's already there: metadata added outside dbt is "
+    "preserved, but associations removed from dbt yml linger in DataHub. OVERRIDE makes "
+    "the dbt yml the source of truth: removals propagate, and tags/terms added to the "
+    "dbt entities via the DataHub UI are replaced on every sync.",
+    required=False,
+    default="PATCH",
+    type=click.Choice(["PATCH", "OVERRIDE"], case_sensitive=False),
+)
+@env_click_option(
+    "remove-stale",
+    "DATAHUB_REMOVE_STALE",
+    help="When true, enables DataHub stateful ingestion: models/sources deleted or "
+    "renamed in the dbt project are soft-deleted in DataHub on the next push (they "
+    "otherwise linger forever). Requires a DataHub server that supports ingestion "
+    "checkpoints.",
+    required=False,
+    default=False,
+    type=click.BOOL,
+)
+@env_click_option(
+    "glossary-path",
+    "DATAHUB_GLOSSARY_PATH",
+    help="Optional comma-separated globs (relative to the resources directory) locating "
+    "business glossary YAML files to ingest (e.g. metadata/glossary_terms/**/*.yaml). "
+    "Defaults to any file matching datahub_glossary*.yml or .yaml.",
+    required=False,
+)
+@env_click_option(
+    "glossary-auto-id",
+    "DATAHUB_GLOSSARY_AUTO_ID",
+    help="How glossary term/node URNs are minted, and it must match whatever created the "
+    "terms already in your DataHub. False (default) uses readable path ids "
+    "(urn:li:glossaryTerm:My-Node.My-Term); true uses DataHub's deterministic guid of the "
+    "same path. The wrong setting silently creates a duplicate glossary under the other "
+    "scheme instead of updating the existing terms.",
+    required=False,
+    default=False,
+    type=click.BOOL,
+)
+@env_click_option(
     "paradime-resources-directory",
     "PARADIME_RESOURCES_DIRECTORY",
     help="The directory where the paradime resources are stored.",
@@ -48,11 +91,15 @@ def datahub_artifacts_push(
     datahub_token: Optional[str],
     target_platform: str,
     domain: Optional[str],
+    write_semantics: str,
+    remove_stale: bool,
+    glossary_path: Optional[str],
+    glossary_auto_id: bool,
     paradime_resources_directory: Optional[str],
     json_output: bool,
 ) -> None:
     """
-    Push Bolt dbt artifacts (manifest + catalog) to DataHub
+    Push Bolt dbt artifacts (manifest + catalog) and business glossary files to DataHub
     """
     try:
         success, found_files = push_artifacts_to_datahub(
@@ -61,6 +108,10 @@ def datahub_artifacts_push(
             datahub_token=datahub_token,
             target_platform=target_platform,
             domain=domain,
+            glossary_path=glossary_path,
+            write_semantics=write_semantics,
+            remove_stale=remove_stale,
+            glossary_auto_id=glossary_auto_id,
         )
     except Exception as e:
         if json_output:
