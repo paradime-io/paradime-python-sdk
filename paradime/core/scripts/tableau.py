@@ -4,12 +4,16 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import requests
 
 from paradime.cli import console
 from paradime.core.scripts.utils import handle_http_error
+
+# Tableau added connected-app (JWT) sign-in in REST API 3.10; the refresh and list
+# calls themselves still work on the older version callers pass today.
+JWT_MIN_API_VERSION = "3.10"
 
 
 @dataclass(frozen=True)
@@ -225,32 +229,127 @@ def _find_resource_in_project(
     return matches[0]["id"]
 
 
+def validate_tableau_credentials(
+    *,
+    personal_access_token_name: Optional[str],
+    personal_access_token_secret: Optional[str],
+    jwt: Optional[str],
+) -> None:
+    """Check that exactly one Tableau authentication mechanism was supplied.
+
+    Args:
+        personal_access_token_name: Personal access token name, paired with the secret.
+        personal_access_token_secret: Personal access token secret.
+        jwt: JSON Web Token issued by a Tableau connected app.
+
+    Raises:
+        ValueError: Both mechanisms were supplied, neither was, or the personal access
+            token pair was incomplete.
+    """
+    if jwt and (personal_access_token_name or personal_access_token_secret):
+        raise ValueError("Tableau accepts either a JWT or a personal access token, not both.")
+    if jwt:
+        return
+    if not personal_access_token_name or not personal_access_token_secret:
+        raise ValueError(
+            "Tableau credentials are missing: supply a JWT, or both a personal access "
+            "token name and a personal access token secret."
+        )
+
+
+def _build_signin_credentials(
+    *,
+    site_name: str,
+    personal_access_token_name: Optional[str],
+    personal_access_token_secret: Optional[str],
+    jwt: Optional[str],
+) -> Dict[str, Any]:
+    """Build the ``credentials`` body Tableau's sign-in endpoint expects."""
+    validate_tableau_credentials(
+        personal_access_token_name=personal_access_token_name,
+        personal_access_token_secret=personal_access_token_secret,
+        jwt=jwt,
+    )
+    if jwt:
+        return {"jwt": jwt, "site": {"contentUrl": site_name}}
+    return {
+        "personalAccessTokenName": personal_access_token_name,
+        "personalAccessTokenSecret": personal_access_token_secret,
+        "site": {"contentUrl": site_name},
+    }
+
+
+def _parse_api_version(api_version: str) -> Optional[Tuple[int, ...]]:
+    try:
+        return tuple(int(part) for part in api_version.split("."))
+    except ValueError:
+        return None
+
+
+def _resolve_api_version(api_version: str, *, jwt: Optional[str]) -> str:
+    """Raise the API version to JWT_MIN_API_VERSION when signing in with a JWT.
+
+    Older API versions reject connected-app sign-in, so a JWT sent on the version the
+    personal access token calls use would fail. A version pinned above the minimum, or
+    one that does not parse, is left exactly as the caller asked for it.
+    """
+    if not jwt:
+        return api_version
+    requested = _parse_api_version(api_version)
+    minimum = _parse_api_version(JWT_MIN_API_VERSION)
+    if requested is not None and minimum is not None and requested < minimum:
+        return JWT_MIN_API_VERSION
+    return api_version
+
+
+def _tableau_signin(
+    *,
+    host: str,
+    api_version: str,
+    site_name: str,
+    personal_access_token_name: Optional[str],
+    personal_access_token_secret: Optional[str],
+    jwt: Optional[str],
+) -> Tuple[str, str]:
+    """Sign in to Tableau and return the auth token and site id for subsequent calls."""
+    auth_response = requests.post(
+        f"{host}/api/{api_version}/auth/signin",
+        json={
+            "credentials": _build_signin_credentials(
+                site_name=site_name,
+                personal_access_token_name=personal_access_token_name,
+                personal_access_token_secret=personal_access_token_secret,
+                jwt=jwt,
+            )
+        },
+        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    )
+    handle_http_error(auth_response)
+    credentials = auth_response.json()["credentials"]
+    return credentials["token"], credentials["site"]["id"]
+
+
 def trigger_tableau_refresh(
     *,
     host: str,
-    personal_access_token_name: str,
-    personal_access_token_secret: str,
+    personal_access_token_name: Optional[str] = None,
+    personal_access_token_secret: Optional[str] = None,
+    jwt: Optional[str] = None,
     site_name: str,
     workbook_names: List[WorkbookIdentifier],  # str (name or UUID) or TableauPathName
     api_version: str,
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
 ) -> List[str]:
-    auth_response = requests.post(
-        f"{host}/api/{api_version}/auth/signin",
-        json={
-            "credentials": {
-                "personalAccessTokenName": personal_access_token_name,
-                "personalAccessTokenSecret": personal_access_token_secret,
-                "site": {"contentUrl": site_name},
-            }
-        },
-        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    api_version = _resolve_api_version(api_version, jwt=jwt)
+    auth_token, site_id = _tableau_signin(
+        host=host,
+        api_version=api_version,
+        site_name=site_name,
+        personal_access_token_name=personal_access_token_name,
+        personal_access_token_secret=personal_access_token_secret,
+        jwt=jwt,
     )
-    handle_http_error(auth_response)
-    # Extract token to use for subsequent calls
-    auth_token: str = auth_response.json()["credentials"]["token"]
-    site_id: str = auth_response.json()["credentials"]["site"]["id"]
 
     # Build a single project tree if any path-based identifiers are supplied,
     # so the /projects fetch is amortised across all workbooks in this call.
@@ -687,29 +786,24 @@ def _wait_for_job_completion(
 def trigger_tableau_datasource_refresh(
     *,
     host: str,
-    personal_access_token_name: str,
-    personal_access_token_secret: str,
+    personal_access_token_name: Optional[str] = None,
+    personal_access_token_secret: Optional[str] = None,
+    jwt: Optional[str] = None,
     site_name: str,
     datasource_names: List[DatasourceIdentifier],  # str (name or UUID) or TableauPathName
     api_version: str,
     wait_for_completion: bool = False,
     timeout_minutes: int = 30,
 ) -> List[str]:
-    auth_response = requests.post(
-        f"{host}/api/{api_version}/auth/signin",
-        json={
-            "credentials": {
-                "personalAccessTokenName": personal_access_token_name,
-                "personalAccessTokenSecret": personal_access_token_secret,
-                "site": {"contentUrl": site_name},
-            }
-        },
-        headers={"Accept": "application/json", "Content-Type": "application/json"},
+    api_version = _resolve_api_version(api_version, jwt=jwt)
+    auth_token, site_id = _tableau_signin(
+        host=host,
+        api_version=api_version,
+        site_name=site_name,
+        personal_access_token_name=personal_access_token_name,
+        personal_access_token_secret=personal_access_token_secret,
+        jwt=jwt,
     )
-    handle_http_error(auth_response)
-    # Extract token to use for subsequent calls
-    auth_token: str = auth_response.json()["credentials"]["token"]
-    site_id: str = auth_response.json()["credentials"]["site"]["id"]
 
     has_path_ids = any(isinstance(d, TableauPathName) for d in datasource_names)
     project_tree: Optional[_TableauProjectTree] = (
@@ -990,28 +1084,26 @@ def _refresh_datasource(
 def list_tableau_workbooks(
     *,
     host: str,
-    personal_access_token_name: str,
-    personal_access_token_secret: str,
+    personal_access_token_name: Optional[str] = None,
+    personal_access_token_secret: Optional[str] = None,
+    jwt: Optional[str] = None,
     site_name: str,
     api_version: str,
     json_output: bool = False,
 ) -> list | None:
-    """List all Tableau workbooks with their names and UUIDs."""
-    auth_response = requests.post(
-        f"{host}/api/{api_version}/auth/signin",
-        json={
-            "credentials": {
-                "personalAccessTokenName": personal_access_token_name,
-                "personalAccessTokenSecret": personal_access_token_secret,
-                "site": {"contentUrl": site_name},
-            }
-        },
-        headers={"Accept": "application/json", "Content-Type": "application/json"},
-    )
-    handle_http_error(auth_response)
+    """List all Tableau workbooks with their names and UUIDs.
 
-    auth_token: str = auth_response.json()["credentials"]["token"]
-    site_id: str = auth_response.json()["credentials"]["site"]["id"]
+    Authenticates with either a personal access token pair or a connected-app JWT.
+    """
+    api_version = _resolve_api_version(api_version, jwt=jwt)
+    auth_token, site_id = _tableau_signin(
+        host=host,
+        api_version=api_version,
+        site_name=site_name,
+        personal_access_token_name=personal_access_token_name,
+        personal_access_token_secret=personal_access_token_secret,
+        jwt=jwt,
+    )
 
     # Get all workbooks
     workbooks_response = requests.get(
@@ -1062,28 +1154,26 @@ def list_tableau_workbooks(
 def list_tableau_datasources(
     *,
     host: str,
-    personal_access_token_name: str,
-    personal_access_token_secret: str,
+    personal_access_token_name: Optional[str] = None,
+    personal_access_token_secret: Optional[str] = None,
+    jwt: Optional[str] = None,
     site_name: str,
     api_version: str,
     json_output: bool = False,
 ) -> list | None:
-    """List all Tableau data sources with their names and UUIDs."""
-    auth_response = requests.post(
-        f"{host}/api/{api_version}/auth/signin",
-        json={
-            "credentials": {
-                "personalAccessTokenName": personal_access_token_name,
-                "personalAccessTokenSecret": personal_access_token_secret,
-                "site": {"contentUrl": site_name},
-            }
-        },
-        headers={"Accept": "application/json", "Content-Type": "application/json"},
-    )
-    handle_http_error(auth_response)
+    """List all Tableau data sources with their names and UUIDs.
 
-    auth_token: str = auth_response.json()["credentials"]["token"]
-    site_id: str = auth_response.json()["credentials"]["site"]["id"]
+    Authenticates with either a personal access token pair or a connected-app JWT.
+    """
+    api_version = _resolve_api_version(api_version, jwt=jwt)
+    auth_token, site_id = _tableau_signin(
+        host=host,
+        api_version=api_version,
+        site_name=site_name,
+        personal_access_token_name=personal_access_token_name,
+        personal_access_token_secret=personal_access_token_secret,
+        jwt=jwt,
+    )
 
     # Get all data sources
     datasources_response = requests.get(
