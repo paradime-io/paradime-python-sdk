@@ -188,3 +188,44 @@ def test_mint_slugs_round_trips_object_form_commands(tmp_path: Path) -> None:
     assert 'command: "dbt run"' in rewritten
     assert "continue_on_error: false" in rewritten
     assert is_valid_schedule_at_path(yaml_file) is None
+
+
+def test_an_on_merge_schedule_can_queue() -> None:
+    schedule = ParadimeSchedule.parse_obj(
+        _schedule(["dbt run"], trigger_on_merge=True, concurrency="queue")
+    )
+    assert schedule.concurrency == "queue"
+
+
+@pytest.mark.parametrize("concurrency", [None, "parallel"])
+def test_parallel_is_allowed_anywhere(concurrency: Any) -> None:
+    assert ParadimeSchedule.parse_obj(_schedule(["dbt run"], concurrency=concurrency))
+
+
+def test_only_on_merge_schedules_can_queue() -> None:
+    with pytest.raises(ValueError, match="only applies to on-merge schedules"):
+        ParadimeSchedule.parse_obj(_schedule(["dbt run"], concurrency="queue"))
+
+
+def test_unknown_concurrency_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        ParadimeSchedule.parse_obj(
+            _schedule(["dbt run"], trigger_on_merge=True, concurrency="serial")
+        )
+
+
+def test_bolt_verify_rejects_queue_without_trigger_on_merge(tmp_path: Path) -> None:
+    yaml_file = tmp_path / "paradime_schedules.yml"
+    yaml_file.write_text(
+        """
+schedules:
+  - name: deploy
+    schedule: "OFF"
+    environment: production
+    concurrency: queue
+    commands:
+      - dbt run
+"""
+    )
+    error = is_valid_schedule_at_path(yaml_file)
+    assert error is not None and "only applies to on-merge schedules" in error
