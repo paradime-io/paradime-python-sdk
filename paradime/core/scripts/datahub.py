@@ -284,8 +284,8 @@ def push_artifacts_to_datahub(
 
     success, found_files = True, False
     for root, _dirs, _files in os.walk(paradime_resources_directory):
-        # DataHub's dbt source needs both the manifest and the catalog. The catalog is
-        # only produced by `dbt docs generate`, so a manifest without a catalog is skipped.
+        # DataHub's dbt source needs both the manifest and the catalog. The catalog is only
+        # produced on request (see catalog_advice), so a manifest without one is skipped.
         manifest_path = Path(root) / "target" / "manifest.json"
         catalog_path = Path(root) / "target" / "catalog.json"
 
@@ -295,7 +295,7 @@ def push_artifacts_to_datahub(
         if not catalog_path.is_file():
             console.warning(
                 f"Found {manifest_path} but no catalog.json alongside it. "
-                "Run `dbt docs generate` in the schedule so target/catalog.json is produced. Skipping."
+                f"{catalog_advice(manifest_path)} Skipping."
             )
             continue
 
@@ -339,6 +339,25 @@ def push_artifacts_to_datahub(
             success = False
 
     return success, found_files
+
+
+def catalog_advice(manifest_path: Path) -> str:
+    """How to get target/catalog.json from the dbt version that wrote this manifest."""
+    try:
+        dbt_version = json.loads(manifest_path.read_text(encoding="utf-8"))["metadata"][
+            "dbt_version"
+        ]
+    except (OSError, ValueError, KeyError, TypeError):
+        dbt_version = ""
+    major = str(dbt_version).split(".", 1)[0]
+    if major.isdigit() and int(major) >= 2:
+        # dbt 2.x `docs generate` builds the docs site and no longer writes catalog.json
+        return (
+            "On dbt 2.x `dbt docs generate` no longer writes it: add `--write-catalog` to a dbt "
+            "command in the schedule (e.g. `dbt compile --write-catalog`) so "
+            "target/catalog.json is produced."
+        )
+    return "Run `dbt docs generate` in the schedule so target/catalog.json is produced."
 
 
 def _run_datahub_ingestion(
@@ -429,7 +448,7 @@ def _run_datahub_ingest_command(recipe: Dict[str, Any], tmpdir: str) -> None:
     except FileNotFoundError:
         raise Exception(
             "The 'datahub' CLI was not found. acryl-datahub must be installed in the "
-            "runtime environment (it is provided by the Paradime dbt base image)."
+            "runtime environment (Paradime Bolt provides it)."
         )
     except subprocess.CalledProcessError as e:
         # Not repr(): DataHub's validation errors are multi-line, and repr collapses
