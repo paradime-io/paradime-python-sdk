@@ -1,0 +1,2100 @@
+{
+ "metadata": {
+  "dbt_schema_version": "https://schemas.getdbt.com/dbt/manifest/v12.json",
+  "dbt_version": "1.11.15",
+  "generated_at": "2026-10-05T19:20:39.669429Z",
+  "invocation_id": "32dd3074-a14a-4ad3-aef8-662d2fae43b2",
+  "invocation_started_at": "2026-10-05T19:20:39.459619Z",
+  "env": {},
+  "project_name": "probe",
+  "project_id": "8da843ff65205a61374b09b81ed0fa35",
+  "user_id": null,
+  "send_anonymous_usage_stats": false,
+  "adapter_type": "duckdb",
+  "quoting": {
+   "database": true,
+   "schema": true,
+   "identifier": true,
+   "column": null
+  },
+  "run_started_at": "2026-10-05T19:20:39.459802+00:00"
+ },
+ "nodes": {
+  "model.probe.stg_customers": {
+   "database": "probe",
+   "schema": "main",
+   "name": "stg_customers",
+   "resource_type": "model",
+   "package_name": "probe",
+   "path": "staging/stg_customers.sql",
+   "original_file_path": "models/staging/stg_customers.sql",
+   "unique_id": "model.probe.stg_customers",
+   "fqn": [
+    "probe",
+    "staging",
+    "stg_customers"
+   ],
+   "alias": "stg_customers",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "59985d402d2ba97aa36e2dd1639c5ed3884807932f9cb67d6274075b85a634bc"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "view",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": null,
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "contract": {
+     "enforced": false,
+     "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "access": "protected",
+    "freshness": null
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": null,
+   "build_path": "target/run/probe/models/staging/stg_customers.sql",
+   "unrendered_config": {},
+   "created_at": 1791228040.117573,
+   "relation_name": "\"probe\".\"main\".\"stg_customers\"",
+   "raw_code": "select id, name, updated_at from {{ source('raw', 'raw_customers') }}",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [],
+   "sources": [
+    [
+     "raw",
+     "raw_customers"
+    ]
+   ],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [],
+    "nodes": [
+     "source.probe.raw.raw_customers"
+    ]
+   },
+   "compiled_path": "target/compiled/probe/models/staging/stg_customers.sql",
+   "compiled": true,
+   "compiled_code": "select id, name, updated_at from \"probe\".\"main\".\"raw_customers\"",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   },
+   "access": "protected",
+   "constraints": [],
+   "version": null,
+   "latest_version": null,
+   "deprecation_date": null,
+   "primary_key": [],
+   "time_spine": null
+  },
+  "model.probe.stg_orders": {
+   "database": "probe",
+   "schema": "main",
+   "name": "stg_orders",
+   "resource_type": "model",
+   "package_name": "probe",
+   "path": "staging/stg_orders.sql",
+   "original_file_path": "models/staging/stg_orders.sql",
+   "unique_id": "model.probe.stg_orders",
+   "fqn": [
+    "probe",
+    "staging",
+    "stg_orders"
+   ],
+   "alias": "stg_orders",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "dc053da3eb9d2c680d551659ea679f93df38cc4ee7fe0a8294ab9a77deb56eef"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "view",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": null,
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "contract": {
+     "enforced": false,
+     "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "access": "protected",
+    "freshness": null
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": null,
+   "build_path": "target/run/probe/models/staging/stg_orders.sql",
+   "unrendered_config": {},
+   "created_at": 1791228040.127382,
+   "relation_name": "\"probe\".\"main\".\"stg_orders\"",
+   "raw_code": "select id, customer_id, amount, loaded_at from {{ source('raw', 'raw_orders') }}",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [],
+   "sources": [
+    [
+     "raw",
+     "raw_orders"
+    ]
+   ],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [],
+    "nodes": [
+     "source.probe.raw.raw_orders"
+    ]
+   },
+   "compiled_path": "target/compiled/probe/models/staging/stg_orders.sql",
+   "compiled": true,
+   "compiled_code": "select id, customer_id, amount, loaded_at from \"probe\".\"main\".\"raw_orders\"",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   },
+   "access": "protected",
+   "constraints": [],
+   "version": null,
+   "latest_version": null,
+   "deprecation_date": null,
+   "primary_key": [],
+   "time_spine": null
+  },
+  "model.probe.customers": {
+   "database": "probe",
+   "schema": "main",
+   "name": "customers",
+   "resource_type": "model",
+   "package_name": "probe",
+   "path": "marts/customers.sql",
+   "original_file_path": "models/marts/customers.sql",
+   "unique_id": "model.probe.customers",
+   "fqn": [
+    "probe",
+    "marts",
+    "customers"
+   ],
+   "alias": "customers",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "87d823bf7b99b5ce2f26b61fdae31086451dc797f00b741848ca3cabcd7fe80e"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": "finance",
+    "static_analysis": null,
+    "materialized": "table",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": null,
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "contract": {
+     "enforced": true,
+     "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "access": "public",
+    "freshness": null
+   },
+   "tags": [],
+   "description": "Customers",
+   "columns": {
+    "id": {
+     "name": "id",
+     "description": "",
+     "meta": {},
+     "data_type": "bigint",
+     "constraints": [
+      {
+       "type": "not_null",
+       "name": null,
+       "expression": null,
+       "warn_unenforced": true,
+       "warn_unsupported": true,
+       "to": null,
+       "to_columns": []
+      }
+     ],
+     "quote": null,
+     "config": {
+      "meta": {},
+      "tags": []
+     },
+     "tags": [],
+     "granularity": null,
+     "doc_blocks": []
+    },
+    "name": {
+     "name": "name",
+     "description": "",
+     "meta": {},
+     "data_type": "varchar",
+     "constraints": [],
+     "quote": null,
+     "config": {
+      "meta": {},
+      "tags": []
+     },
+     "tags": [],
+     "granularity": null,
+     "doc_blocks": []
+    },
+    "updated_at": {
+     "name": "updated_at",
+     "description": "",
+     "meta": {},
+     "data_type": "timestamp",
+     "constraints": [],
+     "quote": null,
+     "config": {
+      "meta": {},
+      "tags": []
+     },
+     "tags": [],
+     "granularity": null,
+     "doc_blocks": []
+    }
+   },
+   "meta": {},
+   "group": "finance",
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": "probe://models/schema.yml",
+   "build_path": "target/run/probe/models/marts/customers.sql",
+   "unrendered_config": {
+    "group": "finance",
+    "access": "public",
+    "contract": {
+     "enforced": true
+    },
+    "materialized": "table"
+   },
+   "created_at": 1791228040.367726,
+   "relation_name": "\"probe\".\"main\".\"customers\"",
+   "raw_code": "{{ config(materialized='table') }}\nselect cast(id as bigint) as id, cast(name as varchar) as name, cast(updated_at as timestamp) as updated_at from {{ ref('stg_customers') }}",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [
+    {
+     "name": "stg_customers",
+     "package": null,
+     "version": null
+    }
+   ],
+   "sources": [],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [],
+    "nodes": [
+     "model.probe.stg_customers"
+    ]
+   },
+   "compiled_path": "target/compiled/probe/models/marts/customers.sql",
+   "compiled": true,
+   "compiled_code": "\nselect cast(id as bigint) as id, cast(name as varchar) as name, cast(updated_at as timestamp) as updated_at from \"probe\".\"main\".\"stg_customers\"",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": true,
+    "alias_types": true,
+    "checksum": "543985914bc04d934f1e63737ae029dee97d80eb5663a30fb26abf7d18fd162a"
+   },
+   "access": "public",
+   "constraints": [],
+   "version": null,
+   "latest_version": null,
+   "deprecation_date": "2030-01-01T00:00:00+00:00",
+   "primary_key": [],
+   "time_spine": null
+  },
+  "model.probe.orders": {
+   "database": "probe",
+   "schema": "main",
+   "name": "orders",
+   "resource_type": "model",
+   "package_name": "probe",
+   "path": "marts/orders.sql",
+   "original_file_path": "models/marts/orders.sql",
+   "unique_id": "model.probe.orders",
+   "fqn": [
+    "probe",
+    "marts",
+    "orders"
+   ],
+   "alias": "orders",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "27f63522345ee7a8d6c2aa74af804a57321f194bb320555d95c875971df28549"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "table",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": null,
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "contract": {
+     "enforced": false,
+     "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "access": "protected",
+    "freshness": null
+   },
+   "tags": [],
+   "description": "Orders table",
+   "columns": {
+    "id": {
+     "name": "id",
+     "description": "Primary key",
+     "meta": {},
+     "data_type": null,
+     "constraints": [],
+     "quote": null,
+     "config": {
+      "meta": {},
+      "tags": []
+     },
+     "tags": [],
+     "granularity": null,
+     "doc_blocks": []
+    },
+    "amount_cents": {
+     "name": "amount_cents",
+     "description": "",
+     "meta": {},
+     "data_type": null,
+     "constraints": [],
+     "quote": null,
+     "config": {
+      "meta": {},
+      "tags": []
+     },
+     "tags": [],
+     "granularity": null,
+     "doc_blocks": []
+    }
+   },
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": "probe://models/schema.yml",
+   "build_path": "target/run/probe/models/marts/orders.sql",
+   "unrendered_config": {
+    "materialized": "table"
+   },
+   "created_at": 1791228040.365338,
+   "relation_name": "\"probe\".\"main\".\"orders\"",
+   "raw_code": "{{ config(materialized='table') }}\nselect o.id, o.customer_id, {{ cents('o.amount') }} as amount_cents, o.loaded_at, c.name\nfrom {{ ref('stg_orders') }} o\nleft join {{ ref('stg_customers') }} c on c.id = o.customer_id",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [
+    {
+     "name": "stg_orders",
+     "package": null,
+     "version": null
+    },
+    {
+     "name": "stg_customers",
+     "package": null,
+     "version": null
+    }
+   ],
+   "sources": [],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [
+     "macro.probe.cents"
+    ],
+    "nodes": [
+     "model.probe.stg_orders",
+     "model.probe.stg_customers"
+    ]
+   },
+   "compiled_path": "target/compiled/probe/models/marts/orders.sql",
+   "compiled": true,
+   "compiled_code": "\nselect o.id, o.customer_id, (o.amount * 100) as amount_cents, o.loaded_at, c.name\nfrom \"probe\".\"main\".\"stg_orders\" o\nleft join \"probe\".\"main\".\"stg_customers\" c on c.id = o.customer_id",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   },
+   "access": "protected",
+   "constraints": [],
+   "version": null,
+   "latest_version": null,
+   "deprecation_date": null,
+   "primary_key": [
+    "id"
+   ],
+   "time_spine": null
+  },
+  "model.probe.metricflow_time_spine": {
+   "database": "probe",
+   "schema": "main",
+   "name": "metricflow_time_spine",
+   "resource_type": "model",
+   "package_name": "probe",
+   "path": "marts/metricflow_time_spine.sql",
+   "original_file_path": "models/marts/metricflow_time_spine.sql",
+   "unique_id": "model.probe.metricflow_time_spine",
+   "fqn": [
+    "probe",
+    "marts",
+    "metricflow_time_spine"
+   ],
+   "alias": "metricflow_time_spine",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "c7ba3a536ca2f60a3d7aaaaddc8a0a313a358d6e2c01b1385a5962408bc24c24"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "table",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": null,
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "contract": {
+     "enforced": false,
+     "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "access": "protected",
+    "freshness": null
+   },
+   "tags": [],
+   "description": "",
+   "columns": {
+    "date_day": {
+     "name": "date_day",
+     "description": "",
+     "meta": {},
+     "data_type": null,
+     "constraints": [],
+     "quote": null,
+     "config": {
+      "meta": {},
+      "tags": []
+     },
+     "tags": [],
+     "granularity": "day",
+     "doc_blocks": []
+    }
+   },
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": "probe://models/schema.yml",
+   "build_path": "target/run/probe/models/marts/metricflow_time_spine.sql",
+   "unrendered_config": {
+    "materialized": "table"
+   },
+   "created_at": 1791228040.368536,
+   "relation_name": "\"probe\".\"main\".\"metricflow_time_spine\"",
+   "raw_code": "{{ config(materialized='table') }}\nselect cast(range as date) as date_day\nfrom range(date '2020-01-01', date '2020-02-01', interval 1 day)",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [],
+   "sources": [],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [],
+    "nodes": []
+   },
+   "compiled_path": "target/compiled/probe/models/marts/metricflow_time_spine.sql",
+   "compiled": true,
+   "compiled_code": "\nselect cast(range as date) as date_day\nfrom range(date '2020-01-01', date '2020-02-01', interval 1 day)",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   },
+   "access": "protected",
+   "constraints": [],
+   "version": null,
+   "latest_version": null,
+   "deprecation_date": null,
+   "primary_key": [],
+   "time_spine": {
+    "standard_granularity_column": "date_day",
+    "custom_granularities": []
+   }
+  },
+  "model.probe.customer_orders_inc": {
+   "database": "probe",
+   "schema": "main",
+   "name": "customer_orders_inc",
+   "resource_type": "model",
+   "package_name": "probe",
+   "path": "marts/customer_orders_inc.sql",
+   "original_file_path": "models/marts/customer_orders_inc.sql",
+   "unique_id": "model.probe.customer_orders_inc",
+   "fqn": [
+    "probe",
+    "marts",
+    "customer_orders_inc"
+   ],
+   "alias": "customer_orders_inc",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "a454cdd52a2671f012a92d4f17d76d95a3d8850659dc8c3ed40d717255bf5652"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "incremental",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": "id",
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "contract": {
+     "enforced": false,
+     "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "access": "protected",
+    "freshness": null
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": null,
+   "build_path": "target/run/probe/models/marts/customer_orders_inc.sql",
+   "unrendered_config": {
+    "materialized": "incremental",
+    "unique_key": "id"
+   },
+   "created_at": 1791228040.1379058,
+   "relation_name": "\"probe\".\"main\".\"customer_orders_inc\"",
+   "raw_code": "{{ config(materialized='incremental', unique_key='id') }}\nselect id, customer_id, amount_cents from {{ ref('orders') }}\n{% if is_incremental() %} where id > (select max(id) from {{ this }}) {% endif %}",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [
+    {
+     "name": "orders",
+     "package": null,
+     "version": null
+    }
+   ],
+   "sources": [],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [
+     "macro.dbt.is_incremental"
+    ],
+    "nodes": [
+     "model.probe.orders"
+    ]
+   },
+   "compiled_path": "target/compiled/probe/models/marts/customer_orders_inc.sql",
+   "compiled": true,
+   "compiled_code": "\nselect id, customer_id, amount_cents from \"probe\".\"main\".\"orders\"\n",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   },
+   "access": "protected",
+   "constraints": [],
+   "version": null,
+   "latest_version": null,
+   "deprecation_date": null,
+   "primary_key": [],
+   "time_spine": null
+  },
+  "test.probe.assert_orders_have_customers": {
+   "database": "probe",
+   "schema": "main_dbt_test__audit",
+   "name": "assert_orders_have_customers",
+   "resource_type": "test",
+   "package_name": "probe",
+   "path": "assert_orders_have_customers.sql",
+   "original_file_path": "tests/assert_orders_have_customers.sql",
+   "unique_id": "test.probe.assert_orders_have_customers",
+   "fqn": [
+    "probe",
+    "assert_orders_have_customers"
+   ],
+   "alias": "assert_orders_have_customers",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "771cbbcfb1e8adef266b13c2261ff7d72bf99c3f474662a657e0611a521ad38b"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": "dbt_test__audit",
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "test",
+    "severity": "ERROR",
+    "store_failures": null,
+    "store_failures_as": null,
+    "where": null,
+    "limit": null,
+    "fail_calc": "count(*)",
+    "warn_if": "!= 0",
+    "error_if": "!= 0"
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": null,
+   "build_path": "target/run/probe/tests/assert_orders_have_customers.sql",
+   "unrendered_config": {},
+   "created_at": 1791228040.1776261,
+   "relation_name": null,
+   "raw_code": "select * from {{ ref('orders') }} where customer_id is null",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [
+    {
+     "name": "orders",
+     "package": null,
+     "version": null
+    }
+   ],
+   "sources": [],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [
+     "macro.dbt.get_limit_subquery_sql",
+     "macro.dbt.should_store_failures",
+     "macro.dbt.statement"
+    ],
+    "nodes": [
+     "model.probe.orders"
+    ]
+   },
+   "compiled_path": "target/compiled/probe/tests/assert_orders_have_customers.sql",
+   "compiled": true,
+   "compiled_code": "select * from \"probe\".\"main\".\"orders\" where customer_id is null",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   }
+  },
+  "seed.probe.raw_customers": {
+   "database": "probe",
+   "schema": "main",
+   "name": "raw_customers",
+   "resource_type": "seed",
+   "package_name": "probe",
+   "path": "raw_customers.csv",
+   "original_file_path": "seeds/raw_customers.csv",
+   "unique_id": "seed.probe.raw_customers",
+   "fqn": [
+    "probe",
+    "raw_customers"
+   ],
+   "alias": "raw_customers",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "273a01721f82aae5a8966d3d9f8f364fc160d8e1d51afd1022a60f1a1b3e3c8c"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "seed",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": null,
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "contract": {
+     "enforced": false,
+     "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "delimiter": ",",
+    "quote_columns": null
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": null,
+   "build_path": "target/run/probe/seeds/raw_customers.csv",
+   "unrendered_config": {},
+   "created_at": 1791228040.240156,
+   "relation_name": "\"probe\".\"main\".\"raw_customers\"",
+   "raw_code": "",
+   "doc_blocks": [],
+   "root_path": "/probe",
+   "depends_on": {
+    "macros": []
+   }
+  },
+  "seed.probe.raw_orders": {
+   "database": "probe",
+   "schema": "main",
+   "name": "raw_orders",
+   "resource_type": "seed",
+   "package_name": "probe",
+   "path": "raw_orders.csv",
+   "original_file_path": "seeds/raw_orders.csv",
+   "unique_id": "seed.probe.raw_orders",
+   "fqn": [
+    "probe",
+    "raw_orders"
+   ],
+   "alias": "raw_orders",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "ea7cebee0b28e300205c503fc3c40d4c104deb56f4d543155fa4bd6fa21e0cf5"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "seed",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": null,
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "contract": {
+     "enforced": false,
+     "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "delimiter": ",",
+    "quote_columns": null
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": null,
+   "build_path": "target/run/probe/seeds/raw_orders.csv",
+   "unrendered_config": {},
+   "created_at": 1791228040.241236,
+   "relation_name": "\"probe\".\"main\".\"raw_orders\"",
+   "raw_code": "",
+   "doc_blocks": [],
+   "root_path": "/probe",
+   "depends_on": {
+    "macros": []
+   }
+  },
+  "snapshot.probe.customers_snapshot": {
+   "database": "probe",
+   "schema": "main",
+   "name": "customers_snapshot",
+   "resource_type": "snapshot",
+   "package_name": "probe",
+   "path": "snapshots.yml/customers_snapshot.sql",
+   "original_file_path": "snapshots/snapshots.yml",
+   "unique_id": "snapshot.probe.customers_snapshot",
+   "fqn": [
+    "probe",
+    "customers_snapshot"
+   ],
+   "alias": "customers_snapshot",
+   "checksum": {
+    "name": "sha256",
+    "checksum": "1c5af6ba4a528e1a5bbfbe1c9acee1967c422eb5e1f00f2f1405331effbc2aca"
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": null,
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "snapshot",
+    "incremental_strategy": null,
+    "batch_size": null,
+    "lookback": 1,
+    "begin": null,
+    "persist_docs": {},
+    "post-hook": [],
+    "pre-hook": [],
+    "quoting": {},
+    "column_types": {},
+    "full_refresh": null,
+    "unique_key": "id",
+    "on_schema_change": "ignore",
+    "on_configuration_change": "apply",
+    "grants": {},
+    "packages": [],
+    "docs": {
+     "show": true,
+     "node_color": null
+    },
+    "contract": {
+     "enforced": false,
+     "alias_types": true
+    },
+    "event_time": null,
+    "concurrent_batches": null,
+    "strategy": "timestamp",
+    "target_schema": null,
+    "target_database": null,
+    "updated_at": "updated_at",
+    "check_cols": null,
+    "snapshot_meta_column_names": {
+     "dbt_valid_to": null,
+     "dbt_valid_from": null,
+     "dbt_scd_id": null,
+     "dbt_updated_at": null,
+     "dbt_is_deleted": null
+    },
+    "dbt_valid_to_current": null
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": "probe://snapshots/snapshots.yml",
+   "build_path": "target/run/probe/snapshots/snapshots.yml/snapshots.yml/customers_snapshot.sql",
+   "unrendered_config": {
+    "unique_key": "id",
+    "strategy": "timestamp",
+    "updated_at": "updated_at"
+   },
+   "created_at": 1791228040.3433018,
+   "relation_name": "\"probe\".\"main\".\"customers_snapshot\"",
+   "raw_code": "select * from {{ ref('stg_customers') }}",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [
+    {
+     "name": "stg_customers",
+     "package": null,
+     "version": null
+    }
+   ],
+   "sources": [],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [],
+    "nodes": [
+     "model.probe.stg_customers"
+    ]
+   },
+   "compiled_path": null,
+   "compiled": true,
+   "compiled_code": "select * from \"probe\".\"main\".\"stg_customers\"",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   }
+  },
+  "test.probe.unique_orders_id.1360ecc70e": {
+   "database": "probe",
+   "schema": "main_dbt_test__audit",
+   "name": "unique_orders_id",
+   "resource_type": "test",
+   "package_name": "probe",
+   "path": "unique_orders_id.sql",
+   "original_file_path": "models/schema.yml",
+   "unique_id": "test.probe.unique_orders_id.1360ecc70e",
+   "fqn": [
+    "probe",
+    "unique_orders_id"
+   ],
+   "alias": "unique_orders_id",
+   "checksum": {
+    "name": "none",
+    "checksum": ""
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": "dbt_test__audit",
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "test",
+    "severity": "ERROR",
+    "store_failures": null,
+    "store_failures_as": null,
+    "where": null,
+    "limit": null,
+    "fail_calc": "count(*)",
+    "warn_if": "!= 0",
+    "error_if": "!= 0"
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": null,
+   "build_path": "target/run/probe/models/schema.yml/unique_orders_id.sql",
+   "unrendered_config": {},
+   "created_at": 1791228040.397782,
+   "relation_name": null,
+   "raw_code": "{{ test_unique(**_dbt_generic_test_kwargs) }}",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [
+    {
+     "name": "orders",
+     "package": null,
+     "version": null
+    }
+   ],
+   "sources": [],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [
+     "macro.dbt.test_unique",
+     "macro.dbt.get_where_subquery",
+     "macro.dbt.get_limit_subquery_sql",
+     "macro.dbt.should_store_failures",
+     "macro.dbt.statement"
+    ],
+    "nodes": [
+     "model.probe.orders"
+    ]
+   },
+   "compiled_path": "target/compiled/probe/models/schema.yml/unique_orders_id.sql",
+   "compiled": true,
+   "compiled_code": "\n    \n    \n\nselect\n    id as unique_field,\n    count(*) as n_records\n\nfrom \"probe\".\"main\".\"orders\"\nwhere id is not null\ngroup by id\nhaving count(*) > 1\n\n\n",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   },
+   "column_name": "id",
+   "file_key_name": "models.orders",
+   "attached_node": "model.probe.orders",
+   "test_metadata": {
+    "name": "unique",
+    "kwargs": {
+     "column_name": "id",
+     "model": "{{ get_where_subquery(ref('orders')) }}"
+    },
+    "namespace": null
+   }
+  },
+  "test.probe.not_null_orders_id.84ef11d8fe": {
+   "database": "probe",
+   "schema": "main_dbt_test__audit",
+   "name": "not_null_orders_id",
+   "resource_type": "test",
+   "package_name": "probe",
+   "path": "not_null_orders_id.sql",
+   "original_file_path": "models/schema.yml",
+   "unique_id": "test.probe.not_null_orders_id.84ef11d8fe",
+   "fqn": [
+    "probe",
+    "not_null_orders_id"
+   ],
+   "alias": "not_null_orders_id",
+   "checksum": {
+    "name": "none",
+    "checksum": ""
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": "dbt_test__audit",
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "test",
+    "severity": "ERROR",
+    "store_failures": null,
+    "store_failures_as": null,
+    "where": null,
+    "limit": null,
+    "fail_calc": "count(*)",
+    "warn_if": "!= 0",
+    "error_if": "!= 0"
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": null,
+   "build_path": "target/run/probe/models/schema.yml/not_null_orders_id.sql",
+   "unrendered_config": {},
+   "created_at": 1791228040.3986108,
+   "relation_name": null,
+   "raw_code": "{{ test_not_null(**_dbt_generic_test_kwargs) }}",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [
+    {
+     "name": "orders",
+     "package": null,
+     "version": null
+    }
+   ],
+   "sources": [],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [
+     "macro.dbt.test_not_null",
+     "macro.dbt.get_where_subquery",
+     "macro.dbt.get_limit_subquery_sql",
+     "macro.dbt.should_store_failures",
+     "macro.dbt.statement"
+    ],
+    "nodes": [
+     "model.probe.orders"
+    ]
+   },
+   "compiled_path": "target/compiled/probe/models/schema.yml/not_null_orders_id.sql",
+   "compiled": true,
+   "compiled_code": "\n    \n    \n\n\n\nselect id\nfrom \"probe\".\"main\".\"orders\"\nwhere id is null\n\n\n",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   },
+   "column_name": "id",
+   "file_key_name": "models.orders",
+   "attached_node": "model.probe.orders",
+   "test_metadata": {
+    "name": "not_null",
+    "kwargs": {
+     "column_name": "id",
+     "model": "{{ get_where_subquery(ref('orders')) }}"
+    },
+    "namespace": null
+   }
+  },
+  "test.probe.positive_orders_amount_cents.ecd85e137e": {
+   "database": "probe",
+   "schema": "main_dbt_test__audit",
+   "name": "positive_orders_amount_cents",
+   "resource_type": "test",
+   "package_name": "probe",
+   "path": "positive_orders_amount_cents.sql",
+   "original_file_path": "models/schema.yml",
+   "unique_id": "test.probe.positive_orders_amount_cents.ecd85e137e",
+   "fqn": [
+    "probe",
+    "positive_orders_amount_cents"
+   ],
+   "alias": "positive_orders_amount_cents",
+   "checksum": {
+    "name": "none",
+    "checksum": ""
+   },
+   "config": {
+    "enabled": true,
+    "alias": null,
+    "schema": "dbt_test__audit",
+    "database": null,
+    "tags": [],
+    "meta": {},
+    "group": null,
+    "static_analysis": null,
+    "materialized": "test",
+    "severity": "warn",
+    "store_failures": null,
+    "store_failures_as": null,
+    "where": null,
+    "limit": null,
+    "fail_calc": "count(*)",
+    "warn_if": "!= 0",
+    "error_if": "!= 0"
+   },
+   "tags": [],
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "group": null,
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "patch_path": null,
+   "build_path": "target/run/probe/models/schema.yml/positive_orders_amount_cents.sql",
+   "unrendered_config": {
+    "severity": "warn"
+   },
+   "created_at": 1791228040.399453,
+   "relation_name": null,
+   "raw_code": "{{ test_positive(**_dbt_generic_test_kwargs) }}{{ config(severity=\"warn\") }}",
+   "doc_blocks": [],
+   "language": "sql",
+   "refs": [
+    {
+     "name": "orders",
+     "package": null,
+     "version": null
+    }
+   ],
+   "sources": [],
+   "metrics": [],
+   "functions": [],
+   "depends_on": {
+    "macros": [
+     "macro.probe.test_positive",
+     "macro.dbt.get_where_subquery",
+     "macro.dbt.get_limit_subquery_sql",
+     "macro.dbt.should_store_failures",
+     "macro.dbt.statement"
+    ],
+    "nodes": [
+     "model.probe.orders"
+    ]
+   },
+   "compiled_path": "target/compiled/probe/models/schema.yml/positive_orders_amount_cents.sql",
+   "compiled": true,
+   "compiled_code": "\nselect * from \"probe\".\"main\".\"orders\" where amount_cents <= 0\n",
+   "extra_ctes_injected": true,
+   "extra_ctes": [],
+   "contract": {
+    "enforced": false,
+    "alias_types": true,
+    "checksum": null
+   },
+   "column_name": "amount_cents",
+   "file_key_name": "models.orders",
+   "attached_node": "model.probe.orders",
+   "test_metadata": {
+    "name": "positive",
+    "kwargs": {
+     "column_name": "amount_cents",
+     "model": "{{ get_where_subquery(ref('orders')) }}"
+    },
+    "namespace": null
+   }
+  }
+ },
+ "sources": {
+  "source.probe.raw.raw_orders": {
+   "database": "probe",
+   "schema": "main",
+   "name": "raw_orders",
+   "resource_type": "source",
+   "package_name": "probe",
+   "path": "models/sources.yml",
+   "original_file_path": "models/sources.yml",
+   "unique_id": "source.probe.raw.raw_orders",
+   "fqn": [
+    "probe",
+    "raw",
+    "raw_orders"
+   ],
+   "source_name": "raw",
+   "source_description": "",
+   "loader": "",
+   "identifier": "raw_orders",
+   "quoting": {
+    "database": null,
+    "schema": null,
+    "identifier": null,
+    "column": null
+   },
+   "loaded_at_field": "loaded_at",
+   "loaded_at_query": null,
+   "freshness": {
+    "warn_after": {
+     "count": 1,
+     "period": "hour"
+    },
+    "error_after": {
+     "count": 100000,
+     "period": "day"
+    },
+    "filter": null
+   },
+   "external": null,
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "source_meta": {},
+   "tags": [],
+   "config": {
+    "enabled": true,
+    "event_time": null,
+    "freshness": {
+     "warn_after": {
+      "count": 1,
+      "period": "hour"
+     },
+     "error_after": {
+      "count": 100000,
+      "period": "day"
+     },
+     "filter": null
+    },
+    "loaded_at_field": "loaded_at",
+    "loaded_at_query": null,
+    "meta": {},
+    "tags": [],
+    "static_analysis": null
+   },
+   "patch_path": null,
+   "unrendered_config": {
+    "loaded_at_field": "loaded_at",
+    "freshness": {
+     "warn_after": {
+      "count": 1,
+      "period": "hour"
+     },
+     "error_after": {
+      "count": 100000,
+      "period": "day"
+     },
+     "filter": null
+    },
+    "loaded_at_query": null,
+    "meta": {},
+    "tags": []
+   },
+   "relation_name": "\"probe\".\"main\".\"raw_orders\"",
+   "created_at": 1791228040.522895,
+   "unrendered_database": null,
+   "unrendered_schema": "main",
+   "doc_blocks": []
+  },
+  "source.probe.raw.raw_customers": {
+   "database": "probe",
+   "schema": "main",
+   "name": "raw_customers",
+   "resource_type": "source",
+   "package_name": "probe",
+   "path": "models/sources.yml",
+   "original_file_path": "models/sources.yml",
+   "unique_id": "source.probe.raw.raw_customers",
+   "fqn": [
+    "probe",
+    "raw",
+    "raw_customers"
+   ],
+   "source_name": "raw",
+   "source_description": "",
+   "loader": "",
+   "identifier": "raw_customers",
+   "quoting": {
+    "database": null,
+    "schema": null,
+    "identifier": null,
+    "column": null
+   },
+   "loaded_at_field": "updated_at",
+   "loaded_at_query": null,
+   "freshness": {
+    "warn_after": {
+     "count": 100000,
+     "period": "day"
+    },
+    "error_after": {
+     "count": null,
+     "period": null
+    },
+    "filter": null
+   },
+   "external": null,
+   "description": "",
+   "columns": {},
+   "meta": {},
+   "source_meta": {},
+   "tags": [],
+   "config": {
+    "enabled": true,
+    "event_time": null,
+    "freshness": {
+     "warn_after": {
+      "count": 100000,
+      "period": "day"
+     },
+     "error_after": {
+      "count": null,
+      "period": null
+     },
+     "filter": null
+    },
+    "loaded_at_field": "updated_at",
+    "loaded_at_query": null,
+    "meta": {},
+    "tags": [],
+    "static_analysis": null
+   },
+   "patch_path": null,
+   "unrendered_config": {
+    "loaded_at_field": "updated_at",
+    "freshness": {
+     "warn_after": {
+      "count": 100000,
+      "period": "day"
+     },
+     "error_after": {
+      "count": null,
+      "period": null
+     },
+     "filter": null
+    },
+    "loaded_at_query": null,
+    "meta": {},
+    "tags": []
+   },
+   "relation_name": "\"probe\".\"main\".\"raw_customers\"",
+   "created_at": 1791228040.523614,
+   "unrendered_database": null,
+   "unrendered_schema": "main",
+   "doc_blocks": []
+  }
+ },
+ "macros": {
+  "macro.probe.cents": {
+   "name": "cents",
+   "resource_type": "macro",
+   "package_name": "probe",
+   "path": "macros/cents.sql",
+   "original_file_path": "macros/cents.sql",
+   "unique_id": "macro.probe.cents",
+   "macro_sql": "{% macro cents(col) %}({{ col }} * 100){% endmacro %}",
+   "depends_on": {
+    "macros": []
+   },
+   "description": "",
+   "meta": {},
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "config": {
+    "meta": {},
+    "docs": {
+     "show": true,
+     "node_color": null
+    }
+   },
+   "patch_path": null,
+   "arguments": [],
+   "created_at": 1791228039.6845691,
+   "supported_languages": null
+  },
+  "macro.probe.test_positive": {
+   "name": "test_positive",
+   "resource_type": "macro",
+   "package_name": "probe",
+   "path": "tests/generic/positive.sql",
+   "original_file_path": "tests/generic/positive.sql",
+   "unique_id": "macro.probe.test_positive",
+   "macro_sql": "{% test positive(model, column_name) %}\nselect * from {{ model }} where {{ column_name }} <= 0\n{% endtest %}",
+   "depends_on": {
+    "macros": []
+   },
+   "description": "",
+   "meta": {},
+   "docs": {
+    "show": true,
+    "node_color": null
+   },
+   "config": {
+    "meta": {},
+    "docs": {
+     "show": true,
+     "node_color": null
+    }
+   },
+   "patch_path": null,
+   "arguments": [],
+   "created_at": 1791228039.68474,
+   "supported_languages": null
+  }
+ },
+ "docs": {
+  "doc.dbt.__overview__": {
+   "name": "__overview__",
+   "resource_type": "doc",
+   "package_name": "dbt",
+   "path": "overview.md",
+   "original_file_path": "docs/overview.md",
+   "unique_id": "doc.dbt.__overview__",
+   "block_contents": "### Welcome!\n\nWelcome to the auto-generated documentation for your dbt project!\n\n### Navigation\n\nYou can use the `Project` and `Database` navigation tabs on the left side of the window to explore the models\nin your project.\n\n#### Project Tab\nThe `Project` tab mirrors the directory structure of your dbt project. In this tab, you can see all of the\nmodels defined in your dbt project, as well as models imported from dbt packages.\n\n#### Database Tab\nThe `Database` tab also exposes your models, but in a format that looks more like a database explorer. This view\nshows relations (tables and views) grouped into database schemas. Note that ephemeral models are _not_ shown\nin this interface, as they do not exist in the database.\n\n### Graph Exploration\nYou can click the blue icon on the bottom-right corner of the page to view the lineage graph of your models.\n\nOn model pages, you'll see the immediate parents and children of the model you're exploring. By clicking the `Expand`\nbutton at the top-right of this lineage pane, you'll be able to see all of the models that are used to build,\nor are built from, the model you're exploring.\n\nOnce expanded, you'll be able to use the `--select` and `--exclude` model selection syntax to filter the\nmodels in the graph. For more information on model selection, check out the [dbt docs](https://docs.getdbt.com/docs/model-selection-syntax).\n\nNote that you can also right-click on models to interactively filter and explore the graph.\n\n---\n\n### More information\n\n- [What is dbt](https://docs.getdbt.com/docs/introduction)?\n- Read the [dbt viewpoint](https://docs.getdbt.com/docs/viewpoint)\n- [Installation](https://docs.getdbt.com/docs/installation)\n- Join the [dbt Community](https://www.getdbt.com/community/) for questions and discussion"
+  }
+ },
+ "exposures": {
+  "exposure.probe.weekly_dashboard": {
+   "name": "weekly_dashboard",
+   "resource_type": "exposure",
+   "package_name": "probe",
+   "path": "schema.yml",
+   "original_file_path": "models/schema.yml",
+   "unique_id": "exposure.probe.weekly_dashboard",
+   "fqn": [
+    "probe",
+    "weekly_dashboard"
+   ],
+   "type": "dashboard",
+   "owner": {
+    "email": "analytics@example.com",
+    "name": "Analytics"
+   },
+   "description": "",
+   "label": null,
+   "maturity": "high",
+   "meta": {},
+   "tags": [],
+   "config": {
+    "enabled": true,
+    "tags": [],
+    "meta": {}
+   },
+   "unrendered_config": {},
+   "url": null,
+   "depends_on": {
+    "macros": [],
+    "nodes": [
+     "model.probe.orders",
+     "model.probe.customers"
+    ]
+   },
+   "refs": [
+    {
+     "name": "orders",
+     "package": null,
+     "version": null
+    },
+    {
+     "name": "customers",
+     "package": null,
+     "version": null
+    }
+   ],
+   "sources": [],
+   "metrics": [],
+   "created_at": 1791228040.4147332
+  }
+ },
+ "metrics": {
+  "metric.probe.orders_count": {
+   "name": "orders_count",
+   "resource_type": "metric",
+   "package_name": "probe",
+   "path": "schema.yml",
+   "original_file_path": "models/schema.yml",
+   "unique_id": "metric.probe.orders_count",
+   "fqn": [
+    "probe",
+    "orders_count"
+   ],
+   "description": "",
+   "label": "Orders",
+   "type": "simple",
+   "type_params": {
+    "measure": {
+     "name": "order_count",
+     "filter": null,
+     "alias": null,
+     "join_to_timespine": false,
+     "fill_nulls_with": null
+    },
+    "input_measures": [
+     {
+      "name": "order_count",
+      "filter": null,
+      "alias": null,
+      "join_to_timespine": false,
+      "fill_nulls_with": null
+     }
+    ],
+    "numerator": null,
+    "denominator": null,
+    "expr": null,
+    "window": null,
+    "grain_to_date": null,
+    "metrics": [],
+    "conversion_type_params": null,
+    "cumulative_type_params": null,
+    "metric_aggregation_params": null
+   },
+   "filter": null,
+   "metadata": null,
+   "time_granularity": null,
+   "meta": {},
+   "tags": [],
+   "config": {
+    "enabled": true,
+    "group": null,
+    "meta": {}
+   },
+   "unrendered_config": {},
+   "sources": [],
+   "depends_on": {
+    "macros": [],
+    "nodes": [
+     "semantic_model.probe.orders_sm"
+    ]
+   },
+   "refs": [],
+   "metrics": [],
+   "created_at": 1791228040.443392,
+   "group": null
+  }
+ },
+ "groups": {
+  "group.probe.finance": {
+   "name": "finance",
+   "resource_type": "group",
+   "package_name": "probe",
+   "path": "schema.yml",
+   "original_file_path": "models/schema.yml",
+   "unique_id": "group.probe.finance",
+   "owner": {
+    "email": "finance@example.com",
+    "name": "Finance"
+   },
+   "description": null,
+   "config": {
+    "meta": {}
+   }
+  }
+ },
+ "selectors": {},
+ "disabled": {},
+ "parent_map": {
+  "model.probe.stg_customers": [
+   "source.probe.raw.raw_customers"
+  ],
+  "model.probe.stg_orders": [
+   "source.probe.raw.raw_orders"
+  ],
+  "model.probe.customers": [
+   "model.probe.stg_customers"
+  ],
+  "model.probe.orders": [
+   "model.probe.stg_customers",
+   "model.probe.stg_orders"
+  ],
+  "model.probe.metricflow_time_spine": [],
+  "model.probe.customer_orders_inc": [
+   "model.probe.orders"
+  ],
+  "test.probe.assert_orders_have_customers": [
+   "model.probe.orders"
+  ],
+  "seed.probe.raw_customers": [],
+  "seed.probe.raw_orders": [],
+  "snapshot.probe.customers_snapshot": [
+   "model.probe.stg_customers"
+  ],
+  "test.probe.unique_orders_id.1360ecc70e": [
+   "model.probe.orders"
+  ],
+  "test.probe.not_null_orders_id.84ef11d8fe": [
+   "model.probe.orders"
+  ],
+  "test.probe.positive_orders_amount_cents.ecd85e137e": [
+   "model.probe.orders"
+  ],
+  "source.probe.raw.raw_orders": [],
+  "source.probe.raw.raw_customers": [],
+  "exposure.probe.weekly_dashboard": [
+   "model.probe.customers",
+   "model.probe.orders"
+  ],
+  "metric.probe.orders_count": [
+   "semantic_model.probe.orders_sm"
+  ],
+  "semantic_model.probe.orders_sm": [
+   "model.probe.orders"
+  ],
+  "unit_test.probe.orders.test_orders_cents": [
+   "model.probe.orders"
+  ]
+ },
+ "child_map": {
+  "model.probe.stg_customers": [
+   "model.probe.customers",
+   "model.probe.orders",
+   "snapshot.probe.customers_snapshot"
+  ],
+  "model.probe.stg_orders": [
+   "model.probe.orders"
+  ],
+  "model.probe.customers": [
+   "exposure.probe.weekly_dashboard"
+  ],
+  "model.probe.orders": [
+   "exposure.probe.weekly_dashboard",
+   "model.probe.customer_orders_inc",
+   "semantic_model.probe.orders_sm",
+   "test.probe.assert_orders_have_customers",
+   "test.probe.not_null_orders_id.84ef11d8fe",
+   "test.probe.positive_orders_amount_cents.ecd85e137e",
+   "test.probe.unique_orders_id.1360ecc70e",
+   "unit_test.probe.orders.test_orders_cents"
+  ],
+  "model.probe.metricflow_time_spine": [],
+  "model.probe.customer_orders_inc": [],
+  "test.probe.assert_orders_have_customers": [],
+  "seed.probe.raw_customers": [],
+  "seed.probe.raw_orders": [],
+  "snapshot.probe.customers_snapshot": [],
+  "test.probe.unique_orders_id.1360ecc70e": [],
+  "test.probe.not_null_orders_id.84ef11d8fe": [],
+  "test.probe.positive_orders_amount_cents.ecd85e137e": [],
+  "source.probe.raw.raw_orders": [
+   "model.probe.stg_orders"
+  ],
+  "source.probe.raw.raw_customers": [
+   "model.probe.stg_customers"
+  ],
+  "exposure.probe.weekly_dashboard": [],
+  "metric.probe.orders_count": [],
+  "semantic_model.probe.orders_sm": [
+   "metric.probe.orders_count"
+  ],
+  "unit_test.probe.orders.test_orders_cents": []
+ },
+ "group_map": {
+  "finance": [
+   "model.probe.customers"
+  ]
+ },
+ "saved_queries": {},
+ "semantic_models": {
+  "semantic_model.probe.orders_sm": {
+   "name": "orders_sm",
+   "resource_type": "semantic_model",
+   "package_name": "probe",
+   "path": "schema.yml",
+   "original_file_path": "models/schema.yml",
+   "unique_id": "semantic_model.probe.orders_sm",
+   "fqn": [
+    "probe",
+    "orders_sm"
+   ],
+   "model": "ref('orders')",
+   "node_relation": {
+    "alias": "orders",
+    "schema_name": "main",
+    "database": "probe",
+    "relation_name": "\"probe\".\"main\".\"orders\""
+   },
+   "description": null,
+   "label": null,
+   "defaults": {
+    "agg_time_dimension": "loaded_at"
+   },
+   "entities": [
+    {
+     "name": "order",
+     "type": "primary",
+     "description": null,
+     "label": null,
+     "role": null,
+     "expr": "id",
+     "config": {
+      "meta": {}
+     }
+    }
+   ],
+   "measures": [
+    {
+     "name": "order_count",
+     "agg": "count",
+     "description": null,
+     "label": null,
+     "create_metric": false,
+     "expr": "id",
+     "agg_params": null,
+     "non_additive_dimension": null,
+     "agg_time_dimension": null,
+     "config": {
+      "meta": {}
+     }
+    }
+   ],
+   "dimensions": [
+    {
+     "name": "loaded_at",
+     "type": "time",
+     "description": null,
+     "label": null,
+     "is_partition": false,
+     "type_params": {
+      "time_granularity": "day",
+      "validity_params": null
+     },
+     "expr": null,
+     "metadata": null,
+     "config": {
+      "meta": {}
+     }
+    }
+   ],
+   "metadata": null,
+   "depends_on": {
+    "macros": [],
+    "nodes": [
+     "model.probe.orders"
+    ]
+   },
+   "refs": [
+    {
+     "name": "orders",
+     "package": null,
+     "version": null
+    }
+   ],
+   "created_at": 1791228040.4679658,
+   "config": {
+    "enabled": true,
+    "group": null,
+    "meta": {}
+   },
+   "unrendered_config": {},
+   "primary_entity": null,
+   "group": null
+  }
+ },
+ "unit_tests": {
+  "unit_test.probe.orders.test_orders_cents": {
+   "model": "orders",
+   "given": [
+    {
+     "input": "ref('stg_orders')",
+     "rows": [
+      {
+       "id": 1,
+       "customer_id": 1,
+       "amount": 2,
+       "loaded_at": "2020-01-01 00:00:00"
+      }
+     ],
+     "format": "dict",
+     "fixture": null
+    },
+    {
+     "input": "ref('stg_customers')",
+     "rows": [
+      {
+       "id": 1,
+       "name": "a",
+       "updated_at": "2020-01-01 00:00:00"
+      }
+     ],
+     "format": "dict",
+     "fixture": null
+    }
+   ],
+   "expect": {
+    "rows": [
+     {
+      "id": 1,
+      "amount_cents": 200
+     }
+    ],
+    "format": "dict",
+    "fixture": null
+   },
+   "name": "test_orders_cents",
+   "resource_type": "unit_test",
+   "package_name": "probe",
+   "path": "schema.yml",
+   "original_file_path": "models/schema.yml",
+   "unique_id": "unit_test.probe.orders.test_orders_cents",
+   "fqn": [
+    "probe",
+    "orders",
+    "test_orders_cents"
+   ],
+   "description": "",
+   "overrides": null,
+   "depends_on": {
+    "macros": [],
+    "nodes": [
+     "model.probe.orders"
+    ]
+   },
+   "config": {
+    "tags": [],
+    "meta": {},
+    "enabled": true,
+    "static_analysis": null
+   },
+   "checksum": "9c3f89b821c17b93ccc14348137f2cd9f5bc94e4e147c339f978df1fe226ef4f",
+   "schema": "main",
+   "created_at": 1791228040.481577,
+   "versions": null,
+   "version": null
+  }
+ },
+ "functions": {}
+}
