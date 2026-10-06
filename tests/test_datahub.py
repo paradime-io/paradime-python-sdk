@@ -418,6 +418,31 @@ def test_push_finds_nothing(tmp_path: Path) -> None:
     assert recipes == []
 
 
+@pytest.mark.parametrize(
+    "dbt_version, advice",
+    [
+        ("2.0.5", "dbt compile --write-catalog"),
+        ("1.11.15", "Run `dbt docs generate`"),
+        (None, "Run `dbt docs generate`"),
+    ],
+)
+def test_manifest_without_catalog_is_skipped_with_advice_for_its_dbt_version(
+    tmp_path: Path, dbt_version: str | None, advice: str
+) -> None:
+    target = tmp_path / "project" / "target"
+    target.mkdir(parents=True)
+    manifest = _manifest({"model.p.a": _model("a")})
+    if dbt_version:
+        manifest["metadata"] = {"dbt_version": dbt_version}
+    (target / "manifest.json").write_text(json.dumps(manifest))
+
+    with patch("paradime.core.scripts.datahub.console.warning") as warning:
+        success, found_files, recipes = _run_push(tmp_path)
+
+    assert success and not found_files and recipes == []
+    assert advice in warning.call_args.args[0]
+
+
 # --- ingest output ---
 
 
