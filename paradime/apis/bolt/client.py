@@ -1274,6 +1274,7 @@ class BoltClient:
             "dbt test",  # Test execution
             "dbt build",  # Combined run + test
             "dbt source",  # Source freshness
+            "dbt freshness",  # dbt 2.x freshness (sources and models)
             "dbt snapshot",  # Snapshot execution
             "dbt compile",  # Compilation (produces manifest)
             "dbt parse",  # Parsing (produces manifest)

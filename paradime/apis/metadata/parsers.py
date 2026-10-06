@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 from .types import ParsedArtifacts
+from .utils import canonicalize_run_results, canonicalize_sources
 
 
 class ArtifactParser:
@@ -29,11 +30,12 @@ class ArtifactParser:
         if "manifest" in artifacts:
             parsed.manifest = artifacts["manifest"]
 
+        # dbt 2.x statuses are read the way dbt-core wrote them, so every check below holds
         if "run_results" in artifacts:
-            parsed.run_results = artifacts["run_results"]
+            parsed.run_results = canonicalize_run_results(artifacts["run_results"])
 
         if "sources" in artifacts:
-            parsed.sources = artifacts["sources"]
+            parsed.sources = canonicalize_sources(artifacts["sources"])
 
         return parsed
 

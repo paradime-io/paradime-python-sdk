@@ -1,4 +1,12 @@
-from typing import Any, List
+import re
+from typing import Any, List, Optional
+
+# dbt-core writes freshness statuses `pass` / `warn` / `error` / `runtime error`. dbt 2.x writes
+# its Rust enum names, `Pass` / `Warn` / `Error`, to sources.json (dbt-labs/dbt#16400) and, by
+# contract, to freshness.json. The Paradime backend canonicalises them the same way.
+_CAMEL_CASE_BOUNDARY = re.compile(r"(?<=[a-z])(?=[A-Z])")
+# unique_id prefixes whose run status is a test outcome (pass / warn / fail / error)
+_TEST_UNIQUE_ID_PREFIXES = ("test.", "unit_test.")
 
 
 def merge_run_results(run_results_list: List[dict]) -> dict:
@@ -108,3 +116,44 @@ def merge_sources(sources_list: List[dict]) -> dict:
 
     merged["results"] = list(seen_sources.values())
     return merged
+
+
+def normalize_freshness_status(status: Optional[str]) -> Optional[str]:
+    """`Pass` -> `pass`; `RuntimeError` / `runtime_error` -> `runtime error`; blank -> None."""
+    if status is None:
+        return None
+    words = _CAMEL_CASE_BOUNDARY.sub(" ", status).replace("_", " ").replace("-", " ").split()
+    return " ".join(words).lower() or None
+
+
+def canonicalize_sources(sources: Any) -> Any:
+    """A sources.json (or freshness.json) with dbt-core's lowercase statuses."""
+    if not isinstance(sources, dict):
+        return sources
+    results = [
+        (
+            {**result, "status": normalize_freshness_status(result.get("status"))}
+            if isinstance(result, dict)
+            else result
+        )
+        for result in sources.get("results") or []
+    ]
+    return {**sources, "results": results}
+
+
+def canonicalize_run_results(run_results: Any) -> Any:
+    """A run_results.json with dbt-core's statuses: dbt 2.x writes `warn` for a model, seed or
+    snapshot that built with a warning, where dbt-core wrote `success`. A test's `warn` stays."""
+    if not isinstance(run_results, dict):
+        return run_results
+    results = [
+        (
+            {**result, "status": "success"}
+            if isinstance(result, dict)
+            and result.get("status") == "warn"
+            and not str(result.get("unique_id") or "").startswith(_TEST_UNIQUE_ID_PREFIXES)
+            else result
+        )
+        for result in run_results.get("results") or []
+    ]
+    return {**run_results, "results": results}

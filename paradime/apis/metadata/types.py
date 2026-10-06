@@ -36,6 +36,7 @@ class FreshnessStatus(str, Enum):
     PASS = "pass"
     WARN = "warn"
     ERROR = "error"
+    RUNTIME_ERROR = "runtime error"  # the freshness query itself failed
 
 
 class ModelHealth(BaseModel):
