@@ -3,7 +3,7 @@ import secrets
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Set, Tuple, Union
+from typing import Any, List, Literal, Optional, Set, Tuple, Union
 
 import yaml  # type: ignore[import-untyped]
 from croniter import croniter  # type: ignore[import-untyped]
@@ -291,6 +291,9 @@ class ParadimeSchedule(ParadimeScheduleBase):
     run_after: Optional[RunAfter] = None
 
     trigger_on_merge: Optional[bool] = False
+    # Keep in sync with the paradime-backend `ParadimeSchedule` (ENG-4222): what a merge
+    # run does while the previous merge's run of this schedule is in progress
+    concurrency: Optional[Literal["parallel", "queue"]] = None
 
     suspended: Optional[bool] = False
 
@@ -373,6 +376,15 @@ class ParadimeSchedule(ParadimeScheduleBase):
         if len(display_name) > DISPLAY_NAME_MAX_LENGTH:
             raise ValueError(f"display_name must be {DISPLAY_NAME_MAX_LENGTH} characters or fewer")
         return display_name
+
+    @root_validator()
+    @classmethod
+    def validate_concurrency(cls, values: Any) -> Any:
+        if values.get("concurrency") == "queue" and not values.get("trigger_on_merge"):
+            raise ValueError(
+                "concurrency: queue only applies to on-merge schedules (trigger_on_merge: true)"
+            )
+        return values
 
     @root_validator()
     @classmethod
