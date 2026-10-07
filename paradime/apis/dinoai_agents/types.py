@@ -37,9 +37,35 @@ class DinoaiAgentTriggerResult(BaseModel):
     status: str
 
 
+class DinoaiAgentStep(BaseModel):
+    """One step of a run: a tool call, or text from the user or the agent.
+
+    ``index`` is the step's position in the run. Pass the last one you read as
+    ``steps_after`` to fetch only newer steps.
+    """
+
+    index: int
+    role: str  # USER, AGENT or TOOL
+    tool_name: Optional[str] = None
+    # Only with include_tool_io: the call's arguments as JSON, and for a TOOL
+    # step its output. They can hold raw query results and file contents.
+    tool_input: Optional[str] = None
+    content: Optional[str] = None
+    truncated: bool = False
+
+
+class DinoaiAgentStartupStep(BaseModel):
+    label: str
+    done: bool
+
+
 class DinoaiAgentRun(BaseModel):
     ok: bool
     status: DinoaiAgentRunStatus
     messages: List[DinoaiAgentMessage]
     child_session_ids: List[str]
     workspace_uid: Optional[str]
+    # Only with get_run(include_steps=True). None when not requested, or when
+    # the backend could not read them.
+    steps: Optional[List[DinoaiAgentStep]] = None
+    startup_steps: Optional[List[DinoaiAgentStartupStep]] = None

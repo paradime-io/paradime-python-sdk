@@ -89,3 +89,97 @@ def test_trigger_run_and_wait_times_out_on_unknown_status() -> None:
 def test_trigger_run_requires_agent_or_message() -> None:
     with pytest.raises(ValueError):
         _dinoai("QUEUED").trigger_run()
+
+
+class RecordingAPIClient:
+    """Records the run query and answers it with ``run``."""
+
+    def __init__(self, run: Dict[str, Any]) -> None:
+        self.run = run
+        self.query = ""
+        self.variables: Dict[str, Any] = {}
+
+    def _call_gql(self, query: str, variables: Dict[str, Any] = {}) -> Dict[str, Any]:
+        self.query, self.variables = query, variables
+        return {"dinoaiAgentRun": self.run}
+
+
+RUN_WITH_STEPS = {
+    "ok": True,
+    "status": "RUNNING",
+    "messages": [],
+    "childSessionIds": [],
+    "workspaceUid": "workspace-1",
+    "steps": [
+        {
+            "index": 0,
+            "role": "USER",
+            "toolName": None,
+            "toolInput": None,
+            "content": "q",
+            "truncated": False,
+        },
+        {
+            "index": 1,
+            "role": "TOOL",
+            "toolName": "run_sql_query",
+            "toolInput": '{"query": "select 1"}',
+            "content": None,
+            "truncated": False,
+        },
+    ],
+    "startupSteps": [{"label": "Starting the agent", "done": True}],
+}
+
+
+def test_get_run_without_steps_sends_the_original_query() -> None:
+    """Older backends reject unknown fields, so steps are only asked for on request."""
+    api = RecordingAPIClient({**RUN_WITH_STEPS, "steps": None, "startupSteps": None})
+    run = DinoaiAgentsClient(api).get_run(agent_session_id="session-1")  # type: ignore[arg-type]
+
+    assert "steps" not in api.query and "startupSteps" not in api.query
+    assert api.variables == {"id": "session-1"}
+    assert run.steps is None and run.startup_steps is None
+
+
+def test_get_run_with_steps_parses_steps_and_the_startup_checklist() -> None:
+    api = RecordingAPIClient(RUN_WITH_STEPS)
+    run = DinoaiAgentsClient(api).get_run(  # type: ignore[arg-type]
+        agent_session_id="session-1", include_steps=True
+    )
+
+    assert "steps(after: $after, includeToolIo: $includeToolIo, maxChars: $maxChars)" in api.query
+    # Unset options are left out, so the backend applies its own defaults.
+    assert api.variables == {"id": "session-1", "includeToolIo": False}
+    assert run.steps is not None and run.startup_steps is not None
+    assert [(s.index, s.role, s.tool_name) for s in run.steps] == [
+        (0, "USER", None),
+        (1, "TOOL", "run_sql_query"),
+    ]
+    assert run.steps[1].tool_input == '{"query": "select 1"}'
+    assert run.startup_steps[0].label == "Starting the agent" and run.startup_steps[0].done
+
+
+def test_get_run_passes_the_step_options() -> None:
+    api = RecordingAPIClient(RUN_WITH_STEPS)
+    DinoaiAgentsClient(api).get_run(  # type: ignore[arg-type]
+        agent_session_id="session-1",
+        include_steps=True,
+        include_tool_io=True,
+        steps_after=4,
+        max_chars=300,
+    )
+
+    assert api.variables == {"id": "session-1", "includeToolIo": True, "after": 4, "maxChars": 300}
+
+
+def test_get_run_keeps_the_run_when_the_backend_could_not_read_steps() -> None:
+    """The backend nulls only the field it failed on; status and messages still arrive."""
+    api = RecordingAPIClient({**RUN_WITH_STEPS, "steps": None})
+    run = DinoaiAgentsClient(api).get_run(  # type: ignore[arg-type]
+        agent_session_id="session-1", include_steps=True
+    )
+
+    assert run.status == DinoaiAgentRunStatus.RUNNING
+    assert run.steps is None
+    assert run.startup_steps is not None
