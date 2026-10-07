@@ -1,0 +1,54 @@
+{
+ "metadata": {
+  "dbt_schema_version": "https://schemas.getdbt.com/dbt/sources/v3.json",
+  "dbt_version": "2.0.5",
+  "generated_at": "2026-10-05T19:20:52.397363Z",
+  "invocation_id": "01a10d83-032e-7160-92ff-d6403f3eb78d",
+  "env": {}
+ },
+ "results": [
+  {
+   "unique_id": "source.probe.raw.raw_customers",
+   "max_loaded_at": "2020-01-02T00:00:00Z",
+   "snapshotted_at": "2026-10-05T19:20:52.392711Z",
+   "max_loaded_at_time_ago_in_s": 213304852.0,
+   "status": "Pass",
+   "criteria": {
+    "error_after": {
+     "count": null,
+     "period": null
+    },
+    "warn_after": {
+     "count": 100000,
+     "period": "day"
+    }
+   },
+   "adapter_response": {},
+   "timing": [],
+   "thread_id": "Thread-15",
+   "execution_time": 0.0
+  },
+  {
+   "unique_id": "source.probe.raw.raw_orders",
+   "max_loaded_at": "2020-01-03T00:00:00Z",
+   "snapshotted_at": "2026-10-05T19:20:52.396601Z",
+   "max_loaded_at_time_ago_in_s": 213218452.0,
+   "status": "Warn",
+   "criteria": {
+    "error_after": {
+     "count": 100000,
+     "period": "day"
+    },
+    "warn_after": {
+     "count": 1,
+     "period": "hour"
+    }
+   },
+   "adapter_response": {},
+   "timing": [],
+   "thread_id": "Thread-15",
+   "execution_time": 0.0
+  }
+ ],
+ "elapsed_time": 0.0
+}

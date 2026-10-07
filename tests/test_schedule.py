@@ -3,7 +3,12 @@ from typing import Any, Dict, List
 
 import pytest
 
-from paradime.core.bolt.schedule import CommandSetting, ParadimeSchedule, is_valid_schedule_at_path
+from paradime.core.bolt.schedule import (
+    CommandSetting,
+    ParadimeSchedule,
+    ScheduleTrigger,
+    is_valid_schedule_at_path,
+)
 from paradime.core.bolt.yaml_rewriter import mint_slugs_in_yaml_files
 
 
@@ -187,6 +192,103 @@ def test_mint_slugs_round_trips_object_form_commands(tmp_path: Path) -> None:
     # Object-form command entries must survive the rewrite unmangled.
     assert 'command: "dbt run"' in rewritten
     assert "continue_on_error: false" in rewritten
+    assert is_valid_schedule_at_path(yaml_file) is None
+
+
+_TRIGGER = {
+    "enabled": True,
+    "schedule_name": "upstream",
+    "workspace_name": "ws",
+    "trigger_on": ["passed"],
+}
+
+
+def test_run_after_maps_to_schedule_trigger_with_defaults() -> None:
+    schedule = ParadimeSchedule.parse_obj(
+        _schedule(["dbt build"], run_after={"schedule": "upstream"})
+    )
+
+    assert schedule.run_after is None
+    assert schedule.schedule_trigger == ScheduleTrigger(
+        enabled=True, schedule_name="upstream", workspace_name="", trigger_on=["passed"]
+    )
+
+
+def test_run_after_matches_the_equivalent_schedule_trigger() -> None:
+    via_alias = ParadimeSchedule.parse_obj(
+        _schedule(
+            ["dbt build"],
+            run_after={"schedule": "upstream", "on": ["passed"], "workspace": "ws"},
+        )
+    )
+
+    assert via_alias == ParadimeSchedule.parse_obj(
+        _schedule(["dbt build"], schedule_trigger=_TRIGGER)
+    )
+
+
+def test_run_after_with_schedule_trigger_rejected(tmp_path: Path) -> None:
+    yaml_file = tmp_path / "paradime_schedules.yml"
+    yaml_file.write_text(
+        """
+schedules:
+  - name: downstream
+    schedule: "OFF"
+    environment: production
+    commands: [dbt build]
+    run_after:
+      schedule: upstream
+    schedule_trigger:
+      enabled: true
+      schedule_name: upstream
+      workspace_name: ws
+      trigger_on: [passed]
+"""
+    )
+    error = is_valid_schedule_at_path(yaml_file)
+    assert error is not None
+    assert "either run_after or schedule_trigger" in error
+
+
+@pytest.mark.parametrize(
+    "run_after",
+    [
+        {"schedule": "upstream", "on": []},
+        {"schedule": "upstream", "on": ["finished"]},
+        {"schedule": "upstream", "enabled": True},
+        {"on": ["passed"]},
+    ],
+)
+def test_invalid_run_after_rejected(run_after: Dict[str, Any]) -> None:
+    with pytest.raises(ValueError):
+        ParadimeSchedule.parse_obj(_schedule(["dbt build"], run_after=run_after))
+
+
+def test_mint_slugs_adds_the_run_after_slug(tmp_path: Path) -> None:
+    yaml_file = tmp_path / "paradime_schedules.yml"
+    yaml_file.write_text(
+        """schedules:
+  - name: Upstream
+    schedule: "0 0 * * *"
+    environment: production
+    commands: [dbt build]
+  - name: Downstream
+    schedule: "OFF"
+    environment: production
+    commands: [dbt build]
+    run_after:
+      schedule: Upstream
+"""
+    )
+
+    mint_slugs_in_yaml_files(
+        mint_fn=lambda names: [f"minted-{i}" for i, _ in enumerate(names)],
+        root=tmp_path,
+    )
+
+    rewritten = yaml_file.read_text()
+    assert "schedule: Upstream" in rewritten
+    assert "schedule_slug: minted-0" in rewritten
     assert is_valid_schedule_at_path(yaml_file) is None
 
 

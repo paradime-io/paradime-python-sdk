@@ -1,0 +1,433 @@
+{
+ "metadata": {
+  "dbt_schema_version": "https://schemas.getdbt.com/dbt/run-results/v6.json",
+  "dbt_version": "2.0.5",
+  "generated_at": "2026-10-05T19:20:52.044801Z",
+  "invocation_id": "01a10d83-016d-73b1-b3eb-e454c680fb3e",
+  "env": {}
+ },
+ "results": [
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:51.993768Z",
+     "completed_at": "2026-10-05T19:20:52.003846Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:51.993768Z",
+     "completed_at": "2026-10-05T19:20:52.003846Z"
+    }
+   ],
+   "thread_id": "Thread-3 (worker)",
+   "execution_time": 0.010078,
+   "adapter_response": {
+    "_message": "SUCCESS 0",
+    "code": "SUCCESS",
+    "message": "SUCCESS 0",
+    "rows_affected": 0
+   },
+   "message": "Succeeded",
+   "failures": null,
+   "unique_id": "model.probe.stg_customers",
+   "compiled": null,
+   "compiled_code": "select id, name, updated_at from \"probe\".\"main\".\"raw_customers\"",
+   "relation_name": "\"probe\".\"main\".\"stg_customers\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:51.993759Z",
+     "completed_at": "2026-10-05T19:20:52.003814Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:51.993759Z",
+     "completed_at": "2026-10-05T19:20:52.003814Z"
+    }
+   ],
+   "thread_id": "Thread-2 (worker)",
+   "execution_time": 0.010055,
+   "adapter_response": {
+    "_message": "SUCCESS 0",
+    "code": "SUCCESS",
+    "message": "SUCCESS 0",
+    "rows_affected": 0
+   },
+   "message": "Succeeded",
+   "failures": null,
+   "unique_id": "model.probe.stg_orders",
+   "compiled": null,
+   "compiled_code": "select id, customer_id, amount, loaded_at from \"probe\".\"main\".\"raw_orders\"",
+   "relation_name": "\"probe\".\"main\".\"stg_orders\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:52.029495Z",
+     "completed_at": "2026-10-05T19:20:52.035728Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:52.029495Z",
+     "completed_at": "2026-10-05T19:20:52.035728Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.006233,
+   "adapter_response": {
+    "_message": "SUCCESS 0",
+    "code": "SUCCESS",
+    "message": "SUCCESS 0",
+    "rows_affected": 0
+   },
+   "message": "Succeeded",
+   "failures": null,
+   "unique_id": "model.probe.orders",
+   "compiled": null,
+   "compiled_code": "\nselect o.id, o.customer_id, (o.amount * 100) as amount_cents, o.loaded_at, c.name\nfrom \"probe\".\"main\".\"stg_orders\" o\nleft join \"probe\".\"main\".\"stg_customers\" c on c.id = o.customer_id",
+   "relation_name": "\"probe\".\"main\".\"orders\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:52.040996Z",
+     "completed_at": "2026-10-05T19:20:52.044140Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:52.040996Z",
+     "completed_at": "2026-10-05T19:20:52.044140Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.003144,
+   "adapter_response": {
+    "_message": "SUCCESS 0",
+    "code": "SUCCESS",
+    "message": "SUCCESS 0",
+    "rows_affected": 0
+   },
+   "message": "Succeeded",
+   "failures": null,
+   "unique_id": "model.probe.customer_orders_inc",
+   "compiled": null,
+   "compiled_code": "\nselect id, customer_id, amount_cents from \"probe\".\"main\".\"orders\"\n",
+   "relation_name": "\"probe\".\"main\".\"customer_orders_inc\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:52.007722Z",
+     "completed_at": "2026-10-05T19:20:52.020255Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:52.007722Z",
+     "completed_at": "2026-10-05T19:20:52.020255Z"
+    }
+   ],
+   "thread_id": "Thread-3 (worker)",
+   "execution_time": 0.012533,
+   "adapter_response": {
+    "_message": "SUCCESS 0",
+    "code": "SUCCESS",
+    "message": "SUCCESS 0",
+    "rows_affected": 0
+   },
+   "message": "Succeeded",
+   "failures": null,
+   "unique_id": "model.probe.customers",
+   "compiled": null,
+   "compiled_code": "\nselect cast(id as bigint) as id, cast(name as varchar) as name, cast(updated_at as timestamp) as updated_at from \"probe\".\"main\".\"stg_customers\"",
+   "relation_name": "\"probe\".\"main\".\"customers\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:51.993746Z",
+     "completed_at": "2026-10-05T19:20:52.003836Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:51.993746Z",
+     "completed_at": "2026-10-05T19:20:52.003836Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.01009,
+   "adapter_response": {
+    "_message": "SUCCESS 0",
+    "code": "SUCCESS",
+    "message": "SUCCESS 0",
+    "rows_affected": 0
+   },
+   "message": "Succeeded",
+   "failures": null,
+   "unique_id": "model.probe.metricflow_time_spine",
+   "compiled": null,
+   "compiled_code": "\nselect cast(range as date) as date_day\nfrom range(date '2020-01-01', date '2020-02-01', interval 1 day)",
+   "relation_name": "\"probe\".\"main\".\"metricflow_time_spine\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:51.973195Z",
+     "completed_at": "2026-10-05T19:20:51.981422Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:51.973195Z",
+     "completed_at": "2026-10-05T19:20:51.981422Z"
+    }
+   ],
+   "thread_id": "Thread-2 (worker)",
+   "execution_time": 0.008227,
+   "adapter_response": {
+    "_message": "INSERT 2",
+    "code": "INSERT",
+    "message": "INSERT 2",
+    "rows_affected": 2
+   },
+   "message": "Succeeded",
+   "failures": null,
+   "unique_id": "seed.probe.raw_customers",
+   "compiled": null,
+   "compiled_code": null,
+   "relation_name": "\"probe\".\"main\".\"raw_customers\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:51.973192Z",
+     "completed_at": "2026-10-05T19:20:51.981451Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:51.973192Z",
+     "completed_at": "2026-10-05T19:20:51.981451Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.008259,
+   "adapter_response": {
+    "_message": "INSERT 3",
+    "code": "INSERT",
+    "message": "INSERT 3",
+    "rows_affected": 3
+   },
+   "message": "Succeeded",
+   "failures": null,
+   "unique_id": "seed.probe.raw_orders",
+   "compiled": null,
+   "compiled_code": null,
+   "relation_name": "\"probe\".\"main\".\"raw_orders\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:52.005584Z",
+     "completed_at": "2026-10-05T19:20:52.019268Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:52.005584Z",
+     "completed_at": "2026-10-05T19:20:52.019268Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.013684,
+   "adapter_response": {
+    "_message": "SUCCESS 0",
+    "code": "SUCCESS",
+    "message": "SUCCESS 0",
+    "rows_affected": 0
+   },
+   "message": "Succeeded",
+   "failures": null,
+   "unique_id": "snapshot.probe.customers_snapshot",
+   "compiled": null,
+   "compiled_code": "select * from \"probe\".\"main\".\"stg_customers\"",
+   "relation_name": "\"probe\".\"main\".\"customers_snapshot\"",
+   "batch_results": null
+  },
+  {
+   "status": "pass",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:52.037256Z",
+     "completed_at": "2026-10-05T19:20:52.040484Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:52.037256Z",
+     "completed_at": "2026-10-05T19:20:52.040484Z"
+    }
+   ],
+   "thread_id": "Thread-4 (worker)",
+   "execution_time": 0.003228,
+   "adapter_response": {
+    "_message": "SUCCESS 1",
+    "code": "SUCCESS",
+    "message": "SUCCESS 1",
+    "rows_affected": 1
+   },
+   "message": "Pass",
+   "failures": 0,
+   "unique_id": "test.probe.assert_orders_have_customers",
+   "compiled": null,
+   "compiled_code": "select * from \"probe\".\"main\".\"orders\" where customer_id is null",
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "pass",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:52.037281Z",
+     "completed_at": "2026-10-05T19:20:52.040500Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:52.037281Z",
+     "completed_at": "2026-10-05T19:20:52.040500Z"
+    }
+   ],
+   "thread_id": "Thread-2 (worker)",
+   "execution_time": 0.003219,
+   "adapter_response": {
+    "_message": "SUCCESS 1",
+    "code": "SUCCESS",
+    "message": "SUCCESS 1",
+    "rows_affected": 1
+   },
+   "message": "Pass",
+   "failures": 0,
+   "unique_id": "test.probe.not_null_orders_id.84ef11d8fe",
+   "compiled": null,
+   "compiled_code": "\n    \n    \n\n\n\nselect id\nfrom \"probe\".\"main\".\"orders\"\nwhere id is null\n\n\n",
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "warn",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:52.037386Z",
+     "completed_at": "2026-10-05T19:20:52.040485Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:52.037386Z",
+     "completed_at": "2026-10-05T19:20:52.040485Z"
+    }
+   ],
+   "thread_id": "Thread-3 (worker)",
+   "execution_time": 0.003099,
+   "adapter_response": {
+    "_message": "SUCCESS 1",
+    "code": "SUCCESS",
+    "message": "SUCCESS 1",
+    "rows_affected": 1
+   },
+   "message": "Warn",
+   "failures": 1,
+   "unique_id": "test.probe.positive_orders_amount_cents.ecd85e137e",
+   "compiled": null,
+   "compiled_code": "\nselect * from \"probe\".\"main\".\"orders\" where amount_cents <= 0\n",
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "pass",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:52.038573Z",
+     "completed_at": "2026-10-05T19:20:52.040925Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:52.038573Z",
+     "completed_at": "2026-10-05T19:20:52.040925Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.002352,
+   "adapter_response": {
+    "_message": "SUCCESS 1",
+    "code": "SUCCESS",
+    "message": "SUCCESS 1",
+    "rows_affected": 1
+   },
+   "message": "Pass",
+   "failures": 0,
+   "unique_id": "test.probe.unique_orders_id.1360ecc70e",
+   "compiled": null,
+   "compiled_code": "\n    \n    \n\nselect\n    id as unique_field,\n    count(*) as n_records\n\nfrom \"probe\".\"main\".\"orders\"\nwhere id is not null\ngroup by id\nhaving count(*) > 1\n\n\n",
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "pass",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:52.022212Z",
+     "completed_at": "2026-10-05T19:20:52.029281Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:52.022212Z",
+     "completed_at": "2026-10-05T19:20:52.029281Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.007069,
+   "adapter_response": {},
+   "message": "Pass",
+   "failures": null,
+   "unique_id": "unit_test.probe.orders.test_orders_cents",
+   "compiled": null,
+   "compiled_code": null,
+   "relation_name": null,
+   "batch_results": null
+  }
+ ],
+ "elapsed_time": 0.10127000000000001,
+ "args": {
+  "command": "build",
+  "which": "build",
+  "full_refresh": false,
+  "static_analysis": null
+ }
+}

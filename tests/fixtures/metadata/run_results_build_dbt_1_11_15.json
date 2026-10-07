@@ -1,0 +1,487 @@
+{
+ "metadata": {
+  "dbt_schema_version": "https://schemas.getdbt.com/dbt/run-results/v6.json",
+  "dbt_version": "1.11.15",
+  "generated_at": "2026-10-05T19:20:41.097971Z",
+  "invocation_id": "32dd3074-a14a-4ad3-aef8-662d2fae43b2",
+  "invocation_started_at": "2026-10-05T19:20:39.459619Z",
+  "env": {}
+ },
+ "results": [
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:40.805128Z",
+     "completed_at": "2026-10-05T19:20:40.805131Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:40.805571Z",
+     "completed_at": "2026-10-05T19:20:40.879008Z"
+    }
+   ],
+   "thread_id": "Thread-4 (worker)",
+   "execution_time": 0.0818169116973877,
+   "adapter_response": {
+    "_message": "INSERT 2",
+    "code": "INSERT",
+    "rows_affected": 2
+   },
+   "message": "INSERT 2",
+   "failures": null,
+   "unique_id": "seed.probe.raw_customers",
+   "compiled": null,
+   "compiled_code": null,
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:40.802847Z",
+     "completed_at": "2026-10-05T19:20:40.817949Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:40.818637Z",
+     "completed_at": "2026-10-05T19:20:40.887788Z"
+    }
+   ],
+   "thread_id": "Thread-2 (worker)",
+   "execution_time": 0.09133005142211914,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": "OK",
+   "failures": null,
+   "unique_id": "model.probe.stg_customers",
+   "compiled": true,
+   "compiled_code": "select id, name, updated_at from \"probe\".\"main\".\"raw_customers\"",
+   "relation_name": "\"probe\".\"main\".\"stg_customers\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:40.804020Z",
+     "completed_at": "2026-10-05T19:20:40.818302Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:40.846226Z",
+     "completed_at": "2026-10-05T19:20:40.888770Z"
+    }
+   ],
+   "thread_id": "Thread-3 (worker)",
+   "execution_time": 0.09218811988830566,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": "OK",
+   "failures": null,
+   "unique_id": "model.probe.stg_orders",
+   "compiled": true,
+   "compiled_code": "select id, customer_id, amount, loaded_at from \"probe\".\"main\".\"raw_orders\"",
+   "relation_name": "\"probe\".\"main\".\"stg_orders\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:40.798936Z",
+     "completed_at": "2026-10-05T19:20:40.818130Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:40.829550Z",
+     "completed_at": "2026-10-05T19:20:40.889564Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.09291601181030273,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": "OK",
+   "failures": null,
+   "unique_id": "model.probe.metricflow_time_spine",
+   "compiled": true,
+   "compiled_code": "\nselect cast(range as date) as date_day\nfrom range(date '2020-01-01', date '2020-02-01', interval 1 day)",
+   "relation_name": "\"probe\".\"main\".\"metricflow_time_spine\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:40.891842Z",
+     "completed_at": "2026-10-05T19:20:40.891844Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:40.892707Z",
+     "completed_at": "2026-10-05T19:20:40.985529Z"
+    }
+   ],
+   "thread_id": "Thread-4 (worker)",
+   "execution_time": 0.09635686874389648,
+   "adapter_response": {
+    "_message": "INSERT 3",
+    "code": "INSERT",
+    "rows_affected": 3
+   },
+   "message": "INSERT 3",
+   "failures": null,
+   "unique_id": "seed.probe.raw_orders",
+   "compiled": null,
+   "compiled_code": null,
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:40.899192Z",
+     "completed_at": "2026-10-05T19:20:40.900260Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:40.900812Z",
+     "completed_at": "2026-10-05T19:20:41.003288Z"
+    }
+   ],
+   "thread_id": "Thread-3 (worker)",
+   "execution_time": 0.10825419425964355,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": "OK",
+   "failures": null,
+   "unique_id": "snapshot.probe.customers_snapshot",
+   "compiled": true,
+   "compiled_code": "select * from \"probe\".\"main\".\"stg_customers\"",
+   "relation_name": "\"probe\".\"main\".\"customers_snapshot\"",
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:40.896750Z",
+     "completed_at": "2026-10-05T19:20:40.918844Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:40.939330Z",
+     "completed_at": "2026-10-05T19:20:41.012028Z"
+    }
+   ],
+   "thread_id": "Thread-2 (worker)",
+   "execution_time": 0.1177668571472168,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": "OK",
+   "failures": null,
+   "unique_id": "model.probe.customers",
+   "compiled": true,
+   "compiled_code": "\nselect cast(id as bigint) as id, cast(name as varchar) as name, cast(updated_at as timestamp) as updated_at from \"probe\".\"main\".\"stg_customers\"",
+   "relation_name": "\"probe\".\"main\".\"customers\"",
+   "batch_results": null
+  },
+  {
+   "status": "pass",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:40.900479Z",
+     "completed_at": "2026-10-05T19:20:40.900482Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:40.923313Z",
+     "completed_at": "2026-10-05T19:20:41.021120Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.1257610321044922,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": null,
+   "failures": 0,
+   "unique_id": "unit_test.probe.orders.test_orders_cents",
+   "compiled": true,
+   "compiled_code": "\nwith __dbt__cte__stg_orders as (\n\n-- Fixture for stg_orders\nselect \n    \n    cast(1 as INTEGER)\n as \"id\", \n    \n    cast(1 as INTEGER)\n as \"customer_id\", \n    \n    cast(2 as INTEGER)\n as \"amount\", \n    \n    cast('2020-01-01 00:00:00' as TIMESTAMP)\n as \"loaded_at\"\n),  __dbt__cte__stg_customers as (\n\n-- Fixture for stg_customers\nselect \n    \n    cast(1 as INTEGER)\n as \"id\", \n    \n    cast('a' as character varying)\n as \"name\", \n    \n    cast('2020-01-01 00:00:00' as TIMESTAMP)\n as \"updated_at\"\n) select o.id, o.customer_id, (o.amount * 100) as amount_cents, o.loaded_at, c.name\nfrom __dbt__cte__stg_orders o\nleft join __dbt__cte__stg_customers c on c.id = o.customer_id",
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:41.022935Z",
+     "completed_at": "2026-10-05T19:20:41.024794Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:41.024998Z",
+     "completed_at": "2026-10-05T19:20:41.033566Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.01129293441772461,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": "OK",
+   "failures": null,
+   "unique_id": "model.probe.orders",
+   "compiled": true,
+   "compiled_code": "\nselect o.id, o.customer_id, (o.amount * 100) as amount_cents, o.loaded_at, c.name\nfrom \"probe\".\"main\".\"stg_orders\" o\nleft join \"probe\".\"main\".\"stg_customers\" c on c.id = o.customer_id",
+   "relation_name": "\"probe\".\"main\".\"orders\"",
+   "batch_results": null
+  },
+  {
+   "status": "no-op",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:41.037078Z",
+     "completed_at": "2026-10-05T19:20:41.037081Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:41.037803Z",
+     "completed_at": "2026-10-05T19:20:41.037810Z"
+    }
+   ],
+   "thread_id": "Thread-4 (worker)",
+   "execution_time": 0.002379179000854492,
+   "adapter_response": {},
+   "message": "NO-OP",
+   "failures": 0,
+   "unique_id": "exposure.probe.weekly_dashboard",
+   "compiled": null,
+   "compiled_code": null,
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "pass",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:41.039408Z",
+     "completed_at": "2026-10-05T19:20:41.045674Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:41.046371Z",
+     "completed_at": "2026-10-05T19:20:41.068706Z"
+    }
+   ],
+   "thread_id": "Thread-2 (worker)",
+   "execution_time": 0.034718990325927734,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": null,
+   "failures": 0,
+   "unique_id": "test.probe.not_null_orders_id.84ef11d8fe",
+   "compiled": true,
+   "compiled_code": "\n    \n    \n\n\n\nselect id\nfrom \"probe\".\"main\".\"orders\"\nwhere id is null\n\n\n",
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "pass",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:41.038059Z",
+     "completed_at": "2026-10-05T19:20:41.046004Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:41.055927Z",
+     "completed_at": "2026-10-05T19:20:41.069438Z"
+    }
+   ],
+   "thread_id": "Thread-3 (worker)",
+   "execution_time": 0.035259246826171875,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": null,
+   "failures": 0,
+   "unique_id": "test.probe.assert_orders_have_customers",
+   "compiled": true,
+   "compiled_code": "select * from \"probe\".\"main\".\"orders\" where customer_id is null",
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "warn",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:41.043088Z",
+     "completed_at": "2026-10-05T19:20:41.045845Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:41.054913Z",
+     "completed_at": "2026-10-05T19:20:41.069987Z"
+    }
+   ],
+   "thread_id": "Thread-1 (worker)",
+   "execution_time": 0.03530097007751465,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": "Got 1 result, configured to warn if != 0",
+   "failures": 1,
+   "unique_id": "test.probe.positive_orders_amount_cents.ecd85e137e",
+   "compiled": true,
+   "compiled_code": "\nselect * from \"probe\".\"main\".\"orders\" where amount_cents <= 0\n",
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "pass",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:41.057276Z",
+     "completed_at": "2026-10-05T19:20:41.060677Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:41.061366Z",
+     "completed_at": "2026-10-05T19:20:41.070769Z"
+    }
+   ],
+   "thread_id": "Thread-4 (worker)",
+   "execution_time": 0.026773929595947266,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": null,
+   "failures": 0,
+   "unique_id": "test.probe.unique_orders_id.1360ecc70e",
+   "compiled": true,
+   "compiled_code": "\n    \n    \n\nselect\n    id as unique_field,\n    count(*) as n_records\n\nfrom \"probe\".\"main\".\"orders\"\nwhere id is not null\ngroup by id\nhaving count(*) > 1\n\n\n",
+   "relation_name": null,
+   "batch_results": null
+  },
+  {
+   "status": "success",
+   "timing": [
+    {
+     "name": "compile",
+     "started_at": "2026-10-05T19:20:41.074694Z",
+     "completed_at": "2026-10-05T19:20:41.076533Z"
+    },
+    {
+     "name": "execute",
+     "started_at": "2026-10-05T19:20:41.076716Z",
+     "completed_at": "2026-10-05T19:20:41.094114Z"
+    }
+   ],
+   "thread_id": "Thread-2 (worker)",
+   "execution_time": 0.019999980926513672,
+   "adapter_response": {
+    "_message": "OK"
+   },
+   "message": "OK",
+   "failures": null,
+   "unique_id": "model.probe.customer_orders_inc",
+   "compiled": true,
+   "compiled_code": "\nselect id, customer_id, amount_cents from \"probe\".\"main\".\"orders\"\n",
+   "relation_name": "\"probe\".\"main\".\"customer_orders_inc\"",
+   "batch_results": null
+  }
+ ],
+ "elapsed_time": 0.36472320556640625,
+ "args": {
+  "empty": false,
+  "require_unique_project_resource_names": false,
+  "favor_state": false,
+  "defer": false,
+  "indirect_selection": "eager",
+  "cache_selected_only": false,
+  "vars": {},
+  "require_yaml_configuration_for_mf_time_spines": false,
+  "project_dir": "/probe",
+  "validate_macro_args": false,
+  "show_all_deprecations": false,
+  "use_colors": true,
+  "invocation_command": "dbt build",
+  "source_freshness_run_project_hooks": true,
+  "require_nested_cumulative_type_params": false,
+  "strict_mode": false,
+  "warn_error_options": {
+   "error": [],
+   "warn": [],
+   "silence": []
+  },
+  "partial_parse_file_diff": true,
+  "exclude_resource_types": [],
+  "profiles_dir": "/probe",
+  "printer_width": 80,
+  "static_parser": true,
+  "resource_types": [],
+  "state_modified_compare_vars": false,
+  "include_saved_query": false,
+  "require_generic_test_arguments_property": true,
+  "log_level_file": "debug",
+  "require_resource_names_without_spaces": true,
+  "introspect": true,
+  "skip_nodes_if_on_run_start_fails": false,
+  "which": "build",
+  "require_batched_execution_for_custom_microbatch_strategy": false,
+  "require_ref_searches_node_package_before_root": false,
+  "partial_parse": true,
+  "log_format": "default",
+  "write_json": true,
+  "send_anonymous_usage_stats": false,
+  "show_resource_report": false,
+  "require_explicit_package_overrides_for_builtin_materializations": true,
+  "exclude": [],
+  "show": false,
+  "select": [],
+  "print": true,
+  "state_modified_compare_more_unrendered_values": false,
+  "log_format_file": "debug",
+  "use_fast_test_edges": false,
+  "export_saved_queries": false,
+  "log_file_max_bytes": 10485760,
+  "populate_cache": true,
+  "version_check": true,
+  "log_path": "/probe/logs",
+  "quiet": false,
+  "sqlparse": {
+   "MAX_GROUPING_DEPTH": null,
+   "MAX_GROUPING_TOKENS": null
+  },
+  "use_colors_file": true,
+  "upload_to_artifacts_ingest_api": false,
+  "macro_debugging": false,
+  "require_all_warnings_handled_by_warn_error": false,
+  "log_level": "info"
+ }
+}
