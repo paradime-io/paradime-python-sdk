@@ -184,6 +184,16 @@ def mint_slugs_in_yaml_files(
                         trigger["schedule_slug"] = new_ref
                         changed = True
 
+            # Fix run_after cross-reference (use schedule_slug)
+            run_after = entry.get("run_after")
+            if isinstance(run_after, dict) and not run_after.get("schedule_slug"):
+                ref = run_after.get("schedule")
+                if ref and str(ref) in name_to_slug:
+                    new_ref = name_to_slug[str(ref)]
+                    if new_ref != str(ref):
+                        run_after["schedule_slug"] = new_ref
+                        changed = True
+
         if changed:
             yaml.dump(doc, filepath)
             files_changed += 1
@@ -321,6 +331,15 @@ def migrate_yaml_to_v3(
                     slug_val = name_to_slug.get(str(ref), str(ref))
                     trigger["schedule_slug"] = slug_val
                     del trigger["schedule_name"]
+                    changed = True
+
+            # run_after keeps its readable `schedule`; the slug goes next to it
+            run_after = entry.get("run_after")
+            if isinstance(run_after, dict) and not run_after.get("schedule_slug"):
+                ref = run_after.get("schedule")
+                run_after_slug = name_to_slug.get(str(ref)) if ref else None
+                if run_after_slug and run_after_slug != str(ref):
+                    run_after["schedule_slug"] = run_after_slug
                     changed = True
 
         if changed:

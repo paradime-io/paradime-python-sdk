@@ -118,6 +118,36 @@ class ScheduleTrigger(ParadimeScheduleBase):
         return trigger_on
 
 
+class RunAfter(ParadimeScheduleBase):
+    """`run_after`: the clearer spelling of `schedule_trigger`. Keep in sync with the
+    paradime-backend `RunAfter`. Having the block means it's on; `workspace` defaults
+    to this workspace."""
+
+    schedule: str  # slug or name
+    schedule_slug: Optional[str] = None
+    on: List[str] = ["passed"]
+    workspace: Optional[str] = None
+
+    @validator("on")
+    def validate_on(cls, on: List[str]) -> List[str]:
+        if not on:
+            raise ValueError(f"'on' needs at least one event ({VALID_ON_EVENTS})")
+        for event in on:
+            if event not in VALID_ON_EVENTS:
+                raise ValueError(f"'{event}' not a valid event ({VALID_ON_EVENTS})")
+        return on
+
+    def to_schedule_trigger(self) -> ScheduleTrigger:
+        return ScheduleTrigger(
+            enabled=True,
+            schedule_name=self.schedule,
+            schedule_slug=self.schedule_slug,
+            # empty means this workspace
+            workspace_name=self.workspace or "",
+            trigger_on=self.on,
+        )
+
+
 class NotificationItem(BaseModel):
     # channel and address can be used interchangeably but one is required
     channel: Optional[str]
@@ -257,10 +287,25 @@ class ParadimeSchedule(ParadimeScheduleBase):
     hightouch: Optional[Hightouch] = None
 
     schedule_trigger: Optional[ScheduleTrigger] = None
+    # alias for schedule_trigger, mapped to it on parse
+    run_after: Optional[RunAfter] = None
 
     trigger_on_merge: Optional[bool] = False
 
     suspended: Optional[bool] = False
+
+    @root_validator(skip_on_failure=True)
+    @classmethod
+    def map_run_after(cls, values: Any) -> Any:
+        # Keep in sync with the paradime-backend `ParadimeSchedule.map_run_after`.
+        run_after = values.get("run_after")
+        if run_after is None:
+            return values
+        if values.get("schedule_trigger") is not None:
+            raise ValueError("Use either run_after or schedule_trigger, not both")
+        values["schedule_trigger"] = run_after.to_schedule_trigger()
+        values["run_after"] = None
+        return values
 
     @root_validator(pre=True)
     @classmethod
