@@ -1,22 +1,68 @@
+import re
 import sys
 import time
 from pathlib import Path
-from typing import Optional, Set
+from typing import List, Optional, Set
 
 import click
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from rich.markdown import Markdown
+from rich.markup import escape
 from rich.panel import Panel
 from rich.text import Text
 
-from paradime.apis.dinoai_agents.types import DinoaiAgentRunStatus
+from paradime.apis.dinoai_agents.types import DinoaiAgentRun, DinoaiAgentRunStatus, DinoaiAgentStep
 from paradime.cli import console
 from paradime.client.api_exception import ParadimeAPIException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.client.paradime_client import Paradime
 
 _POLL_INTERVAL = 2  # seconds
+
+# Tool steps are printed as one line each. Their input arrives cut at this
+# length, which is plenty for the line and keeps each poll small.
+_STEP_MAX_CHARS = 300
+_TOOL_LABELS = {
+    "run_sql_query": "Ran a SQL query",
+    "search_catalog": "Searched the data catalog",
+    "get_all_models": "Listed the dbt models",
+    "get_mart_models": "Listed the mart models",
+    "get_node_details": "Read a model's details",
+    "get_lineage": "Traced the lineage",
+    "get_column_level_lineage": "Traced a column's lineage",
+    "get_model_health": "Checked the model's health",
+    "get_model_performance": "Checked the model's run times",
+    "read_file": "Read a file",
+    "edit_file": "Edited a file",
+    "write_file": "Wrote a file",
+    "ripgrep_search": "Searched the project",
+    "search_files_and_directories": "Browsed the project",
+    "run_terminal_command": "Ran a command",
+    "todo_write": "Planned the steps",
+    "load_skill_instructions": "Loaded a skill",
+    "run_subagent": "Ran a sub-task",
+    "invoke_agent": "Asked another agent",
+}
+# Delivery and bookkeeping calls: their result already shows as a message, or
+# is not work the reader cares about.
+_HIDDEN_TOOLS = frozenset({"send_api_message", "post_slack_message", "todo_read"})
+# The argument that says what a call was about, in order of preference.
+_DETAIL_KEYS = (
+    "query",
+    "sql",
+    "command",
+    "search_query",
+    "pattern",
+    "path",
+    "file_path",
+    "unique_id",
+    "model_name",
+    "task",
+)
+# The input can be cut mid-string, so read the value with a regex, not json.loads.
+_DETAIL = re.compile(r'"(%s)"\s*:\s*"((?:[^"\\]|\\.)*)' % "|".join(_DETAIL_KEYS))
+_MAX_DETAIL = 90
 
 
 @click.command()
@@ -46,11 +92,14 @@ def dinoai(
     # Track rendered messages by ts to dedup across poll iterations and turns,
     # even if the backend re-orders or re-emits the run.messages list.
     rendered: Set[str] = set()
+    steps = _StepFeed()
 
     # Resume: replay existing history so the user has context
     if session_id:
         with console.spinner("Loading session…"):
-            run = client.dinoai_agents.get_run(agent_session_id=session_id)
+            run = steps.read(client, session_id)
+        # Earlier turns' tool calls are history: only show the ones that follow.
+        steps.new_lines(run)
         console.console.print(_session_panel(agent, session_id))
         last_content: Optional[str] = None
         for msg in run.messages:
@@ -73,6 +122,7 @@ def dinoai(
             message=message,
             session_id=session_id,
             rendered=rendered,
+            steps=steps,
         )
         if final_status in (
             DinoaiAgentRunStatus.FAILED,
@@ -107,6 +157,7 @@ def dinoai(
                 message=user_input,
                 session_id=session_id,
                 rendered=rendered,
+                steps=steps,
             )
             # Show session panel once, when the session is first established
             if session_id is None:
@@ -128,6 +179,7 @@ def _send(
     message: str,
     session_id: Optional[str],
     rendered: Set[str],
+    steps: "_StepFeed",
 ) -> tuple[str, Optional[DinoaiAgentRunStatus]]:
     new_session = session_id is None
     if session_id is None:
@@ -143,12 +195,12 @@ def _send(
     if new_session:
         console.console.print(f"[dim]Session {session_id}[/]")
 
-    final_status = _poll(client, session_id=session_id, rendered=rendered)
+    final_status = _poll(client, session_id=session_id, rendered=rendered, steps=steps)
     return session_id, final_status
 
 
 def _poll(
-    client: Paradime, *, session_id: str, rendered: Set[str]
+    client: Paradime, *, session_id: str, rendered: Set[str], steps: "_StepFeed"
 ) -> Optional[DinoaiAgentRunStatus]:
     """Poll until a terminal status, streaming new messages to the console.
 
@@ -168,16 +220,24 @@ def _poll(
 
     Ctrl-C aborts the current turn without killing the chat — the run continues
     server-side and can be rejoined with `--session <id>`.
+
+    On a backend that reports the run's steps, each finished tool call prints as
+    one line, and while the agent pod boots the spinner shows its start-up step.
     """
     start = time.monotonic()
     display_status = "QUEUED"
+    run_status = "QUEUED"
     new_agent_messages = 0
     turn_started = False
     last_content: Optional[str] = None
     try:
         with console.spinner(_spinner_label(display_status, start)) as status:
             while True:
-                run = client.dinoai_agents.get_run(agent_session_id=session_id)
+                run = steps.read(client, session_id)
+                run_status = run.status.value
+
+                for line in steps.new_lines(run):
+                    console.console.print(f"[muted]  ↳ {escape(line)}[/]")
 
                 for msg in run.messages:
                     if msg.ts in rendered:
@@ -236,15 +296,82 @@ def _poll(
                     display_status = "WAITING"
                 else:
                     display_status = run.status.value
+                    booting = [s.label for s in run.startup_steps or [] if not s.done]
+                    if run.status == DinoaiAgentRunStatus.QUEUED and booting:
+                        display_status = booting[0]
 
                 status.update(_spinner_label(display_status, start))
                 time.sleep(_POLL_INTERVAL)
     except KeyboardInterrupt:
         console.console.print(
-            f"[muted]↩ aborted local view — run still {display_status} server-side. "
+            f"[muted]↩ aborted local view — run still {run_status} server-side. "
             f"Rejoin with: paradime dinoai --session {session_id}[/]"
         )
         return None
+
+
+class _StepFeed:
+    """The tool calls of a run, on backends that report ``dinoaiAgentRun.steps``.
+
+    Older backends reject the steps query. The first refusal switches this
+    session to the plain run, so the chat keeps working without the step lines.
+    """
+
+    def __init__(self) -> None:
+        self.supported: Optional[bool] = None
+        self.seen: Set[int] = set()
+
+    def read(self, client: Paradime, session_id: str) -> DinoaiAgentRun:
+        if self.supported is not False:
+            try:
+                run = client.dinoai_agents.get_run(
+                    agent_session_id=session_id,
+                    include_steps=True,
+                    include_tool_io=True,
+                    steps_after=max(self.seen) if self.seen else None,
+                    max_chars=_STEP_MAX_CHARS,
+                )
+            except ParadimeAPIException as exc:
+                if "Cannot query field" not in str(exc):
+                    raise
+                self.supported = False
+            else:
+                self.supported = True
+                return run
+        return client.dinoai_agents.get_run(agent_session_id=session_id)
+
+    def new_lines(self, run: DinoaiAgentRun) -> List[str]:
+        """One line for each tool call not shown yet."""
+        lines = []
+        for step in run.steps or []:
+            if step.index in self.seen:
+                continue
+            self.seen.add(step.index)
+            line = _describe_step(step)
+            if line:
+                lines.append(line)
+        return lines
+
+
+def _describe_step(step: DinoaiAgentStep) -> Optional[str]:
+    """A line for a tool call, or None. The agent's text already streams as messages."""
+    if step.role.upper() != "TOOL" or step.tool_name in _HIDDEN_TOOLS:
+        return None
+    name = step.tool_name or ""
+    label = _TOOL_LABELS.get(name) or name.replace("_", " ").capitalize() or "Used a tool"
+    detail = _step_detail(step.tool_input)
+    return f"{label}: {detail}" if detail else label
+
+
+def _step_detail(tool_input: Optional[str]) -> Optional[str]:
+    if not tool_input:
+        return None
+    values = dict(_DETAIL.findall(tool_input))
+    for key in _DETAIL_KEYS:
+        if values.get(key):
+            text = " ".join(values[key].replace("\\n", " ").replace('\\"', '"').split())
+            return text if len(text) <= _MAX_DETAIL else text[:_MAX_DETAIL].rstrip() + " …"
+    return None
 
 
 def _spinner_label(status_text: str, start: float) -> str:
