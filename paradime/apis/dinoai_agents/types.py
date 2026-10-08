@@ -35,6 +35,9 @@ class DinoaiAgentTriggerResult(BaseModel):
     ok: bool
     agent_session_id: str
     status: str
+    # Set when Paradime adjusted the request, for example an unknown model family.
+    # Only requested when a model family is passed.
+    warning: Optional[str] = None
 
 
 class DinoaiAgentStep(BaseModel):

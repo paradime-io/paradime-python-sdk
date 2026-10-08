@@ -30,6 +30,7 @@ class DinoaiAgentsClient:
         slack_channel: Optional[str] = None,
         slack_thread: Optional[str] = None,
         base_branch: Optional[str] = None,
+        model_family: Optional[str] = None,
     ) -> DinoaiAgentTriggerResult:
         """
         Triggers a DinoAI programmable agent run.
@@ -46,31 +47,40 @@ class DinoaiAgentsClient:
             slack_thread (str, optional): Override the Slack thread timestamp for this run.
             base_branch (str, optional): Git branch, tag or commit SHA the agent checks out before creating its
                 working branch. Defaults to the repository's default branch.
+            model_family (str, optional): Slug of a model family (a model preset of the workspace)
+                for this run. An unknown slug does not fail the run: it starts on the workspace's
+                default family, and ``warning`` in the result says so.
 
         Returns:
-            DinoaiAgentTriggerResult: Contains ``ok``, ``agent_session_id``, and ``status``.
+            DinoaiAgentTriggerResult: Contains ``ok``, ``agent_session_id``, ``status`` and, when
+                ``model_family`` is set, ``warning``.
         """
         if agent is None and message is None:
             raise ValueError("At least one of 'agent' or 'message' must be provided.")
 
-        query = """
+        # modelFamily and warning are only in the request when a model family is set,
+        # so that a call without one sends the same query as before.
+        model_variable = "\n                $modelFamily: String" if model_family else ""
+        model_argument = "\n                    modelFamily: $modelFamily" if model_family else ""
+        warning_field = "\n                    warning" if model_family else ""
+        query = f"""
             mutation TriggerDinoaiAgentRun(
                 $agent: String
                 $message: String
                 $slack: DinoAiAgentSlackInput
-                $baseBranch: String
-            ) {
+                $baseBranch: String{model_variable}
+            ) {{
                 triggerDinoaiAgentRun(
                     agent: $agent
                     message: $message
                     slack: $slack
-                    baseBranch: $baseBranch
-                ) {
+                    baseBranch: $baseBranch{model_argument}
+                ) {{
                     ok
                     agentSessionId
-                    status
-                }
-            }
+                    status{warning_field}
+                }}
+            }}
         """
 
         slack: Optional[dict] = None
@@ -85,6 +95,8 @@ class DinoaiAgentsClient:
             "slack": slack,
             "baseBranch": base_branch,
         }
+        if model_family:
+            variables["modelFamily"] = model_family
 
         response = self.client._call_gql(query, variables)["triggerDinoaiAgentRun"]
 
@@ -92,6 +104,7 @@ class DinoaiAgentsClient:
             ok=response["ok"],
             agent_session_id=response["agentSessionId"],
             status=response["status"],
+            warning=response.get("warning"),
         )
 
     def get_run(
@@ -248,6 +261,7 @@ class DinoaiAgentsClient:
         slack_channel: Optional[str] = None,
         slack_thread: Optional[str] = None,
         base_branch: Optional[str] = None,
+        model_family: Optional[str] = None,
         timeout: int = 3600,
         poll_interval: int = 10,
     ) -> DinoaiAgentRun:
@@ -261,6 +275,8 @@ class DinoaiAgentsClient:
             slack_thread (str, optional): Override the Slack thread timestamp for this run.
             base_branch (str, optional): Git branch, tag or commit SHA the agent checks out before creating its
                 working branch. Defaults to the repository's default branch.
+            model_family (str, optional): Slug of a model family for this run. See
+                :meth:`trigger_run`.
             timeout (int): Maximum seconds to wait before raising ``TimeoutError``. Defaults to 3600.
             poll_interval (int): Seconds between status polls. Defaults to 10.
 
@@ -278,6 +294,7 @@ class DinoaiAgentsClient:
             slack_channel=slack_channel,
             slack_thread=slack_thread,
             base_branch=base_branch,
+            model_family=model_family,
         )
 
         logger.info(

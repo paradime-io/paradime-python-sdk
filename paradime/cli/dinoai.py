@@ -69,10 +69,17 @@ _MAX_DETAIL = 90
 @click.option("--agent", "-a", default=None, help="Named agent (.dinoai/agents/<name>.yml).")
 @click.option("--message", "-m", default=None, help="Opening message.")
 @click.option("--session", "-s", default=None, help="Resume an existing session by ID.")
+@click.option(
+    "--model-family",
+    default=None,
+    help="Model family (model preset) slug for a new session. An unknown slug runs on the "
+    "workspace's default family, with a warning.",
+)
 def dinoai(
     agent: Optional[str],
     message: Optional[str],
     session: Optional[str],
+    model_family: Optional[str],
 ) -> None:
     """
     Talk to your data with a DinoAI programmable agent.
@@ -86,7 +93,13 @@ def dinoai(
       paradime dinoai --agent data-quality-checker
       paradime dinoai --message "What dbt tests are failing?"
       paradime dinoai --session xwzdneft6emspe0f
+      paradime dinoai --agent analyst --model-family fast --message "Revenue by month?"
     """
+    if model_family and session:
+        raise click.UsageError(
+            "--model-family applies when a new session starts; it cannot change the model "
+            "of an existing session."
+        )
     client = get_cli_client_or_exit()
     session_id: Optional[str] = session
     # Track rendered messages by ts to dedup across poll iterations and turns,
@@ -123,6 +136,7 @@ def dinoai(
             session_id=session_id,
             rendered=rendered,
             steps=steps,
+            model_family=model_family,
         )
         if final_status in (
             DinoaiAgentRunStatus.FAILED,
@@ -158,6 +172,7 @@ def dinoai(
                 session_id=session_id,
                 rendered=rendered,
                 steps=steps,
+                model_family=model_family,
             )
             # Show session panel once, when the session is first established
             if session_id is None:
@@ -180,14 +195,18 @@ def _send(
     session_id: Optional[str],
     rendered: Set[str],
     steps: "_StepFeed",
+    model_family: Optional[str] = None,
 ) -> tuple[str, Optional[DinoaiAgentRunStatus]]:
     new_session = session_id is None
     if session_id is None:
         result = client.dinoai_agents.trigger_run(
             agent=agent,
             message=message,
+            model_family=model_family,
         )
         session_id = result.agent_session_id
+        if result.warning:
+            console.warning(result.warning)
     else:
         client.dinoai_agents.send_message(agent_session_id=session_id, message=message)
 

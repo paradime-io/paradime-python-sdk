@@ -183,3 +183,54 @@ def test_get_run_keeps_the_run_when_the_backend_could_not_read_steps() -> None:
     assert run.status == DinoaiAgentRunStatus.RUNNING
     assert run.steps is None
     assert run.startup_steps is not None
+
+
+class TriggerRecorder:
+    """Records the trigger mutation and answers it, with a warning if one was asked for."""
+
+    def __init__(self, warning: Any = None) -> None:
+        self.warning = warning
+        self.query = ""
+        self.variables: Dict[str, Any] = {}
+
+    def _call_gql(self, query: str, variables: Dict[str, Any] = {}) -> Dict[str, Any]:
+        if "triggerDinoaiAgentRun" not in query:
+            return FakeAPIClient(["COMPLETED"])._call_gql(query, variables)
+        self.query, self.variables = query, variables
+        result = {"ok": True, "agentSessionId": "session-1", "status": "queued"}
+        if "warning" in query:
+            result["warning"] = self.warning
+        return {"triggerDinoaiAgentRun": result}
+
+
+def test_trigger_run_sends_the_model_family_and_returns_the_warning() -> None:
+    api = TriggerRecorder(warning="Unknown model family 'fast'; the run uses the default.")
+
+    result = DinoaiAgentsClient(api).trigger_run(  # type: ignore[arg-type]
+        agent="analyst", message="hi", model_family="fast"
+    )
+
+    assert api.variables["modelFamily"] == "fast"
+    assert "modelFamily: $modelFamily" in api.query
+    assert result.warning == "Unknown model family 'fast'; the run uses the default."
+
+
+def test_trigger_run_without_a_model_family_sends_the_same_query_as_before() -> None:
+    """Older APIs have no modelFamily argument and no warning field."""
+    api = TriggerRecorder()
+
+    result = DinoaiAgentsClient(api).trigger_run(agent="analyst", message="hi")  # type: ignore[arg-type]
+
+    assert "modelFamily" not in api.query and "modelFamily" not in api.variables
+    assert "warning" not in api.query
+    assert result.warning is None
+
+
+def test_trigger_run_and_wait_passes_the_model_family_on() -> None:
+    api = TriggerRecorder()
+
+    DinoaiAgentsClient(api).trigger_run_and_wait(  # type: ignore[arg-type]
+        message="hi", model_family="fast", timeout=5, poll_interval=0
+    )
+
+    assert api.variables["modelFamily"] == "fast"
