@@ -176,3 +176,53 @@ def test_poll_prints_tool_calls_and_the_startup_step(monkeypatch: pytest.MonkeyP
     assert "↳ Ran a SQL query: select 1" in output
     assert output.index("Ran a SQL query") < output.index("Mercedes won.")
     assert any("Cloning your repository" in label for label in statuses[0].labels)
+
+
+class TriggeringAgents(FakeAgents):
+    """FakeAgents that also starts runs, and records how."""
+
+    def __init__(self, runs: List[DinoaiAgentRun], warning: Any = None) -> None:
+        super().__init__(runs)
+        self.warning = warning
+        self.triggered: List[Dict[str, Any]] = []
+
+    def trigger_run(self, **kwargs: Any) -> Any:
+        from paradime.apis.dinoai_agents.types import DinoaiAgentTriggerResult
+
+        self.triggered.append(kwargs)
+        return DinoaiAgentTriggerResult(
+            ok=True, agent_session_id="s1", status="queued", warning=self.warning
+        )
+
+
+def test_a_new_session_gets_the_model_family_and_shows_its_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded = Console(record=True, width=200)
+    monkeypatch.setattr(cli_console, "console", recorded)
+    monkeypatch.setattr(dinoai_cli, "_poll", lambda *args, **kwargs: DinoaiAgentRunStatus.COMPLETED)
+    agents = TriggeringAgents([_run("COMPLETED")], warning="Unknown model family 'fast'.")
+
+    dinoai_cli._send(
+        FakeClient(agents),  # type: ignore[arg-type]
+        agent="analyst",
+        message="hi",
+        session_id=None,
+        rendered=set(),
+        steps=dinoai_cli._StepFeed(),
+        model_family="fast",
+    )
+
+    assert agents.triggered == [{"agent": "analyst", "message": "hi", "model_family": "fast"}]
+    assert "Unknown model family 'fast'." in recorded.export_text()
+
+
+def test_the_model_family_cannot_change_an_existing_session() -> None:
+    from click.testing import CliRunner
+
+    result = CliRunner().invoke(
+        dinoai_cli.dinoai, ["--session", "s1", "--model-family", "fast", "--message", "hi"]
+    )
+
+    assert result.exit_code == 2
+    assert "--model-family applies when a new session starts" in result.output
