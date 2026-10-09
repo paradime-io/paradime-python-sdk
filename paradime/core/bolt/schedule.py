@@ -297,6 +297,26 @@ class ParadimeSchedule(ParadimeScheduleBase):
 
     suspended: Optional[bool] = False
 
+    @root_validator(pre=True)
+    @classmethod
+    def unquoted_run_after_on(cls, values: Any) -> Any:
+        # Keep in sync with the paradime-backend `ParadimeSchedule.unquoted_run_after_on`.
+        # YAML 1.1 (yaml.safe_load) reads a bare `on` key as the boolean True, and keys such as
+        # `off`, `null` or `1` as other non-strings. Fixed here, not on RunAfter: building
+        # RunAfter fails on a non-string key before its validators run.
+        if not isinstance(values, dict):
+            return values
+        run_after = values.get("run_after")
+        if not isinstance(run_after, dict) or all(isinstance(key, str) for key in run_after):
+            return values
+        if "on" in run_after and any(key is True for key in run_after):
+            raise ValueError('run_after has both a bare `on` and a quoted "on"; use one')
+        # any other non-string key then fails RunAfter's Extra.forbid, which names it
+        values["run_after"] = {
+            ("on" if key is True else str(key)): value for key, value in run_after.items()
+        }
+        return values
+
     @root_validator(skip_on_failure=True)
     @classmethod
     def map_run_after(cls, values: Any) -> Any:
