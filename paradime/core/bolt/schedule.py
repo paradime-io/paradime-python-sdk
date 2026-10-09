@@ -297,6 +297,21 @@ class ParadimeSchedule(ParadimeScheduleBase):
 
     suspended: Optional[bool] = False
 
+    @root_validator(pre=True)
+    @classmethod
+    def unquoted_run_after_on(cls, values: Any) -> Any:
+        # Keep in sync with the paradime-backend `ParadimeSchedule.unquoted_run_after_on`.
+        # YAML 1.1 (yaml.safe_load) reads a bare `on` key as the boolean True. Fixed here, not
+        # on RunAfter: building RunAfter fails on the non-string key before its validators run.
+        if not isinstance(values, dict):
+            return values
+        run_after = values.get("run_after")
+        if isinstance(run_after, dict) and True in run_after and "on" not in run_after:
+            values["run_after"] = {
+                ("on" if key is True else key): value for key, value in run_after.items()
+            }
+        return values
+
     @root_validator(skip_on_failure=True)
     @classmethod
     def map_run_after(cls, values: Any) -> Any:
