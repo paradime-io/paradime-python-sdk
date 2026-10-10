@@ -257,8 +257,8 @@ class BoltDeferredScheduleConfigInput(_BoltInputBase):
     deferred_schedule_slug: Optional[str] = None
     """Slug of the deferred-to schedule. Takes priority over ``deferred_schedule_name``."""
     defer_environment_slug: Optional[str] = None
-    """Slug of a Bolt environment to defer to: the latest run of any schedule in it.
-    Set this or a deferred schedule, not both."""
+    """Slug of a Bolt environment to defer to: the latest run of its schedules, Turbo CI
+    schedules and this schedule itself excluded. Set this or a deferred schedule, not both."""
 
 
 class BoltScheduleTriggerInput(_BoltInputBase):

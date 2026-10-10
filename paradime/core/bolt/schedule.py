@@ -58,8 +58,9 @@ class DeferredSchedule(ParadimeScheduleBase):
     deferred_schedule_name: Optional[str]
     deferred_manifest_schedule: Optional[str]
     deferred_schedule_slug: Optional[str] = None
-    # Defer to the latest run across every schedule in this Bolt environment
-    # instead of a single schedule. Mutually exclusive with the schedule fields.
+    # Defer to the latest run across the schedules in this Bolt environment (Turbo CI
+    # schedules and this schedule itself excluded) instead of a single schedule.
+    # Mutually exclusive with the schedule fields.
     defer_environment_slug: Optional[str] = None
     # `successful_runs_only` is the canonical name used by the JSON schema and the
     # UI. `successful_run_only` is kept for backwards compatibility with existing
