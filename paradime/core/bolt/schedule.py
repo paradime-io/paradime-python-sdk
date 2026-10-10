@@ -58,6 +58,10 @@ class DeferredSchedule(ParadimeScheduleBase):
     deferred_schedule_name: Optional[str]
     deferred_manifest_schedule: Optional[str]
     deferred_schedule_slug: Optional[str] = None
+    # Defer to the latest run across the schedules in this Bolt environment (Turbo CI
+    # schedules and this schedule itself excluded) instead of a single schedule.
+    # Mutually exclusive with the schedule fields.
+    defer_environment_slug: Optional[str] = None
     # `successful_runs_only` is the canonical name used by the JSON schema and the
     # UI. `successful_run_only` is kept for backwards compatibility with existing
     # YAML files.
@@ -73,8 +77,13 @@ class DeferredSchedule(ParadimeScheduleBase):
             or values.get("deferred_schedule_name")
             or values.get("deferred_manifest_schedule")
         )
-        if not deferred_schedule_name:
-            raise ValueError("Missing deferred_schedule_name")
+        defer_environment_slug = values.get("defer_environment_slug")
+
+        # exactly one target: a schedule or an environment, never both or neither
+        if deferred_schedule_name and defer_environment_slug:
+            raise ValueError("Set either a deferred schedule or defer_environment_slug, not both")
+        if not deferred_schedule_name and not defer_environment_slug:
+            raise ValueError("Missing deferred_schedule_name or defer_environment_slug")
         values["deferred_schedule_name"] = deferred_schedule_name
 
         # accept either spelling; prefer the plural canonical form. Default True.
@@ -497,14 +506,21 @@ def is_valid_schedule_at_path(
         known_names |= existing_names
 
     # check turbo ci / deferred references resolve to known schedules
-    # (multiple turbo CI configs are supported)
+    # (multiple turbo CI configs are supported). A defer to an environment names
+    # no schedule; its slug is checked against the environments below.
     for schedule in schedules.schedules:
         if schedule.turbo_ci and schedule.turbo_ci.enabled:
-            if schedule.turbo_ci.deferred_schedule_name not in known_names:
+            if (
+                not schedule.turbo_ci.defer_environment_slug
+                and schedule.turbo_ci.deferred_schedule_name not in known_names
+            ):
                 return f"Turbo CI schedule error: '{schedule.turbo_ci.deferred_schedule_name}' does not refer to a known schedule name"
 
         if schedule.deferred_schedule and schedule.deferred_schedule.enabled:
-            if schedule.deferred_schedule.deferred_schedule_name not in known_names:
+            if (
+                not schedule.deferred_schedule.defer_environment_slug
+                and schedule.deferred_schedule.deferred_schedule_name not in known_names
+            ):
                 return f"Deferred schedule error: '{schedule.deferred_schedule.deferred_schedule_name}' does not refer to a known schedule name"
 
         # schedule_trigger may point at a schedule in any workspace; validate the
@@ -532,6 +548,15 @@ def is_valid_schedule_at_path(
                     f"Bolt environment in this workspace - "
                     f"use one of: {', '.join(sorted(valid_environments))}."
                 )
+            # a defer-to-environment target must name a known environment too
+            for defer_config in (schedule.deferred_schedule, schedule.turbo_ci):
+                defer_environment = defer_config.defer_environment_slug if defer_config else None
+                if defer_environment and defer_environment not in valid_environments:
+                    return (
+                        f"{schedule.name}: Defer environment '{defer_environment}' does not match "
+                        f"any Bolt environment in this workspace - "
+                        f"use one of: {', '.join(sorted(valid_environments))}."
+                    )
 
     # Verify schedules individually
     for schedule in schedules.schedules:
