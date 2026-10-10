@@ -25,6 +25,8 @@ class BoltDeferredSchedule(BaseModel):
     enabled: bool
     deferred_schedule_name: Optional[str]
     deferred_schedule_slug: Optional[str]
+    defer_environment_slug: Optional[str] = None
+    """Slug of the deferred-to environment, when the schedule defers to one instead of a schedule."""
     successful_run_only: bool
 
 
@@ -254,6 +256,9 @@ class BoltDeferredScheduleConfigInput(_BoltInputBase):
     """Deprecated alias for ``deferred_schedule_slug``. Carries a slug, not a display name."""
     deferred_schedule_slug: Optional[str] = None
     """Slug of the deferred-to schedule. Takes priority over ``deferred_schedule_name``."""
+    defer_environment_slug: Optional[str] = None
+    """Slug of a Bolt environment to defer to: the latest run of any schedule in it.
+    Set this or a deferred schedule, not both."""
 
 
 class BoltScheduleTriggerInput(_BoltInputBase):
