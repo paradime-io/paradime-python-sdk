@@ -398,3 +398,68 @@ schedules:
     )
     error = is_valid_schedule_at_path(yaml_file)
     assert error is not None and "only applies to on-merge schedules" in error
+
+
+def test_turbo_ci_can_defer_to_an_environment() -> None:
+    schedule = ParadimeSchedule.parse_obj(
+        _schedule(["dbt run"], turbo_ci={"enabled": True, "defer_environment_slug": "production"})
+    )
+    assert schedule.turbo_ci is not None
+    assert schedule.turbo_ci.defer_environment_slug == "production"
+    assert schedule.turbo_ci.deferred_schedule_name is None
+
+
+def test_deferring_to_a_schedule_and_an_environment_is_rejected() -> None:
+    with pytest.raises(ValueError, match="not both"):
+        ParadimeSchedule.parse_obj(
+            _schedule(
+                ["dbt run"],
+                deferred_schedule={
+                    "enabled": True,
+                    "deferred_schedule_slug": "nightly-run",
+                    "defer_environment_slug": "production",
+                },
+            )
+        )
+
+
+def test_deferring_to_nothing_is_rejected() -> None:
+    with pytest.raises(ValueError, match="defer_environment_slug"):
+        ParadimeSchedule.parse_obj(_schedule(["dbt run"], turbo_ci={"enabled": True}))
+
+
+def test_bolt_verify_accepts_a_defer_to_an_environment(tmp_path: Path) -> None:
+    yaml_file = tmp_path / "paradime_schedules.yml"
+    yaml_file.write_text(
+        """
+schedules:
+  - name: pr-checks
+    schedule: "OFF"
+    environment: production
+    turbo_ci:
+      enabled: true
+      defer_environment_slug: production
+    commands:
+      - dbt build --select state:modified+
+"""
+    )
+    assert is_valid_schedule_at_path(yaml_file, valid_environments={"production"}) is None
+
+
+def test_bolt_verify_rejects_an_unknown_defer_environment(tmp_path: Path) -> None:
+    yaml_file = tmp_path / "paradime_schedules.yml"
+    yaml_file.write_text(
+        """
+schedules:
+  - name: pr-checks
+    schedule: "OFF"
+    environment: production
+    turbo_ci:
+      enabled: true
+      defer_environment_slug: staging
+    commands:
+      - dbt build --select state:modified+
+"""
+    )
+    error = is_valid_schedule_at_path(yaml_file, valid_environments={"production"})
+    assert error is not None and "Defer environment 'staging'" in error

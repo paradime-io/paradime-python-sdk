@@ -391,12 +391,14 @@ class BoltClient:
                             enabled
                             deferredScheduleName
                             deferredScheduleSlug
+                            deferEnvironmentSlug
                             successfulRunOnly
                         }
                         deferredSchedule {
                             enabled
                             deferredScheduleName
                             deferredScheduleSlug
+                            deferEnvironmentSlug
                             successfulRunOnly
                         }
                         commands
@@ -469,6 +471,9 @@ class BoltClient:
                             deferred_schedule_slug=schedule_json["deferredSchedule"].get(
                                 "deferredScheduleSlug"
                             ),
+                            defer_environment_slug=schedule_json["deferredSchedule"].get(
+                                "deferEnvironmentSlug"
+                            ),
                             successful_run_only=schedule_json["deferredSchedule"][
                                 "successfulRunOnly"
                             ],
@@ -482,6 +487,9 @@ class BoltClient:
                             deferred_schedule_name=schedule_json["turboCi"]["deferredScheduleName"],
                             deferred_schedule_slug=schedule_json["turboCi"].get(
                                 "deferredScheduleSlug"
+                            ),
+                            defer_environment_slug=schedule_json["turboCi"].get(
+                                "deferEnvironmentSlug"
                             ),
                             successful_run_only=schedule_json["turboCi"]["successfulRunOnly"],
                         )
