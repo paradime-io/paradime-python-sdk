@@ -463,3 +463,33 @@ schedules:
     )
     error = is_valid_schedule_at_path(yaml_file, valid_environments={"production"})
     assert error is not None and "Defer environment 'staging'" in error
+
+
+def test_a_schedule_can_declare_trigger_on_webhook() -> None:
+    schedule = ParadimeSchedule.parse_obj(_schedule(["dbt run"], trigger_on_webhook=True))
+    assert schedule.trigger_on_webhook is True
+
+
+def test_trigger_on_webhook_defaults_to_false() -> None:
+    assert ParadimeSchedule.parse_obj(_schedule(["dbt run"])).trigger_on_webhook is False
+
+
+def test_a_non_boolean_trigger_on_webhook_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        ParadimeSchedule.parse_obj(_schedule(["dbt run"], trigger_on_webhook="sometimes"))
+
+
+def test_bolt_verify_accepts_trigger_on_webhook(tmp_path: Path) -> None:
+    yaml_file = tmp_path / "paradime_schedules.yml"
+    yaml_file.write_text(
+        """
+schedules:
+  - name: jira-sync
+    schedule: "OFF"
+    environment: production
+    trigger_on_webhook: true
+    commands:
+      - dbt run
+"""
+    )
+    assert is_valid_schedule_at_path(yaml_file) is None
