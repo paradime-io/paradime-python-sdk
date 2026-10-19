@@ -304,6 +304,8 @@ class ParadimeSchedule(ParadimeScheduleBase):
     # run does while the previous merge's run of this schedule is in progress
     concurrency: Optional[Literal["parallel", "queue"]] = None
 
+    trigger_on_webhook: Optional[bool] = False
+
     suspended: Optional[bool] = False
 
     @root_validator(pre=True)
