@@ -25,6 +25,8 @@ from paradime.apis.bolt.types import (
     BoltNotificationsInput,
     BoltRun,
     BoltRunGitInfo,
+    BoltRunNodeExecution,
+    BoltRunNodeExecutionsPage,
     BoltRunState,
     BoltSchedule,
     BoltScheduleInfo,
@@ -718,6 +720,106 @@ class BoltClient:
             )
 
         return sorted(commands, key=lambda command: command.id)
+
+    def get_run_node_executions_page(
+        self, run_id: int, first: int = 100, after: Optional[str] = None
+    ) -> BoltRunNodeExecutionsPage:
+        """
+        Fetches one page of dbt node results for a Bolt run.
+
+        Use this for manual paging. To fetch every node result, prefer
+        `list_run_node_executions`.
+
+        Args:
+            run_id (int): The ID of the run.
+            first (int): Page size. Default 100. Must be between 1 and 500.
+            after (Optional[str]): The `end_cursor` of the previous page. Use None
+                for the first page.
+
+        Returns:
+            BoltRunNodeExecutionsPage: The node results, `has_next_page`, and the
+            `end_cursor` to pass as `after` for the next page.
+
+        Raises:
+            ValueError: If first is not between 1 and 500.
+        """
+
+        if first < 1 or first > 500:
+            raise ValueError(f"first must be between 1 and 500, got {first}")
+
+        query = """
+            query boltRunNodeExecutions($runId: Int!, $first: Int, $after: String) {
+                boltRunNodeExecutions(runId: $runId, first: $first, after: $after) {
+                    edges {
+                        node {
+                            commandId
+                            invocationId
+                            dbtVersion
+                            uniqueId
+                            resourceType
+                            status
+                            message
+                            failures
+                            threadId
+                            compileStartedAt
+                            compileCompletedAt
+                            executeStartedAt
+                            executeCompletedAt
+                            executionTime
+                            adapterResponse
+                        }
+                        cursor
+                    }
+                    pageInfo {
+                        hasNextPage
+                        endCursor
+                    }
+                }
+            }
+        """
+
+        response_json = self.client._call_gql(
+            query=query,
+            variables={"runId": int(run_id), "first": first, "after": after},
+        )["boltRunNodeExecutions"]
+
+        if response_json is None:
+            return BoltRunNodeExecutionsPage(
+                node_executions=[], has_next_page=False, end_cursor=None
+            )
+
+        return BoltRunNodeExecutionsPage(
+            node_executions=[
+                BoltRunNodeExecution.parse_obj(edge["node"]) for edge in response_json["edges"]
+            ],
+            has_next_page=response_json["pageInfo"]["hasNextPage"],
+            end_cursor=response_json["pageInfo"]["endCursor"],
+        )
+
+    def list_run_node_executions(self, run_id: int) -> List[BoltRunNodeExecution]:
+        """
+        Retrieves every dbt node result (models, tests, seeds, snapshots, ...) for a
+        Bolt run, across all of its dbt commands.
+
+        Node results are kept for 60 days. Older runs, and commands that are not
+        dbt commands, return no node results.
+
+        Args:
+            run_id (int): The ID of the run.
+
+        Returns:
+            List[BoltRunNodeExecution]: The node results, in the order the API
+            returns them.
+        """
+
+        node_executions: List[BoltRunNodeExecution] = []
+        after: Optional[str] = None
+        while True:
+            page = self.get_run_node_executions_page(run_id, first=500, after=after)
+            node_executions.extend(page.node_executions)
+            if not page.has_next_page or not page.end_cursor:
+                return node_executions
+            after = page.end_cursor
 
     def get_command_logs(self, command_id: int, cursor: str = "0:0") -> BoltCommandLogs:
         """
