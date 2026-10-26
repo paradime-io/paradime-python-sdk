@@ -1,7 +1,8 @@
+import json
 from enum import Enum
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from paradime.tools.pydantic import BaseModel
+from paradime.tools.pydantic import BaseModel, validator
 
 
 class BoltRunState(str, Enum):
@@ -144,6 +145,43 @@ class BoltCommandLogs(BaseModel):
 def _snake_to_camel(snake: str) -> str:
     head, *tail = snake.split("_")
     return head + "".join(part.title() for part in tail)
+
+
+class BoltRunNodeExecution(BaseModel):
+    """One dbt node's result from a command in a Bolt run."""
+
+    command_id: Optional[int]
+    invocation_id: Optional[str]
+    dbt_version: Optional[str]
+    unique_id: str
+    resource_type: str
+    status: str
+    message: Optional[str]
+    failures: Optional[int]
+    thread_id: Optional[str]
+    compile_started_at: Optional[str]
+    compile_completed_at: Optional[str]
+    execute_started_at: Optional[str]
+    execute_completed_at: Optional[str]
+    execution_time: Optional[float]
+    adapter_response: Optional[Dict[str, Any]]
+
+    class Config:
+        alias_generator = _snake_to_camel
+        allow_population_by_field_name = True
+
+    @validator("adapter_response", pre=True)
+    def _parse_adapter_response(cls, value: Any) -> Any:
+        # The API sends a JSON-encoded string.
+        if isinstance(value, str):
+            return json.loads(value) if value else None
+        return value
+
+
+class BoltRunNodeExecutionsPage(BaseModel):
+    node_executions: List[BoltRunNodeExecution]
+    has_next_page: bool
+    end_cursor: Optional[str]
 
 
 class _BoltInputBase(BaseModel):
