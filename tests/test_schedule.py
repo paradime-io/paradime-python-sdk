@@ -493,3 +493,53 @@ schedules:
 """
     )
     assert is_valid_schedule_at_path(yaml_file) is None
+
+
+def test_a_schedule_can_declare_env_overrides() -> None:
+    schedule = ParadimeSchedule.parse_obj(
+        _schedule(["dbt run"], env_overrides=[{"key": "DBT_PROJECT", "value": "finance"}])
+    )
+    assert schedule.env_overrides is not None
+    assert [(o.key, o.value) for o in schedule.env_overrides] == [("DBT_PROJECT", "finance")]
+
+
+@pytest.mark.parametrize(
+    "override",
+    [{"key": "DBT_PROJECT"}, {"key": "DBT_PROJECT", "value": "finance", "secret": True}],
+)
+def test_a_malformed_env_override_is_rejected(override: Dict[str, Any]) -> None:
+    with pytest.raises(ValueError):
+        ParadimeSchedule.parse_obj(_schedule(["dbt run"], env_overrides=[override]))
+
+
+def test_a_schedule_can_declare_self_healing() -> None:
+    schedule = ParadimeSchedule.parse_obj(
+        _schedule(
+            ["dbt run"],
+            self_healing={"enabled": True, "slack_channel": "C123", "agent_name": "fixer"},
+        )
+    )
+    assert schedule.self_healing is not None
+    assert schedule.self_healing.enabled is True
+    assert schedule.self_healing.agent_name == "fixer"
+
+
+def test_bolt_verify_accepts_env_overrides_and_self_healing(tmp_path: Path) -> None:
+    yaml_file = tmp_path / "paradime_schedules.yml"
+    yaml_file.write_text(
+        """
+schedules:
+  - name: post-merge
+    schedule: "OFF"
+    environment: production
+    trigger_on_merge: true
+    env_overrides:
+      - key: DBT_CLOUD_PROJECT_KEY
+        value: finance
+    self_healing:
+      enabled: true
+    commands:
+      - dbt build --select state:modified+
+"""
+    )
+    assert is_valid_schedule_at_path(yaml_file) is None

@@ -257,6 +257,19 @@ class Integrations(BaseModel):
         extra = Extra.allow
 
 
+class EnvOverride(ParadimeScheduleBase):
+    # Keep in sync with the paradime-backend `EnvOverride`.
+    key: str
+    value: str
+
+
+class SelfHealingConfig(BaseModel):
+    # Keep in sync with the paradime-backend `SelfHealingConfig`.
+    enabled: bool = False
+    slack_channel: Optional[str] = None
+    agent_name: Optional[str] = None
+
+
 class CommandSetting(ParadimeScheduleBase):
     # Keep in sync with the paradime-backend `CommandSetting`.
     continue_on_error: Optional[bool] = None
@@ -306,7 +319,11 @@ class ParadimeSchedule(ParadimeScheduleBase):
 
     trigger_on_webhook: Optional[bool] = False
 
+    self_healing: Optional[SelfHealingConfig] = None
+
     suspended: Optional[bool] = False
+
+    env_overrides: Optional[List[EnvOverride]] = None
 
     @root_validator(pre=True)
     @classmethod
