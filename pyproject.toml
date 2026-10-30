@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "paradime-io"
-version = "6.10.0"
+version = "6.11.0"
 description = "Paradime - Python SDK"
 authors = [
     { name = "Bhuvan Singla", email = "bhuvan@paradime.io" },
@@ -26,7 +26,7 @@ dependencies = [
     "dbt-artifacts-parser>=0.12.0,<0.13.0",
     "duckdb>=1.0.0,<2.0.0",
     "polars>=0.20.0,<0.21.0",
-    "pyarrow>=18.0.0,<19.0.0",
+    "pyarrow>=18.0.0,<27.0.0",
     "numpy>=1.26.0",
     "tenacity>=9.0.0,<10.0.0",
     "boto3>=1.35.0,<2.0.0",
