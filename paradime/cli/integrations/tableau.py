@@ -20,7 +20,24 @@ from paradime.core.scripts.tableau import (
     list_tableau_workbooks,
     trigger_tableau_datasource_refresh,
     trigger_tableau_refresh,
+    validate_tableau_credentials,
 )
+
+
+def _check_credentials(
+    personal_access_token_name: Optional[str],
+    personal_access_token_secret: Optional[str],
+    jwt: Optional[str],
+) -> None:
+    """Reject a missing or ambiguous credential set before any Tableau call is made."""
+    try:
+        validate_tableau_credentials(
+            personal_access_token_name=personal_access_token_name,
+            personal_access_token_secret=personal_access_token_secret,
+            jwt=jwt,
+        )
+    except ValueError as e:
+        raise click.UsageError(str(e)) from e
 
 
 def _parse_path_value(raw: str, flag: str) -> TableauPathName:
@@ -102,11 +119,19 @@ def _parse_path_values(raw_values: Tuple[str, ...], flag: str) -> List[TableauPa
     "personal-access-token-secret",
     "TABLEAU_PERSONAL_ACCESS_TOKEN_SECRET",
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+    required=False,
 )
 @env_click_option(
     "personal-access-token-name",
     "TABLEAU_PERSONAL_ACCESS_TOKEN_NAME",
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+    required=False,
+)
+@env_click_option(
+    "jwt",
+    "TABLEAU_JWT",
+    help="A JSON Web Token issued by a Tableau connected app, used instead of a personal access token: https://help.tableau.com/current/online/en-us/connected_apps.htm",
+    required=False,
 )
 @click.option(
     "--wait/--no-wait",
@@ -131,8 +156,9 @@ def tableau_refresh(
     workbook_name: Optional[List[str]],
     datasource_name: Optional[List[str]],
     host: str,
-    personal_access_token_secret: str,
-    personal_access_token_name: str,
+    personal_access_token_secret: Optional[str],
+    personal_access_token_name: Optional[str],
+    jwt: Optional[str],
     wait: bool,
     timeout: int,
     json_output: bool,
@@ -140,6 +166,8 @@ def tableau_refresh(
     """
     Trigger a Tableau refresh for workbooks or data sources.
     """
+    _check_credentials(personal_access_token_name, personal_access_token_secret, jwt)
+
     workbook_names = resolve_deprecated_option(
         workbook_names, workbook_name, "workbook-names", "workbook-name"
     )
@@ -179,6 +207,7 @@ def tableau_refresh(
                 host=host,
                 personal_access_token_name=personal_access_token_name,
                 personal_access_token_secret=personal_access_token_secret,
+                jwt=jwt,
                 site_name=site_name or "",
                 workbook_names=workbook_identifiers,
                 api_version="3.4",
@@ -216,6 +245,7 @@ def tableau_refresh(
                 host=host,
                 personal_access_token_name=personal_access_token_name,
                 personal_access_token_secret=personal_access_token_secret,
+                jwt=jwt,
                 site_name=site_name or "",
                 datasource_names=datasource_identifiers,
                 api_version="3.4",
@@ -263,23 +293,34 @@ def tableau_refresh(
     "personal-access-token-secret",
     "TABLEAU_PERSONAL_ACCESS_TOKEN_SECRET",
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+    required=False,
 )
 @env_click_option(
     "personal-access-token-name",
     "TABLEAU_PERSONAL_ACCESS_TOKEN_NAME",
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+    required=False,
+)
+@env_click_option(
+    "jwt",
+    "TABLEAU_JWT",
+    help="A JSON Web Token issued by a Tableau connected app, used instead of a personal access token: https://help.tableau.com/current/online/en-us/connected_apps.htm",
+    required=False,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def tableau_list_workbooks(
     site_name: str,
     host: str,
-    personal_access_token_secret: str,
-    personal_access_token_name: str,
+    personal_access_token_secret: Optional[str],
+    personal_access_token_name: Optional[str],
+    jwt: Optional[str],
     json_output: bool,
 ) -> None:
     """
     List all Tableau workbooks with their names and UUIDs.
     """
+    _check_credentials(personal_access_token_name, personal_access_token_secret, jwt)
+
     if not json_output:
         console.info(f"Listing Tableau workbooks on site {site_name or 'default'}…")
 
@@ -287,6 +328,7 @@ def tableau_list_workbooks(
         host=host,
         personal_access_token_name=personal_access_token_name,
         personal_access_token_secret=personal_access_token_secret,
+        jwt=jwt,
         site_name=site_name or "",
         api_version="3.4",
         json_output=json_output,
@@ -312,23 +354,34 @@ def tableau_list_workbooks(
     "personal-access-token-secret",
     "TABLEAU_PERSONAL_ACCESS_TOKEN_SECRET",
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+    required=False,
 )
 @env_click_option(
     "personal-access-token-name",
     "TABLEAU_PERSONAL_ACCESS_TOKEN_NAME",
     help="You can create a personal access token in your tableau account settings: https://help.tableau.com/current/server/en-us/security_personal_access_tokens.htm",
+    required=False,
+)
+@env_click_option(
+    "jwt",
+    "TABLEAU_JWT",
+    help="A JSON Web Token issued by a Tableau connected app, used instead of a personal access token: https://help.tableau.com/current/online/en-us/connected_apps.htm",
+    required=False,
 )
 @click.option("--json", "json_output", is_flag=True, help="Output results as JSON.", default=False)
 def tableau_list_datasources(
     site_name: str,
     host: str,
-    personal_access_token_secret: str,
-    personal_access_token_name: str,
+    personal_access_token_secret: Optional[str],
+    personal_access_token_name: Optional[str],
+    jwt: Optional[str],
     json_output: bool,
 ) -> None:
     """
     List all Tableau data sources with their names and UUIDs.
     """
+    _check_credentials(personal_access_token_name, personal_access_token_secret, jwt)
+
     if not json_output:
         console.info(f"Listing Tableau data sources on site {site_name or 'default'}…")
 
@@ -336,6 +389,7 @@ def tableau_list_datasources(
         host=host,
         personal_access_token_name=personal_access_token_name,
         personal_access_token_secret=personal_access_token_secret,
+        jwt=jwt,
         site_name=site_name or "",
         api_version="3.4",
         json_output=json_output,
