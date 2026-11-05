@@ -279,7 +279,7 @@ class StubAdminApi:
         polls = self.polls["run"] = self.polls.get("run", 0) + 1
         return self.ok({"boltRunStatus": {"state": "RUNNING" if polls == 1 else "SUCCESS"}})
 
-    def op_onboardingWorkspaceSetupStatus(
+    def op_adminWorkspaceSetupStatus(
         self, variables: Dict[str, Any], workspace: Optional[str]
     ) -> Reply:
         def row(
@@ -311,7 +311,15 @@ class StubAdminApi:
             row("NOTIFICATIONS", required=False),
             row("FIRST_BOLT_RUN"),
         ]
-        return self.ok({"workspaceSetupStatus": {"isComplete": True, "steps": steps}})
+        ready = {"status": "DONE", "missing": [], "missingSuggested": []}
+        products = {
+            "codeIde": ready,
+            "bolt": ready,
+            "agent": dict(ready, missingSuggested=["GITHUB_APP"]),
+        }
+        return self.ok(
+            {"workspaceSetupStatus": {"isComplete": True, "steps": steps, "products": products}}
+        )
 
     def github(self, method: str, path: str, body: Dict[str, Any]) -> Reply:
         with self.lock:

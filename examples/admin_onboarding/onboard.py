@@ -40,6 +40,7 @@ from paradime.apis.admin.git.types import (
     GitRepositoryState,
 )
 from paradime.apis.admin.notifications.types import SlackInstallationStatus
+from paradime.apis.admin.setup_status.types import SetupStepStatus
 from paradime.apis.admin.types import SECRET_INPUT_FIELDS, UNSET, given
 from paradime.apis.bolt.types import BoltRunState
 from paradime.apis.users.types import UserAccountType
@@ -94,22 +95,6 @@ FINISHED_RUN_STATES = {
     BoltRunState.CANCELED,
     BoltRunState.SKIPPED,
 }
-
-SETUP_STATUS_QUERY = """
-    query onboardingWorkspaceSetupStatus($workspaceUid: String) {
-        workspaceSetupStatus(workspaceUid: $workspaceUid) {
-            isComplete
-            steps {
-                step
-                status
-                required
-                environmentSlug
-                installUrl
-                detail
-            }
-        }
-    }
-"""
 
 
 class Status(str, Enum):
@@ -862,31 +847,48 @@ class Onboarding:
         return Outcome(f"run {run_id} of {slug} {state.value} (legacy paradime.bolt.trigger_run)")
 
     def setup_status(self) -> Outcome:
-        response = self.target.admin.transport.execute(
-            SETUP_STATUS_QUERY, {"workspaceUid": self.target_uid}
-        )
-        status = response.get("workspaceSetupStatus")
+        status = self.target.admin.setup_status.get(workspace_uid=self.target_uid)
         if status is None:
             raise StepFailed("workspaceSetupStatus returned nothing")
-        rows = status.get("steps") or []
         notes = []
         counts: Dict[str, int] = {}
         missing_required = []
-        for row in rows:
-            counts[row["status"]] = counts.get(row["status"], 0) + 1
-            name = row["step"] + (
-                f" {row['environmentSlug']}" if row.get("environmentSlug") else ""
-            )
-            note = f"{row['status']:<19} {name}" + ("" if row.get("required") else " (optional)")
-            if row.get("installUrl"):
-                note += f" {row['installUrl']}"
-            if row["status"] == "MISSING" and row.get("detail"):
-                note += f": {row['detail']}"
+        for row in status.steps or []:
+            state = row.status.value
+            counts[state] = counts.get(state, 0) + 1
+            name = row.step.value + (f" {row.environment_slug}" if row.environment_slug else "")
+            note = f"{state:<19} {name}" + ("" if row.required else " (optional)")
+            if row.install_url:
+                note += f" {row.install_url}"
+            if row.status == SetupStepStatus.MISSING and row.detail:
+                note += f": {row.detail}"
             notes.append(note)
-            if row["status"] == "MISSING" and row.get("required"):
+            if row.status == SetupStepStatus.MISSING and row.required:
                 missing_required.append(name)
+        products = status.products
+        notes.append(
+            "products: "
+            + ", ".join(
+                f"{label} {readiness.status.value}"
+                + (
+                    f" (missing: {', '.join(s.value for s in readiness.missing)})"
+                    if readiness.missing
+                    else ""
+                )
+                + (
+                    f" (suggested: {', '.join(s.value for s in readiness.missing_suggested)})"
+                    if readiness.missing_suggested
+                    else ""
+                )
+                for label, readiness in (
+                    ("Code IDE", products.code_ide),
+                    ("Bolt", products.bolt),
+                    ("agent", products.agent),
+                )
+            )
+        )
         summary = ", ".join(f"{count} {state}" for state, count in sorted(counts.items()))
-        detail = f"isComplete={str(status.get('isComplete')).lower()}, {summary} (raw GraphQL)"
+        detail = f"isComplete={str(status.is_complete).lower()}, {summary}"
         if missing_required:
             self.notes.extend(notes)
             raise StepFailed(f"{detail}; required steps missing: {', '.join(missing_required)}")

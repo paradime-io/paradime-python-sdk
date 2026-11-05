@@ -288,8 +288,8 @@ def test_cleanup_finds_the_workspace_by_name_when_its_uid_is_unknown(
 
 
 class MissingStepApi(StubAdminApi):
-    def op_onboardingWorkspaceSetupStatus(self, variables: Dict[str, Any], workspace: Any) -> Any:
-        status, reply = super().op_onboardingWorkspaceSetupStatus(variables, workspace)
+    def op_adminWorkspaceSetupStatus(self, variables: Dict[str, Any], workspace: Any) -> Any:
+        status, reply = super().op_adminWorkspaceSetupStatus(variables, workspace)
         steps = reply["data"]["workspaceSetupStatus"]["steps"]
         steps[-1].update(status="MISSING", detail="No Bolt run has finished yet.")
         reply["data"]["workspaceSetupStatus"]["isComplete"] = False
@@ -541,3 +541,17 @@ def test_the_development_connection_sends_only_workspace_level_fields(
     ]
     assert "left out per-user fields: privateKey, role, username, warehouse" in outcome.detail
     assert [w for o, w in api.calls if o == "adminSetWarehouseConnection"] == [NEW_UID]
+
+
+def test_setup_status_is_read_with_the_sdk_and_reports_each_product(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    onboarding = _onboarding(url)
+    onboarding.create_workspace()
+
+    outcome = onboarding.setup_status()
+
+    assert outcome.detail == "isComplete=true, 9 DONE, 1 PENDING_USER_ACTION"
+    assert "products: Code IDE DONE, Bolt DONE, agent DONE (suggested: GITHUB_APP)" in outcome.notes
+    assert [w for o, w in api.calls if o == "adminWorkspaceSetupStatus"] == [NEW_UID]
