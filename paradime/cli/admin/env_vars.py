@@ -73,7 +73,12 @@ def list_variables(
     help="Read from this file instead of stdin. With NAME, the file holds the value; without "
     "NAME, it holds NAME=VALUE lines (.env format).",
 )
-@click.option("--replace", is_flag=True, help="Delete the variables of the scope not given.")
+@click.option(
+    "--replace",
+    is_flag=True,
+    help="Delete the variables of the scope not in the input. Only with NAME=VALUE lines.",
+)
+@click.option("--yes", is_flag=True, help="Confirm --replace without asking.")
 @environment_option
 @common.workspace_option
 @common.json_option
@@ -82,6 +87,7 @@ def set_variables(
     name: Optional[str],
     source: Optional[TextIO],
     replace: bool,
+    yes: bool,
     environment_slug: Optional[str],
     workspace_uid: Optional[str],
     as_json: bool,
@@ -95,9 +101,15 @@ def set_variables(
       paradime admin env-vars set API_TOKEN --file token.txt
     Without NAME, sets every NAME=VALUE line of the input (.env format):
       paradime admin env-vars set --file .env --environment production
+    With --replace, the input's lines become the scope's only variables; pass --yes to
+    confirm, or answer the prompt when the input is a --file.
     """
     if name is not None:
         _check_name(name)
+        if replace:
+            raise click.UsageError(
+                "--replace would delete every variable but NAME. Use it with NAME=VALUE lines."
+            )
     stream = source if source is not None else click.get_text_stream("stdin")
     if source is None and stream.isatty():
         raise click.UsageError(VALUES_ON_COMMAND_LINE)
@@ -105,6 +117,16 @@ def set_variables(
     variables = {name: _single_value(content)} if name is not None else _dotenv(content)
     if not variables:
         raise click.UsageError("The input holds no variables.")
+    if replace and not yes:
+        if source is None or not _stdin_is_terminal():
+            raise click.UsageError(
+                "--replace deletes every variable of the scope not in the input. "
+                "Pass --yes to confirm."
+            )
+        click.confirm(
+            f"Delete every variable of the scope except {', '.join(sorted(variables))}?",
+            abort=True,
+        )
 
     result = common.get_admin().environment_variables.set(
         variables,
@@ -117,6 +139,10 @@ def set_variables(
         return
     changed = ", ".join(result.changed_names) if result.changed_names else "nothing"
     console.success(f"Changed {changed}. The scope holds {result.total_count} variables.")
+
+
+def _stdin_is_terminal() -> bool:
+    return click.get_text_stream("stdin").isatty()
 
 
 def _check_name(name: str) -> None:

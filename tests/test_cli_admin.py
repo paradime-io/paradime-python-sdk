@@ -1,3 +1,4 @@
+import sys
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -85,7 +86,7 @@ def test_set_reads_name_value_lines_from_a_file(fake_admin: FakeAdmin, tmp_path:
     env_file = tmp_path / "vars.env"
     env_file.write_text('A=1\nexport B="two words"\n# a comment line in the file\nC=\n')
 
-    result = _run("env-vars", "set", "--file", str(env_file), "--replace", "--json")
+    result = _run("env-vars", "set", "--file", str(env_file), "--replace", "--yes", "--json")
 
     assert result.exit_code == 0, result.output
     call = fake_admin.environment_variables.set_calls[0]
@@ -303,3 +304,38 @@ def test_set_refuses_an_empty_environment(fake_admin: FakeAdmin) -> None:
     assert result.exit_code == 2
     assert "--environment" in result.output
     assert fake_admin.environment_variables.set_calls == []
+
+
+def test_set_refuses_replace_with_a_single_name(fake_admin: FakeAdmin) -> None:
+    result = _run("env-vars", "set", "API_TOKEN", "--replace", "--yes", input="s3cret\n")
+
+    assert result.exit_code == 2
+    assert "--replace" in result.output
+    assert fake_admin.environment_variables.set_calls == []
+
+
+def test_replace_from_stdin_needs_yes(fake_admin: FakeAdmin) -> None:
+    refused = _run("env-vars", "set", "--replace", input="A=1\n")
+    confirmed = _run("env-vars", "set", "--replace", "--yes", input="A=1\n")
+
+    assert refused.exit_code == 2
+    assert "--yes" in refused.output
+    assert confirmed.exit_code == 0, confirmed.output
+    assert [call["replace"] for call in fake_admin.environment_variables.set_calls] == [True]
+
+
+def test_replace_from_a_file_asks_on_a_terminal(
+    fake_admin: FakeAdmin, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    env_vars_cli = sys.modules["paradime.cli.admin.env_vars"]
+    env_file = tmp_path / "vars.env"
+    env_file.write_text("A=1\n")
+    monkeypatch.setattr(env_vars_cli, "_stdin_is_terminal", lambda: True)
+
+    declined = _run("env-vars", "set", "--file", str(env_file), "--replace", input="n\n")
+    accepted = _run("env-vars", "set", "--file", str(env_file), "--replace", input="y\n")
+
+    assert declined.exit_code == 1
+    assert "Delete every variable" in declined.output
+    assert accepted.exit_code == 0, accepted.output
+    assert len(fake_admin.environment_variables.set_calls) == 1
