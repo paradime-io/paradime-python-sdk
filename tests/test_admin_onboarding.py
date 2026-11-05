@@ -417,3 +417,17 @@ def test_a_failed_workspace_delete_still_removes_the_deploy_key() -> None:
     assert "FAIL  end  deleteWorkspace (cleanup)" in output
     assert onboarding.workspace_name not in api.github_keys.values()
     assert "github DELETE" in _operations(api)
+
+
+def test_a_run_that_misses_the_exit_criterion_without_a_failure_exits_3(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    _, url = stub
+    onboarding = _onboarding(url)
+    onboarding.config.users = []
+
+    code, output = _run(onboarding)
+
+    assert "SKIP  12   inviteUser" in output
+    assert "FAIL" not in output
+    assert code == 3

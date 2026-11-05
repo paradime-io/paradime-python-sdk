@@ -35,6 +35,7 @@ from paradime.tools.pydantic import ValidationError
 
 PHASE_ONE_STEPS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 13})
 TOTAL_STEPS = 14
+EXIT_CRITERION_NOT_MET = 3
 RUN_REASON = "Admin API onboarding acceptance test"
 GITHUB_API_URL = "https://api.github.com"
 NAME_PREFIX_MARKER = "onboarding-"
@@ -204,10 +205,17 @@ class StepRunner:
     def failed(self) -> bool:
         return any(result.status == Status.FAIL for result in self.results)
 
-    def summary(self) -> str:
-        phase_results = [
+    def phase_results(self) -> List[StepResult]:
+        return [
             r for r in self.results if 1 <= r.step.number <= TOTAL_STEPS and self.in_phase(r.step)
         ]
+
+    @property
+    def criterion_met(self) -> bool:
+        return all(r.status == Status.PASS for r in self.phase_results())
+
+    def summary(self) -> str:
+        phase_results = self.phase_results()
         counts = {status: sum(1 for r in phase_results if r.status == status) for status in Status}
         not_passed = [f"{r.step.number}" for r in phase_results if r.status != Status.PASS]
         verdict = "met" if not not_passed else f"not met (steps {', '.join(not_passed)})"
@@ -860,7 +868,9 @@ def run_onboarding(onboarding: Onboarding, runner: StepRunner, *, keep: bool = F
     finally:
         runner.run(onboarding.cleanup_step(keep=keep))
         runner.summary()
-    return 1 if runner.failed else 0
+    if runner.failed:
+        return 1
+    return 0 if runner.criterion_met else EXIT_CRITERION_NOT_MET
 
 
 def endpoint_secrets(endpoint: str) -> Set[str]:
@@ -882,7 +892,12 @@ def parse_arguments(argv: Optional[Sequence[str]]) -> argparse.Namespace:
             "Credentials come from PARADIME_API_ENDPOINT, PARADIME_API_SECRET (an account key, "
             "prdm_cmp_...) and PARADIME_WORKSPACE_UID (an existing workspace the key reaches, "
             "never deleted); everything else from the config file."
-        )
+        ),
+        epilog=(
+            "Exit codes: 0 every step of the phase passed; 1 a step or the cleanup failed; "
+            "2 a missing variable or a bad config file, before any request; "
+            f"{EXIT_CRITERION_NOT_MET} nothing failed but a step of the phase was skipped."
+        ),
     )
     parser.add_argument(
         "--phase",
