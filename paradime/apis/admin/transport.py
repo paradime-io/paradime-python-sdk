@@ -24,14 +24,15 @@ class AdminTransport:
     Sends Admin API requests through an `APIClient`'s endpoint and credentials.
 
     A request the server refuses with `RATE_LIMITED` (HTTP 429) is retried after the
-    `retryAfter` the server sends, up to `max_rate_limit_retries` times; then the
-    `AdminRateLimitedException` is raised. Any other error raises the typed exception of its
+    `retryAfter` the server sends, up to `max_rate_limit_retries` times; then, or at once when
+    the server asks for a longer wait than `max_retry_wait`, the `AdminRateLimitedException`
+    is raised. Any other error raises the typed exception of its
     `extensions.code`.
 
     Args:
         client (APIClient): The client whose endpoint, credentials and timeout to use.
         max_rate_limit_retries (int): How many times to retry a rate-limited request.
-        max_retry_wait (float): The longest wait between retries, in seconds.
+        max_retry_wait (float): The longest wait to retry after, in seconds.
         sleep (Callable[[float], None]): How to wait between retries.
     """
 
@@ -74,13 +75,10 @@ class AdminTransport:
             try:
                 return self._execute_once(query, variables or {}, workspace_uid)
             except AdminRateLimitedException as e:
-                if retries >= self.max_rate_limit_retries:
+                wait = e.retry_after if e.retry_after is not None else DEFAULT_RETRY_WAIT_SECONDS
+                if retries >= self.max_rate_limit_retries or wait > self.max_retry_wait:
                     raise
                 retries += 1
-                wait = min(
-                    e.retry_after if e.retry_after is not None else DEFAULT_RETRY_WAIT_SECONDS,
-                    self.max_retry_wait,
-                )
                 logger.info(
                     f"Rate limited by the Paradime API; retrying in {wait:g}s"
                     f" ({retries}/{self.max_rate_limit_retries})."

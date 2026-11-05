@@ -285,21 +285,33 @@ def test_a_rate_limit_in_a_200_body_is_retried_too(
     assert sleeps == [1]
 
 
-def test_the_wait_is_capped_and_defaults_when_the_server_gives_none(
+def test_the_wait_defaults_to_one_second_when_the_server_gives_none(
     monkeypatch: pytest.MonkeyPatch, sleeps: List[float]
 ) -> None:
-    transport, _ = _transport(
+    transport, _ = _transport(monkeypatch, sleeps, _rate_limited(), FakeResponse({"data": {}}))
+
+    transport.execute("query q { x }")
+
+    assert sleeps == [1]
+
+
+def test_a_retry_after_longer_than_the_cap_raises_without_waiting(
+    monkeypatch: pytest.MonkeyPatch, sleeps: List[float]
+) -> None:
+    transport, post = _transport(
         monkeypatch,
         sleeps,
         _rate_limited(retry_after=600),
-        _rate_limited(),
         FakeResponse({"data": {}}),
         max_retry_wait=30,
     )
 
-    transport.execute("query q { x }")
+    with pytest.raises(AdminRateLimitedException) as exc_info:
+        transport.execute("query q { x }")
 
-    assert sleeps == [30, 1]
+    assert exc_info.value.retry_after == 600
+    assert sleeps == []
+    assert len(post.requests) == 1
 
 
 def test_retries_are_bounded(monkeypatch: pytest.MonkeyPatch, sleeps: List[float]) -> None:
