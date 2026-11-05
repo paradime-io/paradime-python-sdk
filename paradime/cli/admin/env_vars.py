@@ -126,7 +126,7 @@ def _single_value(content: str) -> str:
 
 
 def _dotenv(content: str) -> Dict[str, str]:
-    parsed = dotenv_values(stream=io.StringIO(content))
+    parsed = dotenv_values(stream=io.StringIO(content), interpolate=False)
     missing = [name for name, value in parsed.items() if value is None]
     if missing:
         raise click.UsageError(f"No value for {', '.join(missing)}: write NAME=VALUE.")

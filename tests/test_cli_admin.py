@@ -230,3 +230,22 @@ def test_connections_have_no_secret_options() -> None:
 
     assert "--password" not in result.output
     assert "--config" in result.output
+
+
+def test_set_sends_dollar_references_verbatim(
+    fake_admin: FakeAdmin, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("PARADIME_API_SECRET", "prdm_cmp_leaked")
+
+    result = _run(
+        "env-vars",
+        "set",
+        input="A=${PARADIME_API_SECRET}\nB='${PARADIME_API_SECRET}'\nC=\"x${HOME}y\"\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_admin.environment_variables.set_calls[0]["variables"] == {
+        "A": "${PARADIME_API_SECRET}",
+        "B": "${PARADIME_API_SECRET}",
+        "C": "x${HOME}y",
+    }
