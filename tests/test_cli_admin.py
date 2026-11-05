@@ -429,3 +429,35 @@ def test_a_connection_error_prints_without_the_company_token(
     assert printed and "/api/v1/***/graphql" in printed[0]
     assert token not in printed[0] and token not in result.output
     assert result.exception is None or token not in repr(result.exception)
+
+
+@pytest.mark.parametrize("scope", ["DEVELOPMENT_SHARED", "cost"])
+def test_workspace_level_scopes_take_no_environment(fake_admin: FakeAdmin, scope: str) -> None:
+    config = "snowflake:\n  account: acme\n"
+    with_environment = _run(
+        "connections",
+        "set",
+        "--scope",
+        scope,
+        "--environment",
+        "prod",
+        "--config",
+        "-",
+        input=config,
+    )
+    without = _run("connections", "set", "--scope", scope, "--config", "-", input=config)
+
+    assert with_environment.exit_code == 2
+    assert without.exit_code == 0, without.output
+    call = fake_admin.connections.set_calls[0]
+    assert call["scope"].value == scope.upper() and call["environment_slug"] is None
+
+
+def test_environment_scopes_need_an_environment(fake_admin: FakeAdmin) -> None:
+    result = _run(
+        "connections", "set", "--scope", "SCHEDULER", "--config", "-", input="snowflake: {}\n"
+    )
+
+    assert result.exit_code == 2
+    assert "--environment" in result.output
+    assert fake_admin.connections.set_calls == []

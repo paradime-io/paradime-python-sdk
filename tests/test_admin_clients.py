@@ -546,3 +546,94 @@ def test_an_empty_environment_slug_is_refused_not_read_as_the_workspace(call: An
         call(admin)
 
     assert transport.calls == []
+
+
+class TestDevelopmentAndCostConnections:
+    def test_a_cost_connection_is_sent_without_an_environment(self) -> None:
+        from paradime.apis.admin.connections.types import BigQueryConnectionInput
+
+        cost = {
+            **CONNECTION,
+            "scope": "COST",
+            "environmentSlug": None,
+            "type": "BIGQUERY",
+            "settings": {
+                "__typename": "BigQueryConnectionSettings",
+                "costGcsBucketName": "audit-logs",
+                "costProjectIds": ["p1", "p2"],
+                "serviceAccountJsonIsSet": True,
+            },
+        }
+        admin, transport = _admin({"setWarehouseConnection": {"warehouseConnection": cost}})
+
+        saved = admin.connections.set(
+            BigQueryConnectionInput(
+                service_account_json="{}",
+                cost_gcs_bucket_name="audit-logs",
+                cost_project_ids=["p1", "p2"],
+            ),
+            scope=ConnectionScope.COST,
+        )
+
+        assert transport.calls[0].variables == {
+            "input": {
+                "scope": "COST",
+                "adapter": {
+                    "bigquery": {
+                        "serviceAccountJson": "{}",
+                        "costGcsBucketName": "audit-logs",
+                        "costProjectIds": ["p1", "p2"],
+                    }
+                },
+            }
+        }
+        assert saved.scope == ConnectionScope.COST and saved.environment_slug is None
+        assert isinstance(saved.settings, BigQueryConnectionSettings)
+        assert saved.settings.cost_project_ids == ["p1", "p2"]
+
+    def test_development_shared_fields_are_sent_and_read(self) -> None:
+        from paradime.apis.admin.connections.types import BigQueryConnectionInput
+
+        dev = {
+            **CONNECTION,
+            "scope": "DEVELOPMENT_SHARED",
+            "environmentSlug": None,
+            "settings": {
+                "__typename": "SnowflakeConnectionSettings",
+                "account": "acme",
+                "useSso": True,
+                "clientId": "cid",
+                "clientSecretIsSet": True,
+            },
+        }
+        admin, transport = _admin(
+            {"setWarehouseConnection": {"warehouseConnection": dev}},
+            {"setWarehouseConnection": {"warehouseConnection": dev}},
+        )
+
+        saved = admin.connections.set(
+            SnowflakeConnectionInput(
+                account="acme", use_sso=True, client_id="cid", client_secret="cs"
+            ),
+            scope=ConnectionScope.DEVELOPMENT_SHARED,
+        )
+        admin.connections.set(
+            BigQueryConnectionInput(project_id="proj", client_id="cid", client_secret="cs"),
+            scope=ConnectionScope.DEVELOPMENT_SHARED,
+        )
+
+        assert transport.calls[0].variables["input"]["adapter"]["snowflake"] == {
+            "account": "acme",
+            "useSso": True,
+            "clientId": "cid",
+            "clientSecret": "cs",
+        }
+        assert transport.calls[1].variables["input"]["adapter"]["bigquery"] == {
+            "projectId": "proj",
+            "clientId": "cid",
+            "clientSecret": "cs",
+        }
+        assert isinstance(saved.settings, SnowflakeConnectionSettings)
+        assert saved.settings.use_sso is True and saved.scope == ConnectionScope.DEVELOPMENT_SHARED
+        assert "... on BigQueryConnectionSettings" in transport.calls[0].query
+        assert "costProjectIds" in transport.calls[0].query and "useSso" in transport.calls[0].query

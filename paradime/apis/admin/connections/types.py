@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union
 
 from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum
 from paradime.tools.pydantic import StrictStr, validator
@@ -24,6 +24,7 @@ WAREHOUSE_CONNECTION_FIELDS = """
             schema
             username
             useKeyPairAuth
+            useSso
             clientId
             passwordIsSet
             privateKeyIsSet
@@ -36,7 +37,12 @@ WAREHOUSE_CONNECTION_FIELDS = """
             location
             datasetName
             executionProject
+            projectId
+            clientId
+            costGcsBucketName
+            costProjectIds
             serviceAccountJsonIsSet
+            clientSecretIsSet
             profileIsSet
         }
         ... on DatabricksConnectionSettings {
@@ -86,6 +92,8 @@ CONNECTION_TYPE_ALIASES = ("bigqueryConnectionType", "duckdbConnectionType")
 class ConnectionScope(OpenEnum):
     SCHEDULER = "SCHEDULER"
     AGENT = "AGENT"
+    DEVELOPMENT_SHARED = "DEVELOPMENT_SHARED"
+    COST = "COST"
     UNKNOWN = "UNKNOWN"
 
 
@@ -131,6 +139,7 @@ class SnowflakeConnectionSettings(AdminModel):
     schema_name: Optional[str] = None
     username: Optional[str] = None
     use_key_pair_auth: Optional[bool] = None
+    use_sso: Optional[bool] = None
     client_id: Optional[str] = None
     password_is_set: Optional[bool] = None
     private_key_is_set: Optional[bool] = None
@@ -144,7 +153,12 @@ class BigQueryConnectionSettings(AdminModel):
     location: Optional[str] = None
     dataset_name: Optional[str] = None
     execution_project: Optional[str] = None
+    project_id: Optional[str] = None
+    client_id: Optional[str] = None
+    cost_gcs_bucket_name: Optional[str] = None
+    cost_project_ids: Optional[List[str]] = None
     service_account_json_is_set: Optional[bool] = None
+    client_secret_is_set: Optional[bool] = None
     profile_is_set: Optional[bool] = None
 
 
@@ -253,6 +267,7 @@ class SnowflakeConnectionInput(AdminInputModel):
     schema_name: Optional[StrictStr] = None
     username: Optional[StrictStr] = None
     use_key_pair_auth: Optional[bool] = None
+    use_sso: Optional[bool] = None
     password: Optional[StrictStr] = None
     private_key: Optional[StrictStr] = None
     private_key_passphrase: Optional[StrictStr] = None
@@ -268,6 +283,11 @@ class BigQueryConnectionInput(AdminInputModel):
     execution_project: Optional[StrictStr] = None
     service_account_json: Optional[StrictStr] = None
     profile: Optional[StrictStr] = None
+    project_id: Optional[StrictStr] = None
+    client_id: Optional[StrictStr] = None
+    client_secret: Optional[StrictStr] = None
+    cost_gcs_bucket_name: Optional[StrictStr] = None
+    cost_project_ids: Optional[List[StrictStr]] = None
 
 
 class DatabricksConnectionInput(AdminInputModel):

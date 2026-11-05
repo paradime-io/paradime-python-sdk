@@ -9,17 +9,35 @@ from paradime.cli import console
 from paradime.cli.admin import common
 from paradime.tools.pydantic import ValidationError
 
-SCOPE_CHOICE = click.Choice(["SCHEDULER", "AGENT"], case_sensitive=False)
+SCOPE_CHOICE = click.Choice(
+    ["SCHEDULER", "AGENT", "DEVELOPMENT_SHARED", "COST"], case_sensitive=False
+)
+ENVIRONMENT_SCOPES = (ConnectionScope.SCHEDULER, ConnectionScope.AGENT)
 
 scope_option = click.option(
-    "--scope", type=SCOPE_CHOICE, required=True, help="Who uses the connection."
+    "--scope",
+    type=SCOPE_CHOICE,
+    required=True,
+    help="Who uses the connection: SCHEDULER or AGENT (an environment's), DEVELOPMENT_SHARED "
+    "(the shared part of the Code IDE connection) or COST (Radar's).",
 )
 environment_option = click.option(
     "--environment",
     "environment_slug",
-    required=True,
-    help="The slug of the scheduler or agent environment.",
+    default=None,
+    help="The slug of the scheduler or agent environment. Only with SCHEDULER and AGENT.",
 )
+
+
+def _scope(scope: str, environment_slug: Optional[str]) -> ConnectionScope:
+    connection_scope = ConnectionScope(scope.upper())
+    if connection_scope in ENVIRONMENT_SCOPES and not environment_slug:
+        raise click.UsageError(f"--scope {connection_scope.value} needs --environment.")
+    if connection_scope not in ENVIRONMENT_SCOPES and environment_slug is not None:
+        raise click.UsageError(
+            f"--scope {connection_scope.value} is workspace-level and takes no --environment."
+        )
+    return connection_scope
 
 
 def connection_options(f: Any) -> Any:
@@ -72,7 +90,8 @@ def _adapter(config: TextIO) -> WarehouseAdapterInput:
 @click.group()
 def connections() -> None:
     """
-    Manage the data warehouse connections of Bolt (SCHEDULER) and agent (AGENT) environments.
+    Manage data warehouse connections: Bolt (SCHEDULER) and agent (AGENT) environments',
+    the Code IDE's shared settings (DEVELOPMENT_SHARED) and Radar's (COST).
 
     Secrets are read only from the --config file or stdin, never from the command line.
     """
@@ -122,7 +141,7 @@ def list_connections(
 @common.handle_admin_errors
 def test(
     scope: str,
-    environment_slug: str,
+    environment_slug: Optional[str],
     config: TextIO,
     connection_id: Optional[str],
     connection_name: Optional[str],
@@ -136,7 +155,7 @@ def test(
     """
     result = common.get_admin().connections.test(
         _adapter(config),
-        scope=ConnectionScope(scope.upper()),
+        scope=_scope(scope, environment_slug),
         environment_slug=environment_slug,
         connection_id=connection_id,
         connection_name=connection_name,
@@ -157,7 +176,7 @@ def test(
 @common.handle_admin_errors
 def set_connection(
     scope: str,
-    environment_slug: str,
+    environment_slug: Optional[str],
     config: TextIO,
     connection_id: Optional[str],
     connection_name: Optional[str],
@@ -171,7 +190,7 @@ def set_connection(
     """
     connection = common.get_admin().connections.set(
         _adapter(config),
-        scope=ConnectionScope(scope.upper()),
+        scope=_scope(scope, environment_slug),
         environment_slug=environment_slug,
         connection_id=connection_id,
         connection_name=connection_name,
@@ -192,7 +211,7 @@ def set_connection(
 @common.handle_admin_errors
 def delete(
     scope: str,
-    environment_slug: str,
+    environment_slug: Optional[str],
     connection_id: Optional[str],
     workspace_uid: Optional[str],
     as_json: bool,
@@ -201,7 +220,7 @@ def delete(
     Delete a connection. Deleting it again is not an error.
     """
     deleted = common.get_admin().connections.delete(
-        scope=ConnectionScope(scope.upper()),
+        scope=_scope(scope, environment_slug),
         environment_slug=environment_slug,
         connection_id=connection_id,
         workspace_uid=workspace_uid,
@@ -222,7 +241,7 @@ def delete(
 def set_default(
     connection_id: str,
     scope: str,
-    environment_slug: str,
+    environment_slug: Optional[str],
     workspace_uid: Optional[str],
     as_json: bool,
 ) -> None:
@@ -231,7 +250,7 @@ def set_default(
     """
     connection = common.get_admin().connections.set_default(
         connection_id,
-        scope=ConnectionScope(scope.upper()),
+        scope=_scope(scope, environment_slug),
         environment_slug=environment_slug,
         workspace_uid=workspace_uid,
     )

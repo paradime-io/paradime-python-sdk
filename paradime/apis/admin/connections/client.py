@@ -36,7 +36,9 @@ def adapter_input(adapter: ConnectionAdapter) -> WarehouseAdapterInput:
 
 class AdminConnectionsClient:
     """
-    Data warehouse connections of Bolt (`SCHEDULER`) and agent (`AGENT`) environments.
+    Data warehouse connections: Bolt (`SCHEDULER`) and agent (`AGENT`) environments', which
+    take an `environment_slug`, and the workspace-level `DEVELOPMENT_SHARED` (the shared part of
+    the Code IDE connection) and `COST` (Radar's, id always `default`), which take none.
     Secrets are write-only: reads say only whether each is set, and an update that leaves one
     out keeps the stored value.
     """
@@ -124,13 +126,15 @@ class AdminConnectionsClient:
     ) -> WarehouseConnectionTestResult:
         """
         Opens a connection with these settings and saves nothing. Secrets left out are taken
-        from the saved connection.
+        from the saved connection. The server refuses a test of a `DEVELOPMENT_SHARED`
+        connection, which holds no user's credentials.
 
         Args:
             adapter: The warehouse settings: a `WarehouseAdapterInput` or one adapter's input,
                 such as `SnowflakeConnectionInput`.
-            scope (ConnectionScope): `SCHEDULER` or `AGENT`.
-            environment_slug (str, optional): The environment's slug.
+            scope (ConnectionScope): `SCHEDULER`, `AGENT`, `DEVELOPMENT_SHARED` or `COST`.
+            environment_slug (str, optional): The environment's slug, for `SCHEDULER` and
+                `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
             connection_id (str, optional): The connection's id within its environment;
                 `default` when left out.
             connection_name (str, optional): A name for the connection.
@@ -184,8 +188,9 @@ class AdminConnectionsClient:
 
         Args:
             adapter: The warehouse settings; see `test`.
-            scope (ConnectionScope): `SCHEDULER` or `AGENT`.
-            environment_slug (str, optional): The environment's slug.
+            scope (ConnectionScope): `SCHEDULER`, `AGENT`, `DEVELOPMENT_SHARED` or `COST`.
+            environment_slug (str, optional): The environment's slug, for `SCHEDULER` and
+                `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
             connection_id (str, optional): The connection's id; `default` when left out.
             connection_name (str, optional): A name; required for a new connection.
             target_name (str, optional): The dbt target name; required for a new connection.
@@ -235,8 +240,9 @@ class AdminConnectionsClient:
         Deletes a connection. Deleting it again is not an error.
 
         Args:
-            scope (ConnectionScope): `SCHEDULER` or `AGENT`.
-            environment_slug (str, optional): The environment's slug.
+            scope (ConnectionScope): `SCHEDULER`, `AGENT`, `DEVELOPMENT_SHARED` or `COST`.
+            environment_slug (str, optional): The environment's slug, for `SCHEDULER` and
+                `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
             connection_id (str, optional): The connection's id; `default` when left out.
             workspace_uid (str, optional): The workspace to change, for a company-level key.
 
@@ -277,8 +283,9 @@ class AdminConnectionsClient:
 
         Args:
             connection_id (str): The connection's id within its environment.
-            scope (ConnectionScope): `SCHEDULER` or `AGENT`.
-            environment_slug (str, optional): The environment's slug.
+            scope (ConnectionScope): `SCHEDULER`, `AGENT`, `DEVELOPMENT_SHARED` or `COST`.
+            environment_slug (str, optional): The environment's slug, for `SCHEDULER` and
+                `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
             workspace_uid (str, optional): The workspace to change, for a company-level key.
 
         Returns:
