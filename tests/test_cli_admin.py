@@ -356,3 +356,43 @@ def test_workspaces_get_exits_non_zero_when_there_is_no_workspace(
     result = _run("workspaces", "get", "w-gone")
 
     assert result.exit_code == 1
+
+
+@pytest.mark.parametrize("wait", [False, True])
+def test_connect_deploy_key_json_prints_the_repository_and_the_job_together(
+    monkeypatch: pytest.MonkeyPatch, wait: bool
+) -> None:
+    import json
+
+    from paradime.apis.admin.git.types import ConnectGitRepositoryResult
+    from paradime.apis.admin.jobs.types import AdminJob
+
+    queued = AdminJob(id="job-1", kind="connectGitRepository", status="QUEUED")
+    done = AdminJob(id="job-1", kind="connectGitRepository", status="SUCCEEDED", result={"x": 1})
+
+    class Git:
+        def connect(self, connection: Any, **kwargs: Any) -> ConnectGitRepositoryResult:
+            return ConnectGitRepositoryResult.parse_obj(
+                {
+                    "gitRepository": {"mode": "SSH_DEPLOY_KEY", "state": "CONNECTED"},
+                    "job": queued.dict(by_alias=True),
+                }
+            )
+
+    class Jobs:
+        def wait(self, job_id: str, **kwargs: Any) -> AdminJob:
+            return done
+
+    class Admin:
+        git = Git()
+        jobs = Jobs()
+
+    monkeypatch.setattr(common, "get_admin", lambda: Admin())
+    args = ["git", "connect-deploy-key", "--provider", "github", "--uri", "git@x:y.git", "--json"]
+
+    result = _run(*args, *(["--wait"] if wait else []))
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["gitRepository"]["state"] == "CONNECTED"
+    assert payload["job"]["status"] == ("SUCCEEDED" if wait else "QUEUED")

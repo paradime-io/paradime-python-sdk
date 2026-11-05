@@ -49,11 +49,18 @@ def _connect(
     as_json: bool,
 ) -> None:
     result = common.get_admin().git.connect(connection, workspace_uid=workspace_uid)
-    if as_json and result.job is None:
-        console.json_out(common.to_json(result))
+    if as_json:
+        job = result.job
+        if job is not None and wait:
+            job = common.wait_for_job(job, timeout=timeout, workspace_uid=workspace_uid)
+        console.json_out(
+            {
+                "gitRepository": common.to_json(result.git_repository),
+                "job": common.to_json(job) if job is not None else None,
+            }
+        )
         return
-    if not as_json:
-        common.print_model(result.git_repository, as_json=False)
+    common.print_model(result.git_repository, as_json=False)
     common.report_job(
         result.job, wait=wait, timeout=timeout, workspace_uid=workspace_uid, as_json=as_json
     )
