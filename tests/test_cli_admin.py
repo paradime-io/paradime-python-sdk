@@ -339,3 +339,20 @@ def test_replace_from_a_file_asks_on_a_terminal(
     assert "Delete every variable" in declined.output
     assert accepted.exit_code == 0, accepted.output
     assert len(fake_admin.environment_variables.set_calls) == 1
+
+
+def test_workspaces_get_exits_non_zero_when_there_is_no_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Workspaces:
+        def get(self, uid: Optional[str]) -> None:
+            return None
+
+    class Admin:
+        workspaces = Workspaces()
+
+    monkeypatch.setattr(common, "get_admin", lambda: Admin())
+
+    result = _run("workspaces", "get", "w-gone")
+
+    assert result.exit_code == 1

@@ -123,13 +123,19 @@ class TestWorkspaces:
         assert transport.calls[0].variables == {"input": {"name": "Analytics"}}
         assert workspace.name == "Analytics"
 
+    def test_get_returns_none_when_the_server_returns_no_workspace(self) -> None:
+        admin, _ = _admin({"workspace": None})
+
+        assert admin.workspaces.get("w-gone") is None
+
     def test_get_and_delete(self) -> None:
         admin, transport = _admin(
             {"workspace": WORKSPACE},
             {"deleteWorkspace": {"workspace": {"uid": "w1", "name": "Analytics"}}},
         )
 
-        assert admin.workspaces.get().uid == "w1"
+        workspace = admin.workspaces.get()
+        assert workspace is not None and workspace.uid == "w1"
         assert admin.workspaces.delete("w1").dbt_version is None
         assert transport.calls[0].variables == {"uid": None}
         assert transport.calls[1].variables == {"input": {"workspaceUid": "w1"}}

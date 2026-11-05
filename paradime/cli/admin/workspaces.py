@@ -2,6 +2,7 @@ from typing import Any, Dict, Optional
 
 import click
 
+from paradime.apis.admin.exception import AdminNotFoundException
 from paradime.apis.admin.types import UNSET
 from paradime.cli import console
 from paradime.cli.admin import common
@@ -43,7 +44,10 @@ def get(uid: Optional[str], as_json: bool) -> None:
 
     UID is the workspace's uid; leave it out for the key's workspace.
     """
-    common.print_model(common.get_admin().workspaces.get(uid), as_json=as_json)
+    workspace = common.get_admin().workspaces.get(uid)
+    if workspace is None:
+        raise AdminNotFoundException(f"No workspace {uid or 'for this key'!r}.")
+    common.print_model(workspace, as_json=as_json)
 
 
 @workspaces.command()

@@ -26,7 +26,7 @@ class AdminWorkspacesClient:
     def __init__(self, transport: AdminTransport) -> None:
         self.transport = transport
 
-    def get(self, uid: Optional[str] = None) -> AdminWorkspace:
+    def get(self, uid: Optional[str] = None) -> Optional[AdminWorkspace]:
         """
         Reads a workspace and its settings.
 
@@ -35,7 +35,7 @@ class AdminWorkspacesClient:
                 the one a company-level key targets.
 
         Returns:
-            AdminWorkspace: The workspace.
+            Optional[AdminWorkspace]: The workspace, or None when the server returned none.
         """
 
         query = f"""
@@ -47,7 +47,8 @@ class AdminWorkspacesClient:
         """
 
         response = self.transport.execute(query, {"uid": uid})
-        return AdminWorkspace.parse_obj(response["workspace"])
+        workspace = response["workspace"]
+        return AdminWorkspace.parse_obj(workspace) if workspace is not None else None
 
     def list(self, *, page_size: int = DEFAULT_PAGE_SIZE) -> Iterator[AdminWorkspace]:
         """
