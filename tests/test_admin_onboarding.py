@@ -384,3 +384,21 @@ def test_the_key_sweep_deletes_only_keys_the_script_adds(stub: Tuple[StubAdminAp
     _onboarding(url).remove_leftovers()
 
     assert api.github_keys == {50: "analytics-ci", 51: "onboarding-e2e-ci"}
+
+
+def test_the_endpoint_and_its_company_token_are_masked(capsys: pytest.CaptureFixture) -> None:
+    token = "fake-company-token-5f2a9c"
+    environ = {
+        **ENVIRON,
+        "PARADIME_API_SECRET": API_SECRET,
+        "PARADIME_API_ENDPOINT": f"http://127.0.0.1:9/api/v1/{token}/graphql",
+        "PARADIME_WORKSPACE_UID": BOOTSTRAP_UID,
+        "PARADIME_ONBOARDING_CONFIG": str(EXAMPLE_CONFIG),
+    }
+    out = io.StringIO()
+
+    assert onboard.main([], environ, out) == 1
+
+    captured = capsys.readouterr()
+    assert "FAIL  pre" in out.getvalue()
+    assert token not in out.getvalue() + captured.out + captured.err

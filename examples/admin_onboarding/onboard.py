@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, TextIO
+from urllib.parse import urlparse
 
 import requests
 from dotenv import dotenv_values
@@ -37,6 +38,7 @@ TOTAL_STEPS = 14
 RUN_REASON = "Admin API onboarding acceptance test"
 GITHUB_API_URL = "https://api.github.com"
 NAME_PREFIX_MARKER = "onboarding-"
+ENDPOINT_PATH_WORDS = frozenset({"api", "v1", "graphql"})
 FINISHED_RUN_STATES = {
     BoltRunState.SUCCESS,
     BoltRunState.ERROR,
@@ -854,6 +856,11 @@ def run_onboarding(onboarding: Onboarding, runner: StepRunner, *, keep: bool = F
     return 1 if runner.failed else 0
 
 
+def endpoint_secrets(endpoint: str) -> Set[str]:
+    segments = urlparse(endpoint).path.split("/")
+    return {endpoint} | {s for s in segments if s and s.lower() not in ENDPOINT_PATH_WORDS}
+
+
 def required_environment(environ: Mapping[str, str], name: str) -> str:
     value = environ.get(name, "").strip()
     if not value:
@@ -933,7 +940,7 @@ def main(
     runner = StepRunner(
         arguments.phase,
         out=out,
-        secrets=config.secrets | {api_secret, github_token},
+        secrets=config.secrets | endpoint_secrets(api_endpoint) | {api_secret, github_token},
         drain_notes=onboarding.drain_notes,
     )
     print(f"onboarding {onboarding.workspace_name}, phase {arguments.phase}", file=out)
