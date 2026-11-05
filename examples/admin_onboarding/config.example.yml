@@ -1,5 +1,5 @@
 workspace:
-  name_prefix: admin-onboarding-e2e
+  name_prefix: onboarding-e2e
   settings:
     default_branch: main
     schedule_deployment_branch: main

@@ -81,7 +81,7 @@ class StubAdminApi:
         }
         if leftover:
             self.workspaces[LEFTOVER_UID] = _workspace(
-                LEFTOVER_UID, "admin-onboarding-e2e-20261104-020000"
+                LEFTOVER_UID, "onboarding-e2e-20261104-020000"
             )
         self.environments: Dict[str, Dict[str, Any]] = {}
         self.calls: List[Tuple[str, Optional[str]]] = []
@@ -89,7 +89,7 @@ class StubAdminApi:
         self.polls: Dict[str, int] = {}
         self.rate_limited = False
         self.connected = False
-        self.github_keys: Dict[int, str] = {41: "admin-onboarding-e2e-20261104-020000"}
+        self.github_keys: Dict[int, str] = {41: "onboarding-e2e-20261104-020000"}
         self.lock = threading.Lock()
 
     def handle(self, query: str, variables: Dict[str, Any], workspace: Optional[str]) -> Reply:

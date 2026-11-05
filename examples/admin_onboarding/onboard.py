@@ -36,6 +36,7 @@ PHASE_ONE_STEPS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 13})
 TOTAL_STEPS = 14
 RUN_REASON = "Admin API onboarding acceptance test"
 GITHUB_API_URL = "https://api.github.com"
+NAME_PREFIX_MARKER = "onboarding-"
 FINISHED_RUN_STATES = {
     BoltRunState.SUCCESS,
     BoltRunState.ERROR,
@@ -266,8 +267,11 @@ class ConfigLoader:
         workspace = self.mapping(data, "workspace", required=True)
         git = self.mapping(data, "git", required=True)
         prefix = str(workspace.get("name_prefix") or "").strip()
-        if len(prefix) < 3:
-            raise ConfigError("workspace.name_prefix must be at least 3 characters.")
+        if not prefix.startswith(NAME_PREFIX_MARKER) or prefix == NAME_PREFIX_MARKER:
+            raise ConfigError(
+                f"workspace.name_prefix must start with {NAME_PREFIX_MARKER!r} and name the run, "
+                f"such as {NAME_PREFIX_MARKER}e2e: the leftover sweep deletes workspaces with it."
+            )
         if not git.get("uri"):
             raise ConfigError("git.uri is required.")
         provider = GitProvider(str(git.get("provider", "GITHUB")).upper())
@@ -507,12 +511,16 @@ class Onboarding:
             return None
         return self.github.repository(self.config.git_uri)
 
+    def is_run_name(self, name: str) -> bool:
+        pattern = re.escape(self.config.name_prefix) + r"-\d{8}-\d{6}"
+        return re.fullmatch(pattern, name) is not None
+
     def remove_leftovers(self) -> Outcome:
         prefix = f"{self.config.name_prefix}-"
         leftovers = [
             workspace
             for workspace in self.account.admin.workspaces.list()
-            if workspace.name.startswith(prefix) and workspace.uid != self.bootstrap_workspace_uid
+            if self.is_run_name(workspace.name) and workspace.uid != self.bootstrap_workspace_uid
         ]
         for workspace in leftovers:
             self.account.admin.workspaces.delete(workspace.uid)

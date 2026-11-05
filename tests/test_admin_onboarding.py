@@ -7,7 +7,14 @@ from types import ModuleType
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import pytest
-from admin_onboarding_stub import BOOTSTRAP_UID, LEFTOVER_UID, NEW_UID, StubAdminApi, start_stub
+from admin_onboarding_stub import (
+    BOOTSTRAP_UID,
+    LEFTOVER_UID,
+    NEW_UID,
+    StubAdminApi,
+    _workspace,
+    start_stub,
+)
 
 EXAMPLE_DIR = Path(__file__).resolve().parents[1] / "examples" / "admin_onboarding"
 EXAMPLE_CONFIG = EXAMPLE_DIR / "config.example.yml"
@@ -330,3 +337,41 @@ def test_config_reads_variables_from_files_and_keeps_secrets_out_of_argv() -> No
     }
     assert {PRIVATE_KEY, WEBHOOK_URL} <= config.secrets
     assert "acme" not in config.secrets
+
+
+def _config_file(tmp_path: Path, old: str, new: str) -> Path:
+    for name in ("workspace.env.example", "staging.env.example"):
+        (tmp_path / name).write_text((EXAMPLE_DIR / name).read_text())
+    config = tmp_path / "config.yml"
+    config.write_text(EXAMPLE_CONFIG.read_text().replace(old, new))
+    return config
+
+
+def test_the_sweep_deletes_only_workspace_names_the_script_makes(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    api.workspaces["ws-prod"] = _workspace("ws-prod", "onboarding-e2e-prod")
+    api.workspaces["ws-later"] = _workspace("ws-later", "onboarding-e2e-20261104-020000-copy")
+    api.workspaces[BOOTSTRAP_UID]["name"] = "onboarding-e2e-20261101-000000"
+
+    _onboarding(url).remove_leftovers()
+
+    assert api.deleted == [LEFTOVER_UID]
+    assert {"ws-prod", "ws-later", BOOTSTRAP_UID} <= set(api.workspaces)
+
+
+def test_a_prefix_without_the_marker_is_refused_before_any_request(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    config = _config_file(tmp_path, "name_prefix: onboarding-e2e", "name_prefix: analytics")
+    environ = {
+        **ENVIRON,
+        "PARADIME_API_SECRET": API_SECRET,
+        "PARADIME_API_ENDPOINT": "http://127.0.0.1:1/graphql",
+        "PARADIME_WORKSPACE_UID": BOOTSTRAP_UID,
+        "PARADIME_ONBOARDING_CONFIG": str(config),
+    }
+
+    assert onboard.main([], environ) == 2
+    assert "must start with 'onboarding-'" in capsys.readouterr().err
