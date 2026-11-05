@@ -442,3 +442,32 @@ def test_the_key_sweep_reads_every_page_of_deploy_keys(stub: Tuple[StubAdminApi,
 
     assert 151 not in api.github_keys
     assert len(api.github_keys) == 150
+
+
+def test_a_repository_off_github_com_skips_key_handling_with_the_default_api(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    onboarding = _onboarding(url)
+    onboarding.config.git_uri = "git@github.acme.internal:acme/analytics.git"
+
+    onboarding.remove_leftovers()
+    onboarding.create_workspace()
+    outcome = onboarding.deploy_key()
+
+    assert not [operation for operation in _operations(api) if operation.startswith("github")]
+    assert "github.acme.internal is not github.com" in outcome.detail
+    assert "PARADIME_ONBOARDING_GITHUB_API_URL" in outcome.detail
+
+
+def test_a_custom_github_api_url_handles_keys_on_any_host(stub: Tuple[StubAdminApi, str]) -> None:
+    api, url = stub
+    onboarding = _onboarding(url)
+    onboarding.github = onboard.GitHubDeployKeys(GITHUB_TOKEN, f"{url}/github", host=None)
+    onboarding.config.git_uri = "git@github.acme.internal:acme/analytics.git"
+
+    onboarding.create_workspace()
+    outcome = onboarding.deploy_key()
+
+    assert "added to acme/analytics" in outcome.detail
+    assert onboarding.workspace_name in api.github_keys.values()

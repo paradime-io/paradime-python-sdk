@@ -38,6 +38,7 @@ TOTAL_STEPS = 14
 EXIT_CRITERION_NOT_MET = 3
 RUN_REASON = "Admin API onboarding acceptance test"
 GITHUB_API_URL = "https://api.github.com"
+GITHUB_HOST = "github.com"
 NAME_PREFIX_MARKER = "onboarding-"
 ENDPOINT_PATH_WORDS = frozenset({"api", "v1", "graphql"})
 FINISHED_RUN_STATES = {
@@ -382,13 +383,30 @@ class ConfigLoader:
 
 
 class GitHubDeployKeys:
-    def __init__(self, token: str, api_url: str = GITHUB_API_URL, timeout: float = 30) -> None:
+    def __init__(
+        self,
+        token: str,
+        api_url: str = GITHUB_API_URL,
+        timeout: float = 30,
+        *,
+        host: Optional[str] = GITHUB_HOST,
+    ) -> None:
         self.api_url = api_url.rstrip("/")
+        self.host = host
         self.timeout = timeout
         self.headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
         }
+
+    @staticmethod
+    def repository_host(uri: str) -> str:
+        if "://" in uri:
+            return (urlparse(uri).hostname or "").lower()
+        return uri.split("@", 1)[-1].split(":", 1)[0].lower()
+
+    def serves(self, uri: str) -> bool:
+        return self.host is None or self.repository_host(uri) == self.host
 
     @staticmethod
     def repository(uri: str) -> str:
@@ -523,9 +541,22 @@ class Onboarding:
         return Step(TOTAL_STEPS + 1, "deleteWorkspace (cleanup)", lambda: self.clean_up(keep=keep))
 
     def _github_repository(self) -> Optional[str]:
-        if self.github is None or self.config.git_provider != GitProvider.GITHUB:
+        if self._key_handling_skipped() is not None or self.github is None:
             return None
         return self.github.repository(self.config.git_uri)
+
+    def _key_handling_skipped(self) -> Optional[str]:
+        if self.github is None:
+            return "no PARADIME_ONBOARDING_GITHUB_TOKEN"
+        if self.config.git_provider != GitProvider.GITHUB:
+            return f"the provider is {self.config.git_provider.value}, not GITHUB"
+        if not self.github.serves(self.config.git_uri):
+            host = self.github.repository_host(self.config.git_uri)
+            return (
+                f"{host} is not {self.github.host}; set PARADIME_ONBOARDING_GITHUB_API_URL "
+                "to its GitHub API to add the key there"
+            )
+        return None
 
     def is_run_name(self, name: str) -> bool:
         pattern = re.escape(self.config.name_prefix) + r"-\d{8}-\d{6}"
@@ -572,7 +603,7 @@ class Onboarding:
                 print(f"      {note}")
             input("      Press Enter once the key is added. ")
             return Outcome(f"{shown}, added by hand")
-        return Outcome(f"{shown}, not added: no PARADIME_ONBOARDING_GITHUB_TOKEN", notes)
+        return Outcome(f"{shown}, not added: {self._key_handling_skipped()}", notes)
 
     def connect_git(self) -> Outcome:
         git = self.target.admin.git
@@ -950,20 +981,19 @@ def main(
         print(f"error: {error}", file=sys.stderr)
         return 2
     github_token = environ.get("PARADIME_ONBOARDING_GITHUB_TOKEN", "")
-    github = (
-        GitHubDeployKeys(
-            github_token, environ.get("PARADIME_ONBOARDING_GITHUB_API_URL") or GITHUB_API_URL
-        )
-        if github_token
-        else None
-    )
+    github_api_url = environ.get("PARADIME_ONBOARDING_GITHUB_API_URL", "")
+    github: Optional[GitHubDeployKeys] = None
+    if github_token and github_api_url:
+        github = GitHubDeployKeys(github_token, github_api_url, host=None)
+    elif github_token:
+        github = GitHubDeployKeys(github_token)
     onboarding = Onboarding(
         config,
         api_endpoint=api_endpoint,
         api_secret=api_secret,
         bootstrap_workspace_uid=bootstrap_uid,
         github=github,
-        interactive=sys.stdin.isatty() and github is None,
+        interactive=sys.stdin.isatty(),
     )
     runner = StepRunner(
         arguments.phase,
