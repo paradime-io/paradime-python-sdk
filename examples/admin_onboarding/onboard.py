@@ -397,14 +397,14 @@ class GitHubDeployKeys:
         response.raise_for_status()
         return int(response.json()["id"])
 
-    def delete_titled(self, repository: str, prefix: str) -> List[str]:
+    def delete_titled(self, repository: str, matches: Callable[[str], bool]) -> List[str]:
         response = requests.get(
             f"{self.api_url}/repos/{repository}/keys", headers=self.headers, timeout=self.timeout
         )
         response.raise_for_status()
         deleted = []
         for key in response.json():
-            if str(key.get("title", "")).startswith(prefix):
+            if matches(str(key.get("title", ""))):
                 self.delete(repository, int(key["id"]))
                 deleted.append(str(key["title"]))
         return deleted
@@ -516,7 +516,6 @@ class Onboarding:
         return re.fullmatch(pattern, name) is not None
 
     def remove_leftovers(self) -> Outcome:
-        prefix = f"{self.config.name_prefix}-"
         leftovers = [
             workspace
             for workspace in self.account.admin.workspaces.list()
@@ -528,7 +527,7 @@ class Onboarding:
         parts.extend(f"{w.name} ({w.uid})" for w in leftovers)
         repository = self._github_repository()
         if repository is not None and self.github is not None:
-            keys = self.github.delete_titled(repository, prefix)
+            keys = self.github.delete_titled(repository, self.is_run_name)
             parts.append(f"deleted {len(keys)} leftover GitHub deploy key(s)")
         return Outcome(", ".join(parts) if leftovers or repository else "none found")
 

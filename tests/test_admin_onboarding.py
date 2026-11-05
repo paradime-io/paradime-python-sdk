@@ -375,3 +375,12 @@ def test_a_prefix_without_the_marker_is_refused_before_any_request(
 
     assert onboard.main([], environ) == 2
     assert "must start with 'onboarding-'" in capsys.readouterr().err
+
+
+def test_the_key_sweep_deletes_only_keys_the_script_adds(stub: Tuple[StubAdminApi, str]) -> None:
+    api, url = stub
+    api.github_keys.update({50: "analytics-ci", 51: "onboarding-e2e-ci"})
+
+    _onboarding(url).remove_leftovers()
+
+    assert api.github_keys == {50: "analytics-ci", 51: "onboarding-e2e-ci"}
