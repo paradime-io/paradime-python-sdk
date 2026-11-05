@@ -115,10 +115,25 @@ def test_wait_times_out_with_the_last_state(monkeypatch: pytest.MonkeyPatch) -> 
     assert len(transport.calls) == 2 and sleeps == [1]
 
 
-def test_an_unknown_status_keeps_polling() -> None:
-    jobs, _, _ = _jobs(_job("PAUSED"), _job("SUCCEEDED"))
+def test_an_unknown_status_stops_the_wait_with_a_clear_error() -> None:
+    jobs, transport, sleeps = _jobs(_job("PAUSED"), _job("SUCCEEDED"))
 
-    assert jobs.wait("job-1", poll_interval=0).status == AdminJobStatus.SUCCEEDED
+    with pytest.raises(AdminApiException, match="does not know") as exc_info:
+        jobs.wait("job-1", poll_interval=0)
+
+    assert exc_info.value.job.status == AdminJobStatus.UNKNOWN
+    assert len(transport.calls) == 1 and sleeps == []
+
+
+def test_the_last_sleep_ends_at_the_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+    clock = iter([0.0, 4.0, 10.0])
+    monkeypatch.setattr(jobs_client.time, "monotonic", lambda: next(clock))
+    jobs, _, sleeps = _jobs(_job("RUNNING"))
+
+    with pytest.raises(AdminJobTimeoutException):
+        jobs.wait("job-1", timeout=10, poll_interval=60)
+
+    assert sleeps == [6.0]
 
 
 def test_a_job_the_key_cannot_see_is_not_found() -> None:

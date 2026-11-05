@@ -65,6 +65,7 @@ class AdminJobsClient:
                 Its `job` attribute is the failed job.
             AdminNotFoundException: When the key can't see the job.
             AdminJobTimeoutException: When the job is not finished after `timeout` seconds.
+            AdminApiException: When the job reports a status this SDK version does not know.
         """
 
         deadline = time.monotonic() + timeout
@@ -76,13 +77,22 @@ class AdminJobsClient:
                 return job
             if job.status == AdminJobStatus.FAILED:
                 raise_for_failed_job(job)
-            if time.monotonic() >= deadline:
+            if job.status == AdminJobStatus.UNKNOWN:
+                exception = admin_exception_for(
+                    None,
+                    f"Admin job {job_id!r} reports a status this SDK version does not know. "
+                    "Upgrade paradime-io to follow it.",
+                )
+                exception.job = job
+                raise exception
+            now = time.monotonic()
+            if now >= deadline:
                 raise AdminJobTimeoutException(
                     f"Admin job {job_id!r} is still {job.status.value} after {timeout:g}s.",
                     job=job,
                 )
             logger.info(f"Admin job {job_id} is {job.status.value}.")
-            self.sleep(poll_interval)
+            self.sleep(min(poll_interval, deadline - now))
 
 
 def raise_for_failed_job(job: AdminJob) -> None:
