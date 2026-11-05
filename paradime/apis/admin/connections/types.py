@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Type, Union
 
 from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum
-from paradime.tools.pydantic import validator
+from paradime.tools.pydantic import StrictStr, validator
 
 WAREHOUSE_CONNECTION_FIELDS = """
     scope
@@ -246,70 +246,70 @@ class WarehouseConnectionTestResult(AdminModel):
 
 
 class SnowflakeConnectionInput(AdminInputModel):
-    account: Optional[str] = None
-    role: Optional[str] = None
-    database: Optional[str] = None
-    warehouse: Optional[str] = None
-    schema_name: Optional[str] = None
-    username: Optional[str] = None
+    account: Optional[StrictStr] = None
+    role: Optional[StrictStr] = None
+    database: Optional[StrictStr] = None
+    warehouse: Optional[StrictStr] = None
+    schema_name: Optional[StrictStr] = None
+    username: Optional[StrictStr] = None
     use_key_pair_auth: Optional[bool] = None
-    password: Optional[str] = None
-    private_key: Optional[str] = None
-    private_key_passphrase: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[str] = None
-    profile: Optional[str] = None
+    password: Optional[StrictStr] = None
+    private_key: Optional[StrictStr] = None
+    private_key_passphrase: Optional[StrictStr] = None
+    client_id: Optional[StrictStr] = None
+    client_secret: Optional[StrictStr] = None
+    profile: Optional[StrictStr] = None
 
 
 class BigQueryConnectionInput(AdminInputModel):
     connection_type: Optional[BigQueryConnectionType] = None
-    location: Optional[str] = None
-    dataset_name: Optional[str] = None
-    execution_project: Optional[str] = None
-    service_account_json: Optional[str] = None
-    profile: Optional[str] = None
+    location: Optional[StrictStr] = None
+    dataset_name: Optional[StrictStr] = None
+    execution_project: Optional[StrictStr] = None
+    service_account_json: Optional[StrictStr] = None
+    profile: Optional[StrictStr] = None
 
 
 class DatabricksConnectionInput(AdminInputModel):
-    host: Optional[str] = None
-    http_path: Optional[str] = None
-    catalog: Optional[str] = None
-    schema_name: Optional[str] = None
-    token: Optional[str] = None
-    profile: Optional[str] = None
+    host: Optional[StrictStr] = None
+    http_path: Optional[StrictStr] = None
+    catalog: Optional[StrictStr] = None
+    schema_name: Optional[StrictStr] = None
+    token: Optional[StrictStr] = None
+    profile: Optional[StrictStr] = None
 
 
 class RedshiftConnectionInput(AdminInputModel):
-    host_name: Optional[str] = None
-    port: Optional[str] = None
-    database: Optional[str] = None
-    schema_name: Optional[str] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    profile: Optional[str] = None
+    host_name: Optional[StrictStr] = None
+    port: Optional[StrictStr] = None
+    database: Optional[StrictStr] = None
+    schema_name: Optional[StrictStr] = None
+    username: Optional[StrictStr] = None
+    password: Optional[StrictStr] = None
+    profile: Optional[StrictStr] = None
 
 
 class DuckDbConnectionInput(AdminInputModel):
     connection_type: Optional[DuckDbConnectionType] = None
-    schema_name: Optional[str] = None
-    profile: Optional[str] = None
+    schema_name: Optional[StrictStr] = None
+    profile: Optional[StrictStr] = None
 
 
 class FireboltConnectionInput(AdminInputModel):
-    host_name: Optional[str] = None
-    account_name: Optional[str] = None
-    database: Optional[str] = None
-    engine_name: Optional[str] = None
-    schema_name: Optional[str] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    profile: Optional[str] = None
+    host_name: Optional[StrictStr] = None
+    account_name: Optional[StrictStr] = None
+    database: Optional[StrictStr] = None
+    engine_name: Optional[StrictStr] = None
+    schema_name: Optional[StrictStr] = None
+    username: Optional[StrictStr] = None
+    password: Optional[StrictStr] = None
+    profile: Optional[StrictStr] = None
 
 
 class ExtensionConnectionInput(AdminInputModel):
     dbt_type: Optional[ExtensionDbtType] = None
-    schema_name: Optional[str] = None
-    profile: Optional[str] = None
+    schema_name: Optional[StrictStr] = None
+    profile: Optional[StrictStr] = None
 
 
 class WarehouseAdapterInput(AdminInputModel):
@@ -346,10 +346,10 @@ ADAPTER_KEYS: Dict[Type[AdminInputModel], str] = {
 
 class WarehouseConnectionInput(AdminInputModel):
     scope: ConnectionScope
-    environment_slug: Optional[str] = None
-    connection_id: Optional[str] = None
-    connection_name: Optional[str] = None
-    target_name: Optional[str] = None
+    environment_slug: Optional[StrictStr] = None
+    connection_id: Optional[StrictStr] = None
+    connection_name: Optional[StrictStr] = None
+    target_name: Optional[StrictStr] = None
     threads: Optional[int] = None
     adapter: WarehouseAdapterInput
 

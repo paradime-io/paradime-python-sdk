@@ -257,3 +257,41 @@ def test_set_refuses_a_line_it_cannot_parse(fake_admin: FakeAdmin) -> None:
     assert result.exit_code == 2
     assert "Line 2" in result.output
     assert fake_admin.environment_variables.set_calls == []
+
+
+@pytest.mark.parametrize("scalar", ["00123456", "1e3", "0x1F", "5439"])
+def test_connection_config_refuses_an_unquoted_number_for_a_text_setting(
+    fake_admin: FakeAdmin, scalar: str
+) -> None:
+    result = _run(
+        "connections",
+        "set",
+        "--scope",
+        "SCHEDULER",
+        "--environment",
+        "prod",
+        "--config",
+        "-",
+        input=f"redshift:\n  port: {scalar}\n  database: analytics\n",
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "redshift.port" in result.output and "Quote the value" in result.output
+    assert fake_admin.connections.set_calls == []
+
+
+def test_connection_config_keeps_a_quoted_number_as_written(fake_admin: FakeAdmin) -> None:
+    result = _run(
+        "connections",
+        "set",
+        "--scope",
+        "SCHEDULER",
+        "--environment",
+        "prod",
+        "--config",
+        "-",
+        input="snowflake:\n  account: '00123456'\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_admin.connections.set_calls[0]["adapter"].snowflake.account == "00123456"
