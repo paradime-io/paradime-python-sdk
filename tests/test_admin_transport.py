@@ -339,3 +339,36 @@ def test_other_errors_are_not_retried(monkeypatch: pytest.MonkeyPatch, sleeps: L
 
     assert sleeps == []
     assert len(post.requests) == 1
+
+
+def test_admin_exceptions_survive_pickling() -> None:
+    import pickle
+
+    from paradime.apis.admin.exception import AdminJobTimeoutException
+    from paradime.apis.admin.jobs.types import AdminJob
+
+    job = AdminJob(id="job-1", kind="checkGitRepository", status="RUNNING")
+    validation = AdminValidationFailedException(
+        "Bad value.",
+        field=["input", "name"],
+        extensions={"code": "VALIDATION_FAILED", "field": ["input", "name"]},
+        errors=[{"message": "Bad value."}],
+    )
+    validation.job = job
+    rate_limited = AdminRateLimitedException("Slow down.", retry_after=7)
+    timeout = AdminJobTimeoutException("Still running.", job=job)
+
+    restored_validation = pickle.loads(pickle.dumps(validation))
+    restored_rate_limited = pickle.loads(pickle.dumps(rate_limited))
+    restored_timeout = pickle.loads(pickle.dumps(timeout))
+
+    assert type(restored_validation) is AdminValidationFailedException
+    assert restored_validation.code == ErrorCode.VALIDATION_FAILED
+    assert restored_validation.field == ["input", "name"]
+    assert restored_validation.extensions == validation.extensions
+    assert restored_validation.errors == [{"message": "Bad value."}]
+    assert restored_validation.job.id == "job-1"
+    assert str(restored_validation) == str(validation)
+    assert restored_rate_limited.retry_after == 7
+    assert restored_timeout.job.status == job.status
+    assert str(restored_timeout) == "Still running."

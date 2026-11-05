@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
 
@@ -49,6 +49,9 @@ class AdminApiException(ParadimeAPIException):
         self.extensions = extensions or {}
         self.errors = errors or []
         self.job: Any = None
+
+    def __reduce__(self) -> Any:
+        return (_restore_exception, (type(self), self.args, self.__dict__))
 
     def __str__(self) -> str:
         prefix = f"{self.code.value}: " if self.code else ""
@@ -113,6 +116,18 @@ class AdminJobTimeoutException(ParadimeException, TimeoutError):
     def __init__(self, message: str, *, job: Any):
         super().__init__(message)
         self.job = job
+
+    def __reduce__(self) -> Any:
+        return (_restore_exception, (type(self), self.args, self.__dict__))
+
+
+def _restore_exception(
+    exception_class: Type[Exception], args: Tuple[Any, ...], state: Dict[str, Any]
+) -> Exception:
+    exception = exception_class.__new__(exception_class)
+    Exception.__init__(exception, *args)
+    exception.__dict__.update(state)
+    return exception
 
 
 EXCEPTIONS_BY_CODE: Dict[ErrorCode, Type[AdminApiException]] = {
