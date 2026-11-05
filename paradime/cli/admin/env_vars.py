@@ -3,7 +3,7 @@ import re
 from typing import Dict, Optional, TextIO, Tuple
 
 import click
-from dotenv import dotenv_values
+from dotenv.parser import parse_stream
 
 from paradime.cli import console
 from paradime.cli.admin import common
@@ -126,13 +126,24 @@ def _single_value(content: str) -> str:
 
 
 def _dotenv(content: str) -> Dict[str, str]:
-    parsed = dotenv_values(stream=io.StringIO(content), interpolate=False)
-    missing = [name for name, value in parsed.items() if value is None]
+    variables: Dict[str, str] = {}
+    missing = []
+    for binding in parse_stream(io.StringIO(content)):
+        if binding.error:
+            raise click.UsageError(
+                f"Line {binding.original.line} is not NAME=VALUE: "
+                f"{binding.original.string.strip()!r}. Nothing was sent."
+            )
+        if binding.key is None:
+            continue
+        _check_name(binding.key)
+        if binding.value is None:
+            missing.append(binding.key)
+        else:
+            variables[binding.key] = binding.value
     if missing:
         raise click.UsageError(f"No value for {', '.join(missing)}: write NAME=VALUE.")
-    for name in parsed:
-        _check_name(name)
-    return {name: value for name, value in parsed.items() if value is not None}
+    return variables
 
 
 @env_vars.command()

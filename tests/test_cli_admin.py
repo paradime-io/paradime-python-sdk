@@ -249,3 +249,11 @@ def test_set_sends_dollar_references_verbatim(
         "B": "${PARADIME_API_SECRET}",
         "C": "x${HOME}y",
     }
+
+
+def test_set_refuses_a_line_it_cannot_parse(fake_admin: FakeAdmin) -> None:
+    result = _run("env-vars", "set", input="A=1\nB = 'unclosed\nC=3\n")
+
+    assert result.exit_code == 2
+    assert "Line 2" in result.output
+    assert fake_admin.environment_variables.set_calls == []
