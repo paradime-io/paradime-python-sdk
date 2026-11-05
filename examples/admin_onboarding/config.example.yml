@@ -1,0 +1,98 @@
+workspace:
+  name_prefix: onboarding-e2e
+  settings:
+    default_branch: main
+    schedule_deployment_branch: main
+
+git:
+  provider: GITHUB
+  uri: git@github.com:acme/analytics.git
+
+development:
+  connection_name: Snowflake development
+  target_name: dev
+  adapter:
+    snowflake:
+      account: acme-xy12345
+      useKeyPairAuth: true
+
+environments:
+  - slug: staging
+    name: Staging
+    branch: main
+
+scheduler_connections:
+  production:
+    connection_name: Snowflake production
+    target_name: prod
+    threads: 8
+    adapter:
+      snowflake:
+        account: acme-xy12345
+        role: TRANSFORMER
+        database: ANALYTICS
+        warehouse: TRANSFORMING
+        schema: DBT_PROD
+        username: PARADIME_BOLT
+        useKeyPairAuth: true
+        privateKey: {fromEnv: ONBOARDING_SNOWFLAKE_PRIVATE_KEY}
+  staging:
+    connection_name: Snowflake staging
+    target_name: staging
+    threads: 8
+    adapter:
+      snowflake:
+        account: acme-xy12345
+        role: TRANSFORMER
+        database: ANALYTICS
+        warehouse: TRANSFORMING
+        schema: DBT_STAGING
+        username: PARADIME_BOLT
+        useKeyPairAuth: true
+        privateKey: {fromEnv: ONBOARDING_SNOWFLAKE_PRIVATE_KEY}
+
+environment_variables:
+  workspace: workspace.env.example
+  environments:
+    staging: staging.env.example
+
+agent:
+  slug: agent
+  name: Agent
+  connection:
+    connection_name: Snowflake agent
+    target_name: agent
+    threads: 4
+    adapter:
+      snowflake:
+        account: acme-xy12345
+        role: DINOAI_AGENT
+        database: ANALYTICS
+        warehouse: AGENT_WH
+        schema: DBT_AGENT
+        username: PARADIME_AGENT
+        useKeyPairAuth: true
+        privateKey: {fromEnv: ONBOARDING_SNOWFLAKE_PRIVATE_KEY}
+
+bolt:
+  branch: main
+  create_schedule:
+    name: onboarding acceptance run
+    schedule: "OFF"
+    environment: production
+    commands: ["dbt debug"]
+
+notifications:
+  ms_teams_webhook:
+    name: data-alerts
+    url: {fromEnv: ONBOARDING_TEAMS_WEBHOOK_URL}
+  email_enabled: true
+
+users:
+  - email: data-lead@example.com
+    account_type: ADMIN
+
+timeouts:
+  job: 600
+  run: 3600
+  poll_interval: 5
