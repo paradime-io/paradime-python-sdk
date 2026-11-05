@@ -15,10 +15,8 @@ from paradime.apis.admin.transport import AdminTransport
 from paradime.apis.admin.types import (
     CONNECTION_FIELDS,
     DEFAULT_PAGE_SIZE,
-    UNSET,
     Page,
     check_page_size,
-    given,
     iterate_pages,
     parse_page,
     serialize_input,
@@ -32,16 +30,20 @@ ENVIRONMENT_VARIABLE_FIELDS = """
 
 
 def _scope(environment_slug: Optional[str]) -> EnvironmentVariableScope:
-    if environment_slug:
-        return EnvironmentVariableScope.ENVIRONMENT
-    return EnvironmentVariableScope.WORKSPACE
+    if environment_slug is None:
+        return EnvironmentVariableScope.WORKSPACE
+    if not environment_slug.strip():
+        raise ValueError(
+            "environment_slug can't be empty; leave it out (None) for the workspace's variables."
+        )
+    return EnvironmentVariableScope.ENVIRONMENT
 
 
 def _scope_fields(environment_slug: Optional[str]) -> Dict[str, Any]:
-    return {
-        "scope": _scope(environment_slug),
-        **given(environment_slug=environment_slug or UNSET),
-    }
+    scope = _scope(environment_slug)
+    if environment_slug is None:
+        return {"scope": scope}
+    return {"scope": scope, "environment_slug": environment_slug}
 
 
 class AdminEnvironmentVariablesClient:
@@ -74,6 +76,7 @@ class AdminEnvironmentVariablesClient:
         """
 
         check_page_size(page_size)
+        scope = _scope(environment_slug)
         query = f"""
             query adminEnvironmentVariables(
                 $workspaceUid: String
@@ -105,7 +108,7 @@ class AdminEnvironmentVariablesClient:
                 query,
                 {
                     "workspaceUid": workspace_uid,
-                    "scope": _scope(environment_slug).value,
+                    "scope": scope.value,
                     "environmentSlug": environment_slug,
                     "first": page_size,
                     "after": after,

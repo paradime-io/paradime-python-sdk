@@ -519,3 +519,24 @@ class TestUsage:
 
         assert len(rows) == 2
         assert transport.calls[1].variables["after"] == "c1"
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda admin: admin.environment_variables.set(
+            {"A": "1"}, environment_slug="", replace=True
+        ),
+        lambda admin: admin.environment_variables.delete(["A"], environment_slug=""),
+        lambda admin: admin.environment_variables.rename("A", "B", environment_slug=""),
+        lambda admin: admin.environment_variables.reveal("A", environment_slug=""),
+        lambda admin: next(admin.environment_variables.list(environment_slug="")),
+    ],
+)
+def test_an_empty_environment_slug_is_refused_not_read_as_the_workspace(call: Any) -> None:
+    admin, transport = _admin()
+
+    with pytest.raises(ValueError, match="environment_slug"):
+        call(admin)
+
+    assert transport.calls == []

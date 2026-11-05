@@ -14,10 +14,20 @@ VALUES_ON_COMMAND_LINE = (
     "keep them. Pipe the value on stdin or pass --file."
 )
 
+
+def _not_empty(ctx: click.Context, param: click.Parameter, value: Optional[str]) -> Optional[str]:
+    if value is not None and not value.strip():
+        raise click.BadParameter(
+            "can't be empty; leave --environment out for the workspace's variables."
+        )
+    return value
+
+
 environment_option = click.option(
     "--environment",
     "environment_slug",
     default=None,
+    callback=_not_empty,
     help="An environment's slug, for its variables. Leave it out for the workspace's own.",
 )
 

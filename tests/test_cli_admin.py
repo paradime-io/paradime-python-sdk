@@ -295,3 +295,11 @@ def test_connection_config_keeps_a_quoted_number_as_written(fake_admin: FakeAdmi
 
     assert result.exit_code == 0, result.output
     assert fake_admin.connections.set_calls[0]["adapter"].snowflake.account == "00123456"
+
+
+def test_set_refuses_an_empty_environment(fake_admin: FakeAdmin) -> None:
+    result = _run("env-vars", "set", "--environment", "", "--replace", input="A=1\n")
+
+    assert result.exit_code == 2
+    assert "--environment" in result.output
+    assert fake_admin.environment_variables.set_calls == []
