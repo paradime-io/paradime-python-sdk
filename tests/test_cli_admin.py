@@ -396,3 +396,68 @@ def test_connect_deploy_key_json_prints_the_repository_and_the_job_together(
     payload = json.loads(result.output)
     assert payload["gitRepository"]["state"] == "CONNECTED"
     assert payload["job"]["status"] == ("SUCCEEDED" if wait else "QUEUED")
+
+
+def test_a_connection_error_prints_without_the_company_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import requests
+
+    from paradime.apis.admin import transport as transport_module
+    from paradime.apis.admin.client import AdminClient
+    from paradime.client.api_client import APIClient
+
+    token = "FAKECOMPANYTOKEN123"
+
+    def unreachable(**kwargs: Any) -> None:
+        raise requests.exceptions.ConnectionError(
+            f"Max retries exceeded with url: /api/v1/{token}/graphql"
+        )
+
+    client = APIClient(
+        api_secret="prdm_wsp_secret",
+        api_endpoint=f"https://api.example.test/api/v1/{token}/graphql",
+    )
+    monkeypatch.setattr(transport_module.requests, "post", unreachable)
+    monkeypatch.setattr(common, "get_admin", lambda: AdminClient(client))
+    printed: List[str] = []
+    monkeypatch.setattr(common.console, "error", lambda message, **_: printed.append(message))
+
+    result = _run("workspaces", "list")
+
+    assert result.exit_code == 1
+    assert printed and "/api/v1/***/graphql" in printed[0]
+    assert token not in printed[0] and token not in result.output
+    assert result.exception is None or token not in repr(result.exception)
+
+
+@pytest.mark.parametrize("scope", ["DEVELOPMENT_SHARED", "cost"])
+def test_workspace_level_scopes_take_no_environment(fake_admin: FakeAdmin, scope: str) -> None:
+    config = "snowflake:\n  account: acme\n"
+    with_environment = _run(
+        "connections",
+        "set",
+        "--scope",
+        scope,
+        "--environment",
+        "prod",
+        "--config",
+        "-",
+        input=config,
+    )
+    without = _run("connections", "set", "--scope", scope, "--config", "-", input=config)
+
+    assert with_environment.exit_code == 2
+    assert without.exit_code == 0, without.output
+    call = fake_admin.connections.set_calls[0]
+    assert call["scope"].value == scope.upper() and call["environment_slug"] is None
+
+
+def test_environment_scopes_need_an_environment(fake_admin: FakeAdmin) -> None:
+    result = _run(
+        "connections", "set", "--scope", "SCHEDULER", "--config", "-", input="snowflake: {}\n"
+    )
+
+    assert result.exit_code == 2
+    assert "--environment" in result.output
+    assert fake_admin.connections.set_calls == []

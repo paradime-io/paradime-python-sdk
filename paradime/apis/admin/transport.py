@@ -1,10 +1,12 @@
 import logging
+import re
 import time
 from typing import Any, Callable, Dict, Optional
 
 import requests
 
 from paradime.apis.admin.exception import (
+    AdminConnectionException,
     AdminRateLimitedException,
     admin_exception_from_errors,
     parse_retry_after,
@@ -17,6 +19,23 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_RATE_LIMIT_RETRIES = 3
 DEFAULT_MAX_RETRY_WAIT_SECONDS = 60.0
 DEFAULT_RETRY_WAIT_SECONDS = 1.0
+
+COMPANY_TOKEN_PATH = re.compile(r"(/api/v\d+/)([^/?#]+)")
+
+
+def redact_endpoint(endpoint: str) -> str:
+    return COMPANY_TOKEN_PATH.sub(r"\1***", endpoint)
+
+
+def _connection_error(endpoint: str, error: requests.RequestException) -> AdminConnectionException:
+    reason = type(error).__name__
+    match = COMPANY_TOKEN_PATH.search(endpoint)
+    if match:
+        detail = COMPANY_TOKEN_PATH.sub(r"\1***", str(error)).replace(match.group(2), "***")
+        reason = f"{reason}: {detail}"
+    return AdminConnectionException(
+        f"Could not reach the Paradime API at {redact_endpoint(endpoint)} ({reason})."
+    )
 
 
 class AdminTransport:
@@ -68,6 +87,8 @@ class AdminTransport:
         Raises:
             AdminApiException: The typed exception of the first error's `extensions.code`.
             ParadimeAPIException: For an HTTP error without a GraphQL error body.
+            AdminConnectionException: When the API can't be reached; the message keeps the
+                company token out.
         """
 
         retries = 0
@@ -94,12 +115,15 @@ class AdminTransport:
     def _execute_once(
         self, query: str, variables: Dict[str, Any], workspace_uid: Optional[str]
     ) -> Dict[str, Any]:
-        response = requests.post(
-            url=self.client.api_endpoint,
-            json={"query": query, "variables": variables},
-            headers=self._headers(workspace_uid),
-            timeout=self.client.timeout,
-        )
+        try:
+            response = requests.post(
+                url=self.client.api_endpoint,
+                json={"query": query, "variables": variables},
+                headers=self._headers(workspace_uid),
+                timeout=self.client.timeout,
+            )
+        except requests.RequestException as e:
+            raise _connection_error(self.client.api_endpoint, e) from None
         retry_after_header = response.headers.get("Retry-After")
         body = _json_body(response)
         errors = body.get("errors") if isinstance(body, dict) else None

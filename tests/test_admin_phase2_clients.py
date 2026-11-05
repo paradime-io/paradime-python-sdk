@@ -319,5 +319,6 @@ def test_every_domain_is_on_the_admin_client() -> None:
         "bolt",
         "integrations",
         "dinoai",
+        "setup_status",
     ):
         assert getattr(admin, domain).transport is admin.transport
