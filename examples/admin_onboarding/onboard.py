@@ -945,7 +945,8 @@ def parse_arguments(argv: Optional[Sequence[str]]) -> argparse.Namespace:
             "never deleted); everything else from the config file."
         ),
         epilog=(
-            "Exit codes: 0 every step of the phase passed; 1 a step or the cleanup failed; "
+            "Exit codes: 0 every step of the phase passed; "
+            "1 a step or the cleanup failed, or the run was interrupted; "
             "2 a missing variable or a bad config file, before any request; "
             f"{EXIT_CRITERION_NOT_MET} nothing failed but a step of the phase was skipped."
         ),
@@ -1016,7 +1017,11 @@ def main(
         drain_notes=onboarding.drain_notes,
     )
     print(f"onboarding {onboarding.workspace_name}, phase {arguments.phase}", file=out)
-    return run_onboarding(onboarding, runner, keep=arguments.keep)
+    try:
+        return run_onboarding(onboarding, runner, keep=arguments.keep)
+    except KeyboardInterrupt:
+        print("interrupted", file=out)
+        return 1
 
 
 if __name__ == "__main__":

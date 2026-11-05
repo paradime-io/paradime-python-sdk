@@ -484,3 +484,30 @@ def test_short_and_non_text_secrets_are_masked(tmp_path: Path) -> None:
     assert "987" in config.secrets
     assert "987" not in out.getvalue()
     assert onboard.StepRunner(2, secrets={"ab"}).redact("ab") == "****"
+
+
+def test_main_returns_1_after_the_cleanup_when_interrupted(
+    stub: Tuple[StubAdminApi, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    api, url = stub
+
+    def interrupt(self: Any) -> Any:
+        raise KeyboardInterrupt()
+
+    monkeypatch.setattr(onboard.Onboarding, "deploy_key", interrupt)
+    environ = {
+        **ENVIRON,
+        "PARADIME_API_SECRET": API_SECRET,
+        "PARADIME_API_ENDPOINT": f"{url}/graphql",
+        "PARADIME_WORKSPACE_UID": BOOTSTRAP_UID,
+        "PARADIME_ONBOARDING_CONFIG": str(EXAMPLE_CONFIG),
+        "PARADIME_ONBOARDING_GITHUB_TOKEN": GITHUB_TOKEN,
+        "PARADIME_ONBOARDING_GITHUB_API_URL": f"{url}/github",
+    }
+    out = io.StringIO()
+
+    assert onboard.main([], environ, out) == 1
+
+    assert NEW_UID in api.deleted
+    assert "PASS  end  deleteWorkspace (cleanup)" in out.getvalue()
+    assert out.getvalue().rstrip().endswith("interrupted")
