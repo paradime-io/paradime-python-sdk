@@ -832,17 +832,24 @@ class Onboarding:
             )
         if keep and uid is not None:
             raise SkipStep(f"kept {self.workspace_name} ({uid}) because of --keep")
-        parts = []
-        if uid is not None:
-            self.account.admin.workspaces.delete(uid)
-            parts.append(f"deleted {self.workspace_name} ({uid})")
-        repository = self._github_repository()
-        if repository is not None and self.github is not None and self.github_key_id is not None:
-            self.github.delete(repository, self.github_key_id)
-            parts.append(f"removed the deploy key from {repository}")
+        parts: List[str] = []
+        try:
+            if uid is not None:
+                self.account.admin.workspaces.delete(uid)
+                parts.append(f"deleted {self.workspace_name} ({uid})")
+        finally:
+            parts.extend(self._remove_deploy_key())
         if not parts:
             raise SkipStep("no workspace was created")
         return Outcome(", ".join(parts))
+
+    def _remove_deploy_key(self) -> List[str]:
+        repository = self._github_repository()
+        if repository is None or self.github is None or self.github_key_id is None:
+            return []
+        self.github.delete(repository, self.github_key_id)
+        self.github_key_id = None
+        return [f"removed the deploy key from {repository}"]
 
 
 def run_onboarding(onboarding: Onboarding, runner: StepRunner, *, keep: bool = False) -> int:

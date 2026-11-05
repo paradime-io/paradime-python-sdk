@@ -402,3 +402,18 @@ def test_the_endpoint_and_its_company_token_are_masked(capsys: pytest.CaptureFix
     captured = capsys.readouterr()
     assert "FAIL  pre" in out.getvalue()
     assert token not in out.getvalue() + captured.out + captured.err
+
+
+def test_a_failed_workspace_delete_still_removes_the_deploy_key() -> None:
+    api = StubAdminApi(fail_operation="adminDeleteWorkspace")
+    server, url = start_stub(api)
+    onboarding = _onboarding(url)
+    try:
+        code, output = _run(onboarding)
+    finally:
+        server.shutdown()
+
+    assert code == 1
+    assert "FAIL  end  deleteWorkspace (cleanup)" in output
+    assert onboarding.workspace_name not in api.github_keys.values()
+    assert "github DELETE" in _operations(api)
