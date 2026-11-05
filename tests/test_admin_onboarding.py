@@ -474,13 +474,13 @@ def test_a_custom_github_api_url_handles_keys_on_any_host(stub: Tuple[StubAdminA
 
 
 def test_short_and_non_text_secrets_are_masked(tmp_path: Path) -> None:
-    config_path = _config_file(tmp_path, "useKeyPairAuth: true\n\n", "clientSecret: 987\n\n")
+    config_path = _config_file(tmp_path, "url: {fromEnv: ONBOARDING_TEAMS_WEBHOOK_URL}", "url: 987")
     config = onboard.ConfigLoader(config_path, ENVIRON).load()
     runner, out = _runner(secrets=config.secrets)
 
-    runner.run(onboard.Step(5, "devConnection", _passes("refused client secret 987 for ab")))
+    runner.run(onboard.Step(11, "notifications", _passes("refused webhook 987 for ab")))
 
-    assert config.development["adapter"]["snowflake"]["clientSecret"] == 987
+    assert config.notifications["ms_teams_webhook"]["url"] == 987
     assert "987" in config.secrets
     assert "987" not in out.getvalue()
     assert onboard.StepRunner(2, secrets={"ab"}).redact("ab") == "****"
@@ -511,3 +511,33 @@ def test_main_returns_1_after_the_cleanup_when_interrupted(
     assert NEW_UID in api.deleted
     assert "PASS  end  deleteWorkspace (cleanup)" in out.getvalue()
     assert out.getvalue().rstrip().endswith("interrupted")
+
+
+def test_the_development_connection_sends_only_workspace_level_fields(
+    tmp_path: Path, stub: Tuple[StubAdminApi, str]
+) -> None:
+    api, url = stub
+    personal = (
+        "useKeyPairAuth: true\n      role: ANALYST\n      warehouse: DEV_WH\n"
+        "      username: someone\n      privateKey: personal-key-value\n\n"
+    )
+    config_path = _config_file(tmp_path, "useKeyPairAuth: true\n\n", personal)
+    onboarding = _onboarding(url)
+    onboarding.config = onboard.ConfigLoader(config_path, ENVIRON).load()
+    onboarding.create_workspace()
+
+    outcome = onboarding.development_connection()
+
+    sent = [
+        v["input"] for operation, v in api.variables if operation == "adminSetWarehouseConnection"
+    ]
+    assert sent == [
+        {
+            "scope": "DEVELOPMENT_SHARED",
+            "connectionName": "Snowflake development",
+            "targetName": "dev",
+            "adapter": {"snowflake": {"account": "acme-xy12345", "useKeyPairAuth": True}},
+        }
+    ]
+    assert "left out per-user fields: privateKey, role, username, warehouse" in outcome.detail
+    assert [w for o, w in api.calls if o == "adminSetWarehouseConnection"] == [NEW_UID]

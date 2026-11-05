@@ -19,6 +19,7 @@ from typing import (
     Sequence,
     Set,
     TextIO,
+    Tuple,
     TypeVar,
 )
 from urllib.parse import urlparse
@@ -55,6 +56,37 @@ GITHUB_API_URL = "https://api.github.com"
 GITHUB_HOST = "github.com"
 NAME_PREFIX_MARKER = "onboarding-"
 ENDPOINT_PATH_WORDS = frozenset({"api", "v1", "graphql"})
+PERSONAL_DEVELOPMENT_FIELDS: Dict[str, frozenset] = {
+    "snowflake": frozenset(
+        {
+            "role",
+            "database",
+            "warehouse",
+            "schema_name",
+            "username",
+            "password",
+            "private_key",
+            "private_key_passphrase",
+            "profile",
+        }
+    ),
+    "bigquery": frozenset({"dataset_name", "profile"}),
+    "databricks": frozenset({"schema_name", "token", "profile"}),
+    "redshift": frozenset({"database", "schema_name", "username", "password", "profile"}),
+    "duckdb": frozenset({"schema_name", "profile"}),
+    "firebolt": frozenset(
+        {
+            "account_name",
+            "database",
+            "engine_name",
+            "schema_name",
+            "username",
+            "password",
+            "profile",
+        }
+    ),
+    "extension": frozenset({"schema_name"}),
+}
 FINISHED_RUN_STATES = {
     BoltRunState.SUCCESS,
     BoltRunState.ERROR,
@@ -62,20 +94,6 @@ FINISHED_RUN_STATES = {
     BoltRunState.CANCELED,
     BoltRunState.SKIPPED,
 }
-
-DEVELOPMENT_CONNECTION_MUTATION = """
-    mutation onboardingSetDevelopmentConnection($input: SetWarehouseConnectionInput!) {
-        setWarehouseConnection(input: $input) {
-            warehouseConnection {
-                scope
-                type
-                connectionName
-                targetName
-                updatedAt
-            }
-        }
-    }
-"""
 
 SETUP_STATUS_QUERY = """
     query onboardingWorkspaceSetupStatus($workspaceUid: String) {
@@ -329,6 +347,8 @@ class ConfigLoader:
             self.adapter(connection, f"scheduler_connections.{slug}")
         if config.agent:
             self.adapter(config.agent.get("connection") or {}, "agent.connection")
+        if config.development:
+            self.adapter(config.development, "development")
         for user in config.users:
             if user.get("account_type", "DEVELOPER") not in UserAccountType.__members__:
                 raise ConfigError(f"users: unknown account_type {user.get('account_type')!r}.")
@@ -666,26 +686,20 @@ class Onboarding:
         development = self.config.development
         if not development:
             raise SkipStep("no development block in the config")
-        connection_input = {
-            "scope": "DEVELOPMENT_SHARED",
-            "adapter": development.get("adapter") or {},
-            **{
-                key: development[name]
-                for name, key in (
-                    ("connection_name", "connectionName"),
-                    ("target_name", "targetName"),
-                )
-                if development.get(name)
-            },
-        }
-        response = self.target.admin.transport.execute(
-            DEVELOPMENT_CONNECTION_MUTATION, {"input": connection_input}
+        adapter, left_out = workspace_level_adapter(
+            WarehouseAdapterInput.parse_obj(development.get("adapter") or {})
         )
-        saved = response["setWarehouseConnection"]["warehouseConnection"]
-        return Outcome(
-            f"{saved['type']} {saved.get('connectionName') or ''!r} saved "
-            "(raw GraphQL: DEVELOPMENT_SHARED is not in the SDK yet)"
+        saved = self.target.admin.connections.set(
+            adapter,
+            scope=ConnectionScope.DEVELOPMENT_SHARED,
+            connection_name=development.get("connection_name"),
+            target_name=development.get("target_name"),
+            workspace_uid=self.target_uid,
         )
+        detail = f"{saved.type.value} {saved.connection_name or ''!r} saved"
+        if left_out:
+            detail += f"; left out per-user fields: {', '.join(left_out)}"
+        return Outcome(detail)
 
     def create_environments(self) -> Outcome:
         environments = self.target.admin.environments
@@ -922,6 +936,23 @@ def run_onboarding(onboarding: Onboarding, runner: StepRunner, *, keep: bool = F
     if runner.failed:
         return 1
     return 0 if runner.criterion_met else EXIT_CRITERION_NOT_MET
+
+
+def workspace_level_adapter(
+    adapter: WarehouseAdapterInput,
+) -> Tuple[WarehouseAdapterInput, List[str]]:
+    kept: Dict[str, Any] = {}
+    left_out: List[str] = []
+    for key in type(adapter).__fields__:
+        model = getattr(adapter, key)
+        if model is None:
+            continue
+        personal = PERSONAL_DEVELOPMENT_FIELDS.get(key, frozenset())
+        fields = type(model).__fields__
+        values = model.dict(exclude_unset=True)
+        left_out.extend(fields[name].alias for name in values if name in personal)
+        kept[key] = type(model)(**{n: v for n, v in values.items() if n not in personal})
+    return WarehouseAdapterInput(**kept), sorted(left_out)
 
 
 def endpoint_secrets(endpoint: str) -> Set[str]:

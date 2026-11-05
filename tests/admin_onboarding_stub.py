@@ -86,6 +86,7 @@ class StubAdminApi:
             )
         self.environments: Dict[str, Dict[str, Any]] = {}
         self.calls: List[Tuple[str, Optional[str]]] = []
+        self.variables: List[Tuple[str, Dict[str, Any]]] = []
         self.deleted: List[str] = []
         self.polls: Dict[str, int] = {}
         self.rate_limited = False
@@ -98,6 +99,7 @@ class StubAdminApi:
         operation = match.group(1) if match else "anonymous"
         with self.lock:
             self.calls.append((operation, workspace))
+            self.variables.append((operation, variables))
             if operation == self.fail_operation:
                 return _error("CONNECTION_TEST_FAILED", "The warehouse refused the connection.")
             handler: Optional[Callable[[Dict[str, Any], Optional[str]], Reply]] = getattr(
@@ -171,19 +173,6 @@ class StubAdminApi:
             "schedules": [{"slug": "daily_run", "source": "YAML", "error": None}],
         }
         return self.ok({"adminJob": _job(job_id, "deployBoltSchedules", "SUCCEEDED", result)})
-
-    def op_onboardingSetDevelopmentConnection(
-        self, variables: Dict[str, Any], workspace: Optional[str]
-    ) -> Reply:
-        connection_input = variables["input"]
-        saved = {
-            "scope": connection_input["scope"],
-            "type": "SNOWFLAKE",
-            "connectionName": connection_input.get("connectionName"),
-            "targetName": connection_input.get("targetName"),
-            "updatedAt": NOW,
-        }
-        return self.ok({"setWarehouseConnection": {"warehouseConnection": saved}})
 
     def op_adminCreateEnvironment(
         self, variables: Dict[str, Any], workspace: Optional[str]
