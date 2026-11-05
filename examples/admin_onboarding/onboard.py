@@ -8,7 +8,19 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, TextIO
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    TextIO,
+    TypeVar,
+)
 from urllib.parse import urlparse
 
 import requests
@@ -32,6 +44,8 @@ from paradime.apis.bolt.types import BoltRunState
 from paradime.apis.users.types import UserAccountType
 from paradime.client.api_client import COMPANY_API_TOKEN_PREFIX
 from paradime.tools.pydantic import ValidationError
+
+T = TypeVar("T")
 
 PHASE_ONE_STEPS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 13})
 TOTAL_STEPS = 14
@@ -142,7 +156,7 @@ class StepRunner:
         self.phase = phase
         self.out = out
         self.clock = clock
-        self.secrets = sorted({s for s in secrets if s and len(s) >= 4}, key=len, reverse=True)
+        self.secrets = sorted({str(s) for s in secrets if str(s)}, key=len, reverse=True)
         self.drain_notes = drain_notes
         self.results: List[StepResult] = []
 
@@ -349,12 +363,12 @@ class ConfigLoader:
             return {k: self.resolve(v, str(k)) for k, v in value.items()}
         if isinstance(value, list):
             return [self.resolve(item, key) for item in value]
-        if isinstance(value, str) and _snake(key) in SECRET_INPUT_FIELDS:
+        if value is not None and _snake(key) in SECRET_INPUT_FIELDS:
             return self.secret(value)
         return value
 
-    def secret(self, value: str) -> str:
-        self.secrets.add(value)
+    def secret(self, value: T) -> T:
+        self.secrets.add(str(value))
         return value
 
     def variables(self, block: Mapping[str, Any]) -> Dict[str, Dict[str, str]]:
@@ -371,7 +385,7 @@ class ConfigLoader:
             missing = [name for name, value in values.items() if value is None]
             if missing:
                 raise ConfigError(f"{path}: no value for {', '.join(missing)}; write NAME=VALUE.")
-            variables[scope] = {name: str(value) for name, value in values.items()}
+            variables[scope] = {name: self.secret(str(value)) for name, value in values.items()}
         return variables
 
     def adapter(self, connection: Mapping[str, Any], where: str) -> WarehouseAdapterInput:

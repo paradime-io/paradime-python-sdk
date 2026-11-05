@@ -336,7 +336,7 @@ def test_config_reads_variables_from_files_and_keeps_secrets_out_of_argv() -> No
         "staging": {"DBT_TARGET_SCHEMA": "analytics_staging"},
     }
     assert {PRIVATE_KEY, WEBHOOK_URL} <= config.secrets
-    assert "acme" not in config.secrets
+    assert {"acme", "false", "analytics_staging"} <= config.secrets
 
 
 def _config_file(tmp_path: Path, old: str, new: str) -> Path:
@@ -471,3 +471,16 @@ def test_a_custom_github_api_url_handles_keys_on_any_host(stub: Tuple[StubAdminA
 
     assert "added to acme/analytics" in outcome.detail
     assert onboarding.workspace_name in api.github_keys.values()
+
+
+def test_short_and_non_text_secrets_are_masked(tmp_path: Path) -> None:
+    config_path = _config_file(tmp_path, "useKeyPairAuth: true\n\n", "clientSecret: 987\n\n")
+    config = onboard.ConfigLoader(config_path, ENVIRON).load()
+    runner, out = _runner(secrets=config.secrets)
+
+    runner.run(onboard.Step(5, "devConnection", _passes("refused client secret 987 for ab")))
+
+    assert config.development["adapter"]["snowflake"]["clientSecret"] == 987
+    assert "987" in config.secrets
+    assert "987" not in out.getvalue()
+    assert onboard.StepRunner(2, secrets={"ab"}).redact("ab") == "****"
