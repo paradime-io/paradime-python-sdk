@@ -407,13 +407,19 @@ class GitHubDeployKeys:
         response.raise_for_status()
         return int(response.json()["id"])
 
+    def keys(self, repository: str) -> List[Dict[str, Any]]:
+        keys: List[Dict[str, Any]] = []
+        url: Optional[str] = f"{self.api_url}/repos/{repository}/keys?per_page=100"
+        while url:
+            response = requests.get(url, headers=self.headers, timeout=self.timeout)
+            response.raise_for_status()
+            keys.extend(response.json())
+            url = response.links.get("next", {}).get("url")
+        return keys
+
     def delete_titled(self, repository: str, matches: Callable[[str], bool]) -> List[str]:
-        response = requests.get(
-            f"{self.api_url}/repos/{repository}/keys", headers=self.headers, timeout=self.timeout
-        )
-        response.raise_for_status()
         deleted = []
-        for key in response.json():
+        for key in self.keys(repository):
             if matches(str(key.get("title", ""))):
                 self.delete(repository, int(key["id"]))
                 deleted.append(str(key["title"]))

@@ -431,3 +431,14 @@ def test_a_run_that_misses_the_exit_criterion_without_a_failure_exits_3(
     assert "SKIP  12   inviteUser" in output
     assert "FAIL" not in output
     assert code == 3
+
+
+def test_the_key_sweep_reads_every_page_of_deploy_keys(stub: Tuple[StubAdminApi, str]) -> None:
+    api, url = stub
+    api.github_keys = {key_id: f"human-key-{key_id}" for key_id in range(1, 151)}
+    api.github_keys[151] = "onboarding-e2e-20261104-020000"
+
+    _onboarding(url).remove_leftovers()
+
+    assert 151 not in api.github_keys
+    assert len(api.github_keys) == 150

@@ -4,6 +4,7 @@ import re
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from urllib.parse import parse_qs, urlparse
 
 BOOTSTRAP_UID = "ws-bootstrap"
 LEFTOVER_UID = "ws-leftover"
@@ -327,10 +328,16 @@ class StubAdminApi:
         with self.lock:
             self.calls.append((f"github {method}", None))
             if method == "GET":
+                query = parse_qs(urlparse(path).query)
+                per_page = int(query.get("per_page", ["30"])[0])
+                page = int(query.get("page", ["1"])[0])
                 keys = [
                     {"id": key_id, "title": title} for key_id, title in self.github_keys.items()
                 ]
-                return 200, {"keys": keys}
+                start = (page - 1) * per_page
+                more = len(keys) > start + per_page
+                next_query = f"?per_page={per_page}&page={page + 1}" if more else None
+                return 200, {"keys": keys[start : start + per_page], "next": next_query}
             if method == "POST":
                 key_id = max(self.github_keys, default=0) + 1
                 self.github_keys[key_id] = body["title"]
@@ -348,9 +355,11 @@ def _handler(api: StubAdminApi) -> type:
             length = int(self.headers.get("Content-Length") or 0)
             return json.loads(self.rfile.read(length)) if length else {}
 
-        def _send(self, status: int, body: Any) -> None:
+        def _send(self, status: int, body: Any, link: Optional[str] = None) -> None:
             data = json.dumps(body).encode() if status != 204 else b""
             self.send_response(status)
+            if link:
+                self.send_header("Link", f'<{link}>; rel="next"')
             if status == 429:
                 self.send_header("Retry-After", "1")
             self.send_header("Content-Type", "application/json")
@@ -360,7 +369,11 @@ def _handler(api: StubAdminApi) -> type:
 
         def _github(self, method: str) -> None:
             status, body = api.github(method, self.path, self._body() if method == "POST" else {})
-            self._send(status, body.get("keys", body) if method == "GET" else body)
+            if method != "GET":
+                self._send(status, body)
+                return
+            base = f"http://{self.headers['Host']}{urlparse(self.path).path}"
+            self._send(status, body["keys"], base + body["next"] if body["next"] else None)
 
         def do_GET(self) -> None:
             self._github("GET")
