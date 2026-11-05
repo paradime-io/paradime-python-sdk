@@ -1,5 +1,6 @@
 from typing import Optional
 
+from paradime.apis.admin.client import AdminClient
 from paradime.apis.audit_log.client import AuditLogClient
 from paradime.apis.bolt.client import BoltClient
 from paradime.apis.catalog.client import CatalogClient
@@ -18,6 +19,7 @@ class Paradime(APIClient):
     A client for making API requests to the Paradime API.
 
     Attributes:
+        admin (AdminClient): The Administration API client (Enterprise plan).
         audit_log (AuditLogClient): The audit log API client.
         bolt (BoltClient): The bolt API client.
         catalog (CatalogClient): The catalog API client.
@@ -40,6 +42,7 @@ class Paradime(APIClient):
         api_endpoint (str): The API endpoint URL. Generate this from Paradime account settings.
     """
 
+    admin: AdminClient
     audit_log: AuditLogClient
     bolt: BoltClient
     catalog: CatalogClient
@@ -67,6 +70,7 @@ class Paradime(APIClient):
 
         check_for_new_version()
 
+        self.admin = AdminClient(client=self)
         self.audit_log = AuditLogClient(client=self)
         self.bolt = BoltClient(client=self)
         self.catalog = CatalogClient(client=self)
