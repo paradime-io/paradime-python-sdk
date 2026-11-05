@@ -9,6 +9,7 @@ from paradime.apis.admin.git.client import AdminGitClient
 from paradime.apis.admin.integrations.client import AdminIntegrationsClient
 from paradime.apis.admin.jobs.client import AdminJobsClient
 from paradime.apis.admin.notifications.client import AdminNotificationsClient
+from paradime.apis.admin.setup_status.client import AdminSetupStatusClient
 from paradime.apis.admin.transport import AdminTransport
 from paradime.apis.admin.usage.client import AdminUsageClient
 from paradime.apis.admin.users.client import AdminUsersClient
@@ -19,8 +20,8 @@ from paradime.client.api_client import APIClient
 class AdminClient:
     """
     The Paradime Administration API: workspaces, git, warehouse connections, environments,
-    environment variables, usage, users, notifications, Bolt, integrations, DinoAI and async
-    jobs.
+    environment variables, usage, users, notifications, Bolt, integrations, DinoAI, the
+    onboarding checklist and async jobs.
 
     The Admin API is available on the Enterprise plan. Errors raise the `AdminApiException`
     subclass of their `extensions.code`, and rate-limited requests are retried after the wait
@@ -40,6 +41,7 @@ class AdminClient:
         bolt (AdminBoltClient): Schedule updates and deploys, and Trigger URLs.
         integrations (AdminIntegrationsClient): Integrations and external secret managers.
         dinoai (AdminDinoaiClient): DinoAI agent definitions and settings.
+        setup_status (AdminSetupStatusClient): A workspace's onboarding checklist.
     """
 
     def __init__(self, client: APIClient, *, transport: Optional[AdminTransport] = None) -> None:
@@ -56,3 +58,4 @@ class AdminClient:
         self.bolt = AdminBoltClient(self.transport)
         self.integrations = AdminIntegrationsClient(self.transport)
         self.dinoai = AdminDinoaiClient(self.transport)
+        self.setup_status = AdminSetupStatusClient(self.transport)
