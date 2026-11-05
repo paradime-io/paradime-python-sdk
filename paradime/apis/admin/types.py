@@ -28,8 +28,15 @@ SECRET_FIELDS = frozenset(
         "service_account_json",
         "token",
         "profile",
+        "secret",
+        "api_key",
+        "api_secret",
+        "application_key",
+        "secret_access_key",
     }
 )
+
+SECRET_INPUT_FIELDS = SECRET_FIELDS | {"url"}
 
 
 def _to_camel(name: str) -> str:
@@ -44,16 +51,23 @@ class AdminModel(BaseModel):
         alias_generator = _to_camel
         allow_population_by_field_name = True
 
+    def __repr_args__(self) -> Any:
+        return _masked(super().__repr_args__(), SECRET_FIELDS)
+
 
 class AdminInputModel(AdminModel):
     class Config:
         extra = "forbid"
 
     def __repr_args__(self) -> Any:
-        return [
-            (name, "**********" if name in SECRET_FIELDS and value is not None else value)
-            for name, value in super().__repr_args__()
-        ]
+        return _masked(BaseModel.__repr_args__(self), SECRET_INPUT_FIELDS)
+
+
+def _masked(args: Any, secret_fields: frozenset) -> Any:
+    return [
+        (name, "**********" if name in secret_fields and value is not None else value)
+        for name, value in args
+    ]
 
 
 class OpenEnum(str, Enum):
