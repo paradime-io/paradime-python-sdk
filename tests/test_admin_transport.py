@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional
 
 import pytest
+import requests
 
 from paradime.apis.admin import transport as transport_module
 from paradime.apis.admin.exception import (
@@ -372,3 +373,43 @@ def test_admin_exceptions_survive_pickling() -> None:
     assert restored_rate_limited.retry_after == 7
     assert restored_timeout.job.status == job.status
     assert str(restored_timeout) == "Still running."
+
+
+FAKE_TOKEN = "FAKECOMPANYTOKEN123"
+TOKEN_ENDPOINT = f"https://api.example.test/api/v1/{FAKE_TOKEN}/graphql"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        requests.exceptions.ConnectionError(
+            f"HTTPSConnectionPool(host='api.example.test', port=443): Max retries exceeded "
+            f"with url: /api/v1/{FAKE_TOKEN}/graphql"
+        ),
+        requests.exceptions.ReadTimeout(f"Read timed out. (url={TOKEN_ENDPOINT})"),
+    ],
+)
+def test_a_connection_error_keeps_the_company_token_out(
+    monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    import traceback
+
+    def unreachable(**kwargs: Any) -> None:
+        raise error
+
+    monkeypatch.setattr(transport_module.requests, "post", unreachable)
+    client = APIClient(api_secret="prdm_wsp_secret", api_endpoint=TOKEN_ENDPOINT)
+
+    with pytest.raises(ParadimeAPIException) as exc_info:
+        AdminTransport(client).execute("query q { x }")
+
+    raised = exc_info.value
+    shown = [
+        str(raised),
+        repr(raised),
+        repr(raised.args),
+        "".join(traceback.format_exception(type(raised), raised, raised.__traceback__)),
+    ]
+    assert all(FAKE_TOKEN not in text for text in shown)
+    assert "/api/v1/***/graphql" in str(raised)
+    assert raised.__cause__ is None and raised.__suppress_context__

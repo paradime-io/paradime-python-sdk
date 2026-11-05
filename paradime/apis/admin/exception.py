@@ -108,6 +108,15 @@ class AdminInternalException(AdminApiException):
     error_code = ErrorCode.INTERNAL
 
 
+class AdminConnectionException(ParadimeAPIException):
+    """
+    The Paradime API could not be reached. The message names the endpoint with its company
+    token replaced by ``***``.
+    """
+
+    pass
+
+
 class AdminJobTimeoutException(ParadimeException, TimeoutError):
     """
     An Admin job did not finish in time. ``job`` is its last state.
