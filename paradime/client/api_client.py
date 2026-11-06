@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 import requests
 
 from paradime.client.api_exception import ParadimeAPIException
+from paradime.client.redaction import redact_company_token, redacted_request_error
 from paradime.client.runtime import detect_runtime, get_python_version, is_telemetry_enabled
 from paradime.version import get_sdk_version
 
@@ -142,8 +143,12 @@ class APIClient:
 
         try:
             response.raise_for_status()
-        except Exception as e:
-            raise ParadimeAPIException(f"Error: {response.status_code} - {response.text}") from e
+        except Exception:
+            raise ParadimeAPIException(
+                redact_company_token(
+                    f"Error: {response.status_code} - {response.text}", self.api_endpoint
+                )
+            ) from None
 
     def _raise_for_errors(self, response: requests.Response) -> None:
         """
@@ -172,14 +177,19 @@ class APIClient:
 
         Raises:
             ParadimeAPIException: If there are errors in the API response.
+            requests.RequestException: When the API can't be reached; the message keeps the
+                company token out.
         """
 
-        response = requests.post(
-            url=self.api_endpoint,
-            json={"query": query, "variables": variables},
-            headers=self._get_request_headers(),
-            timeout=self.timeout,
-        )
+        try:
+            response = requests.post(
+                url=self.api_endpoint,
+                json={"query": query, "variables": variables},
+                headers=self._get_request_headers(),
+                timeout=self.timeout,
+            )
+        except requests.RequestException as e:
+            raise redacted_request_error(e, self.api_endpoint) from None
         self._raise_for_errors(response)
 
         return response.json()["data"]

@@ -24,6 +24,8 @@ from rich.table import Table
 from rich.text import Text
 from rich.theme import Theme
 
+from paradime.client.redaction import redact_endpoint
+
 # ---------------------------------------------------------------------------
 # Theme — Paradime brand colours, scoped so we never fight the host terminal
 # ---------------------------------------------------------------------------
@@ -241,7 +243,12 @@ def welcome_panel(version: str, workspace_endpoint: str | None = None) -> None:
     workspace_line = Text()
     if workspace_endpoint:
         # Show just the domain part for brevity
-        domain = workspace_endpoint.replace("https://", "").replace("http://", "").rstrip("/")
+        domain = (
+            redact_endpoint(workspace_endpoint)
+            .replace("https://", "")
+            .replace("http://", "")
+            .rstrip("/")
+        )
         workspace_line.append(f"  {domain}", style="dim")
     else:
         workspace_line.append("  No workspace configured", style="dim")

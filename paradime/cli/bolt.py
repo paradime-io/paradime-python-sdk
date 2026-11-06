@@ -9,7 +9,6 @@ if TYPE_CHECKING:
     from paradime.client.paradime_client import Paradime
 
 import click
-import requests
 
 from paradime.apis.bolt.types import BoltRunState
 from paradime.cli import console as _console
@@ -24,6 +23,7 @@ from paradime.cli.rich_text_output import (
 from paradime.cli.version import print_version
 from paradime.client.api_exception import ParadimeAPIException, ParadimeException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
+from paradime.client.redaction import download
 from paradime.core.bolt.schedule import (
     _get_schedules,
     get_slug_format_warnings,
@@ -503,7 +503,7 @@ def artifact(
         else:
             output_file_path = Path(output_path)
 
-        output_file_path.write_text(requests.get(artifact_url).text)
+        output_file_path.write_text(download(artifact_url).text)
 
         print_artifact_downloaded(output_file_path)
     except ParadimeException as e:

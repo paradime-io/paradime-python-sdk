@@ -1,5 +1,4 @@
 import logging
-import re
 import time
 from typing import Any, Callable, Dict, Optional
 
@@ -13,6 +12,7 @@ from paradime.apis.admin.exception import (
 )
 from paradime.client.api_client import WORKSPACE_SELECTION_HEADER, APIClient
 from paradime.client.api_exception import ParadimeAPIException
+from paradime.client.redaction import COMPANY_TOKEN_PATH, redact_company_token, redact_endpoint
 
 logger = logging.getLogger(__name__)
 
@@ -20,19 +20,11 @@ DEFAULT_MAX_RATE_LIMIT_RETRIES = 3
 DEFAULT_MAX_RETRY_WAIT_SECONDS = 60.0
 DEFAULT_RETRY_WAIT_SECONDS = 1.0
 
-COMPANY_TOKEN_PATH = re.compile(r"(/api/v\d+/)([^/?#]+)")
-
-
-def redact_endpoint(endpoint: str) -> str:
-    return COMPANY_TOKEN_PATH.sub(r"\1***", endpoint)
-
 
 def _connection_error(endpoint: str, error: requests.RequestException) -> AdminConnectionException:
     reason = type(error).__name__
-    match = COMPANY_TOKEN_PATH.search(endpoint)
-    if match:
-        detail = COMPANY_TOKEN_PATH.sub(r"\1***", str(error)).replace(match.group(2), "***")
-        reason = f"{reason}: {detail}"
+    if COMPANY_TOKEN_PATH.search(endpoint):
+        reason = f"{reason}: {redact_company_token(str(error), endpoint)}"
     return AdminConnectionException(
         f"Could not reach the Paradime API at {redact_endpoint(endpoint)} ({reason})."
     )
