@@ -1,5 +1,3 @@
-import logging
-import re
 import time
 from typing import Any, Callable, Dict, Optional
 
@@ -9,30 +7,22 @@ from paradime.apis.admin.exception import (
     AdminConnectionException,
     AdminRateLimitedException,
     admin_exception_from_errors,
-    parse_retry_after,
 )
 from paradime.client.api_client import WORKSPACE_SELECTION_HEADER, APIClient
 from paradime.client.api_exception import ParadimeAPIException
-
-logger = logging.getLogger(__name__)
-
-DEFAULT_MAX_RATE_LIMIT_RETRIES = 3
-DEFAULT_MAX_RETRY_WAIT_SECONDS = 60.0
-DEFAULT_RETRY_WAIT_SECONDS = 1.0
-
-COMPANY_TOKEN_PATH = re.compile(r"(/api/v\d+/)([^/?#]+)")
-
-
-def redact_endpoint(endpoint: str) -> str:
-    return COMPANY_TOKEN_PATH.sub(r"\1***", endpoint)
+from paradime.client.rate_limit import parse_retry_after, retry_rate_limited
+from paradime.client.redaction import (
+    COMPANY_TOKEN_PATH,
+    redact_company_token,
+    redact_endpoint,
+    send_redacted,
+)
 
 
 def _connection_error(endpoint: str, error: requests.RequestException) -> AdminConnectionException:
     reason = type(error).__name__
-    match = COMPANY_TOKEN_PATH.search(endpoint)
-    if match:
-        detail = COMPANY_TOKEN_PATH.sub(r"\1***", str(error)).replace(match.group(2), "***")
-        reason = f"{reason}: {detail}"
+    if COMPANY_TOKEN_PATH.search(endpoint):
+        reason = f"{reason}: {redact_company_token(str(error), endpoint)}"
     return AdminConnectionException(
         f"Could not reach the Paradime API at {redact_endpoint(endpoint)} ({reason})."
     )
@@ -49,9 +39,12 @@ class AdminTransport:
     `extensions.code`.
 
     Args:
-        client (APIClient): The client whose endpoint, credentials and timeout to use.
-        max_rate_limit_retries (int): How many times to retry a rate-limited request.
-        max_retry_wait (float): The longest wait to retry after, in seconds.
+        client (APIClient): The client whose endpoint, credentials, timeout and rate limit
+            retry settings to use, read on every request.
+        max_rate_limit_retries (int, optional): How many times to retry a rate-limited
+            request, in place of the client's current setting.
+        max_retry_wait (float, optional): The longest wait to retry after, in seconds, in
+            place of the client's current setting.
         sleep (Callable[[float], None]): How to wait between retries.
     """
 
@@ -59,14 +52,34 @@ class AdminTransport:
         self,
         client: APIClient,
         *,
-        max_rate_limit_retries: int = DEFAULT_MAX_RATE_LIMIT_RETRIES,
-        max_retry_wait: float = DEFAULT_MAX_RETRY_WAIT_SECONDS,
+        max_rate_limit_retries: Optional[int] = None,
+        max_retry_wait: Optional[float] = None,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.client = client
-        self.max_rate_limit_retries = max_rate_limit_retries
-        self.max_retry_wait = max_retry_wait
+        self._max_rate_limit_retries = max_rate_limit_retries
+        self._max_retry_wait = max_retry_wait
         self.sleep = sleep
+
+    @property
+    def max_rate_limit_retries(self) -> int:
+        if self._max_rate_limit_retries is None:
+            return self.client.max_rate_limit_retries
+        return self._max_rate_limit_retries
+
+    @max_rate_limit_retries.setter
+    def max_rate_limit_retries(self, value: Optional[int]) -> None:
+        self._max_rate_limit_retries = value
+
+    @property
+    def max_retry_wait(self) -> float:
+        if self._max_retry_wait is None:
+            return self.client.max_retry_wait
+        return self._max_retry_wait
+
+    @max_retry_wait.setter
+    def max_retry_wait(self, value: Optional[float]) -> None:
+        self._max_retry_wait = value
 
     def execute(
         self,
@@ -91,20 +104,12 @@ class AdminTransport:
                 company token out.
         """
 
-        retries = 0
-        while True:
-            try:
-                return self._execute_once(query, variables or {}, workspace_uid)
-            except AdminRateLimitedException as e:
-                wait = e.retry_after if e.retry_after is not None else DEFAULT_RETRY_WAIT_SECONDS
-                if retries >= self.max_rate_limit_retries or wait > self.max_retry_wait:
-                    raise
-                retries += 1
-                logger.info(
-                    f"Rate limited by the Paradime API; retrying in {wait:g}s"
-                    f" ({retries}/{self.max_rate_limit_retries})."
-                )
-                self.sleep(wait)
+        return retry_rate_limited(
+            lambda: self._execute_once(query, variables or {}, workspace_uid),
+            max_rate_limit_retries=self.max_rate_limit_retries,
+            max_retry_wait=self.max_retry_wait,
+            sleep=self.sleep,
+        )
 
     def _headers(self, workspace_uid: Optional[str]) -> Dict[str, str]:
         headers = self.client._get_request_headers()
@@ -115,26 +120,34 @@ class AdminTransport:
     def _execute_once(
         self, query: str, variables: Dict[str, Any], workspace_uid: Optional[str]
     ) -> Dict[str, Any]:
-        try:
-            response = requests.post(
+        response = send_redacted(
+            lambda: requests.post(
                 url=self.client.api_endpoint,
                 json={"query": query, "variables": variables},
                 headers=self._headers(workspace_uid),
                 timeout=self.client.timeout,
-            )
-        except requests.RequestException as e:
-            raise _connection_error(self.client.api_endpoint, e) from None
+            ),
+            lambda e: _connection_error(self.client.api_endpoint, e),
+        )
         retry_after_header = response.headers.get("Retry-After")
         body = _json_body(response)
         errors = body.get("errors") if isinstance(body, dict) else None
         if errors:
             raise admin_exception_from_errors(errors, retry_after_header=retry_after_header)
+        response_text = redact_company_token(response.text, self.client.api_endpoint)
         if response.status_code == 429:
             raise AdminRateLimitedException(
-                "Too many requests.", retry_after=parse_retry_after(retry_after_header)
+                "Too many requests.",
+                retry_after=parse_retry_after(retry_after_header),
+                status_code=response.status_code,
+                response_text=response_text,
             )
         if not response.ok:
-            raise ParadimeAPIException(f"Error: {response.status_code} - {response.text}")
+            raise ParadimeAPIException(
+                f"Error: {response.status_code} - {response_text}",
+                status_code=response.status_code,
+                response_text=response_text,
+            )
         if not isinstance(body, dict) or body.get("data") is None:
             raise ParadimeAPIException(f"Error: {response.status_code} - {response.text}")
         return body["data"]
