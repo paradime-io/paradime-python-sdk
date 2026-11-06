@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 import pytest
 import requests
 
+from paradime import Paradime
 from paradime.apis.admin import transport as transport_module
 from paradime.apis.admin.exception import AdminRateLimitedException
 from paradime.apis.admin.transport import AdminTransport
@@ -171,6 +172,85 @@ def test_the_admin_transport_uses_the_client_limits(monkeypatch: pytest.MonkeyPa
         AdminTransport(client, sleep=waits.append).execute("query q { x }")
 
     assert waits == [1] and post.calls == 2
+
+
+def test_paradime_takes_the_retry_settings_for_legacy_and_admin_calls(
+    monkeypatch: pytest.MonkeyPatch, sleeps: List[float]
+) -> None:
+    monkeypatch.setenv("PARADIME_DISABLE_VERSION_CHECK", "1")
+    post = FakePost(_rate_limited(retry_after=1), _rate_limited(retry_after=1))
+    monkeypatch.setattr(api_client_module.requests, "post", post)
+    paradime = Paradime(
+        api_secret="prdm_cmp_secret",
+        api_endpoint=ENDPOINT,
+        workspace_uid="w1",
+        max_rate_limit_retries=0,
+        max_retry_wait=5,
+    )
+    admin_waits: List[float] = []
+    paradime.admin.transport.sleep = admin_waits.append
+
+    with pytest.raises(ParadimeRateLimitedException):
+        paradime.bolt.trigger_run(slug="daily")
+    with pytest.raises(AdminRateLimitedException):
+        paradime.admin.transport.execute("query q { x }")
+
+    assert sleeps == [] and admin_waits == [] and post.calls == 2
+    assert paradime.max_retry_wait == 5 and paradime.admin.transport.max_retry_wait == 5
+
+
+def test_paradime_takes_the_request_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PARADIME_DISABLE_VERSION_CHECK", "1")
+    timeouts: List[Any] = []
+
+    def post(**kwargs: Any) -> requests.Response:
+        timeouts.append(kwargs["timeout"])
+        return _response({"data": {"triggerBoltRun": {"runId": 1}}})
+
+    monkeypatch.setattr(api_client_module.requests, "post", post)
+    paradime = Paradime(
+        api_secret="prdm_cmp_secret", api_endpoint=ENDPOINT, workspace_uid="w1", timeout=5
+    )
+
+    paradime.bolt.trigger_run(slug="daily")
+    paradime.admin.transport.execute("query q { triggerBoltRun { runId } }")
+
+    assert timeouts == [5, 5]
+
+
+def test_the_admin_transport_reads_settings_changed_after_construction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PARADIME_DISABLE_VERSION_CHECK", "1")
+    post = FakePost(_rate_limited(retry_after=1))
+    monkeypatch.setattr(transport_module.requests, "post", post)
+    paradime = Paradime(api_secret="prdm_cmp_secret", api_endpoint=ENDPOINT)
+    waits: List[float] = []
+    paradime.admin.transport.sleep = waits.append
+
+    paradime.max_rate_limit_retries = 0
+
+    with pytest.raises(AdminRateLimitedException):
+        paradime.admin.transport.execute("query q { x }")
+    assert waits == [] and post.calls == 1
+
+
+def test_an_admin_transport_override_wins_over_the_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    post = FakePost(_rate_limited(retry_after=1))
+    monkeypatch.setattr(transport_module.requests, "post", post)
+    client = APIClient(
+        api_secret="prdm_cmp_secret", api_endpoint=ENDPOINT, max_rate_limit_retries=3
+    )
+    waits: List[float] = []
+    transport = AdminTransport(client, max_rate_limit_retries=0, sleep=waits.append)
+
+    client.max_rate_limit_retries = 5
+
+    with pytest.raises(AdminRateLimitedException):
+        transport.execute("query q { x }")
+    assert waits == [] and post.calls == 1 and transport.max_rate_limit_retries == 0
 
 
 def test_the_admin_rate_limit_is_the_shared_rate_limit() -> None:

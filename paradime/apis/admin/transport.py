@@ -40,11 +40,11 @@ class AdminTransport:
 
     Args:
         client (APIClient): The client whose endpoint, credentials, timeout and rate limit
-            retry settings to use.
+            retry settings to use, read on every request.
         max_rate_limit_retries (int, optional): How many times to retry a rate-limited
-            request, in place of the client's.
+            request, in place of the client's current setting.
         max_retry_wait (float, optional): The longest wait to retry after, in seconds, in
-            place of the client's.
+            place of the client's current setting.
         sleep (Callable[[float], None]): How to wait between retries.
     """
 
@@ -57,13 +57,29 @@ class AdminTransport:
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.client = client
-        self.max_rate_limit_retries = (
-            client.max_rate_limit_retries
-            if max_rate_limit_retries is None
-            else max_rate_limit_retries
-        )
-        self.max_retry_wait = client.max_retry_wait if max_retry_wait is None else max_retry_wait
+        self._max_rate_limit_retries = max_rate_limit_retries
+        self._max_retry_wait = max_retry_wait
         self.sleep = sleep
+
+    @property
+    def max_rate_limit_retries(self) -> int:
+        if self._max_rate_limit_retries is None:
+            return self.client.max_rate_limit_retries
+        return self._max_rate_limit_retries
+
+    @max_rate_limit_retries.setter
+    def max_rate_limit_retries(self, value: Optional[int]) -> None:
+        self._max_rate_limit_retries = value
+
+    @property
+    def max_retry_wait(self) -> float:
+        if self._max_retry_wait is None:
+            return self.client.max_retry_wait
+        return self._max_retry_wait
+
+    @max_retry_wait.setter
+    def max_retry_wait(self, value: Optional[float]) -> None:
+        self._max_retry_wait = value
 
     def execute(
         self,
