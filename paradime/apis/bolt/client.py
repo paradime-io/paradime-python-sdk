@@ -1436,7 +1436,9 @@ class BoltClient:
                 }
             }
         """
-        response = self.client._call_gql(query=query)["listAllScheduleNames"]
+        response = self.client._call_gql(query=query, workspace_scoped=False)[
+            "listAllScheduleNames"
+        ]
         return [(s["workspaceName"], s["name"]) for s in response["schedules"]]
 
     def list_environments(self) -> List[BoltEnvironment]:

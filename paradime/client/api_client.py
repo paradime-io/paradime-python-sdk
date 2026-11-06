@@ -51,8 +51,9 @@ class APIClient:
     - Workspace token (`prdm_wsp_...`): `api_key` is not needed.
     - Company token (`prdm_cmp_...`): `api_key` is not needed. `workspace_uid` selects which
       workspace the requests target. Without it, company-level calls work (listing
-      workspaces, audit logs, and Admin API calls given their own `workspace_uid`), and
-      workspace-level calls raise `ParadimeWorkspaceRequiredException`.
+      workspaces, audit logs, schedule names across workspaces, and Admin API calls given
+      their own `workspace_uid`), and workspace-level calls raise
+      `ParadimeWorkspaceRequiredException`.
 
     Args:
         api_key (str, optional): The API key for authentication. Required when `api_secret`

@@ -92,6 +92,24 @@ def test_audit_logs_need_no_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
     assert WORKSPACE_SELECTION_HEADER not in post.requests[0]["headers"]
 
 
+def test_listing_schedule_names_across_workspaces_needs_no_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    post = FakePost(
+        {
+            "listAllScheduleNames": {
+                "ok": True,
+                "schedules": [{"name": "daily", "workspaceName": "Analytics"}],
+            }
+        }
+    )
+    monkeypatch.setattr(api_client_module.requests, "post", post)
+    paradime = Paradime(api_secret=COMPANY_SECRET, api_endpoint=ENDPOINT)
+
+    assert paradime.bolt.list_all_schedule_names() == [("Analytics", "daily")]
+    assert WORKSPACE_SELECTION_HEADER not in post.requests[0]["headers"]
+
+
 def test_a_workspace_level_call_with_a_workspace_sends_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
