@@ -2,7 +2,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from paradime.client.api_exception import ParadimeAPIException
+from paradime.client.api_exception import ParadimeAPIException, ParadimeWorkspaceRequiredException
 from paradime.client.redaction import redact_company_token, redacted_request_error
 from paradime.client.runtime import detect_runtime, get_python_version, is_telemetry_enabled
 from paradime.version import get_sdk_version
@@ -36,15 +36,17 @@ class APIClient:
 
     - Legacy secret: `api_key` must also be provided.
     - Workspace token (`prdm_wsp_...`): `api_key` is not needed.
-    - Company token (`prdm_cmp_...`): `api_key` is not needed, but `workspace_uid` must be
-      provided to select which workspace the requests should target.
+    - Company token (`prdm_cmp_...`): `api_key` is not needed. `workspace_uid` selects which
+      workspace the requests target. Without it, company-level calls work (listing
+      workspaces, audit logs, and Admin API calls given their own `workspace_uid`), and
+      workspace-level calls raise `ParadimeWorkspaceRequiredException`.
 
     Args:
         api_key (str, optional): The API key for authentication. Required when `api_secret`
             is a legacy secret; not needed when `api_secret` is a bearer token.
         api_secret (str): The API secret or bearer token for authentication.
-        workspace_uid (str, optional): The workspace uid to target. Required when
-            `api_secret` is a company-level (`prdm_cmp_`) token; not used otherwise.
+        workspace_uid (str, optional): The workspace uid to target with a company-level
+            (`prdm_cmp_`) token. Needed for workspace-level calls; not used otherwise.
         api_endpoint (str): The endpoint URL for the API.
         timeout (int, optional): The timeout for API requests in seconds. Defaults to 60 seconds.
     """
@@ -58,13 +60,7 @@ class APIClient:
         api_endpoint: str,
         timeout: int = 60,
     ):
-        if _is_bearer_token(api_secret):
-            if api_secret.startswith(COMPANY_API_TOKEN_PREFIX) and not workspace_uid:
-                raise ValueError(
-                    "workspace_uid is required when authenticating with a company-level "
-                    f"API token (one that starts with {COMPANY_API_TOKEN_PREFIX!r})."
-                )
-        elif not api_key:
+        if not _is_bearer_token(api_secret) and not api_key:
             raise ValueError(
                 "api_key is required when api_secret is a legacy API secret (i.e. does not "
                 f"start with {WORKSPACE_API_TOKEN_PREFIX!r} or {COMPANY_API_TOKEN_PREFIX!r})."
@@ -164,23 +160,50 @@ class APIClient:
         self._raise_for_response_status_errors(response)
         self._raise_for_gql_response_body_errors(response)
 
-    def _call_gql(self, query: str, variables: Dict[str, Any] = {}) -> Dict[str, Any]:
+    def _raise_for_missing_workspace(self) -> None:
+        """
+        Raise when a company-level token has no workspace to send a workspace-level call to.
+
+        Raises:
+            ParadimeWorkspaceRequiredException: If there is no `workspace_uid` to send.
+        """
+
+        if self.api_secret.startswith(COMPANY_API_TOKEN_PREFIX) and not self.workspace_uid:
+            raise ParadimeWorkspaceRequiredException(
+                "This call needs a workspace, and a company-level API token "
+                f"({COMPANY_API_TOKEN_PREFIX}...) spans workspaces. Pass workspace_uid to the "
+                "client, or set PARADIME_WORKSPACE_UID for the CLI."
+            )
+
+    def _call_gql(
+        self,
+        query: str,
+        variables: Dict[str, Any] = {},
+        *,
+        workspace_scoped: bool = True,
+    ) -> Dict[str, Any]:
         """
         Make a GraphQL API request.
 
         Args:
             query (str): The GraphQL query.
             variables (dict, optional): The variables for the query. Defaults to {}.
+            workspace_scoped (bool, optional): Whether the call targets one workspace, so a
+                company-level token needs a `workspace_uid`. Defaults to True.
 
         Returns:
             dict: The response data from the API.
 
         Raises:
             ParadimeAPIException: If there are errors in the API response.
+            ParadimeWorkspaceRequiredException: If the call targets one workspace and a
+                company-level token has no `workspace_uid`.
             requests.RequestException: When the API can't be reached; the message keeps the
                 company token out.
         """
 
+        if workspace_scoped:
+            self._raise_for_missing_workspace()
         try:
             response = requests.post(
                 url=self.api_endpoint,

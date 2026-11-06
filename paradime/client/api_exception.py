@@ -12,3 +12,11 @@ class ParadimeAPIException(ParadimeException):
     """
 
     pass
+
+
+class ParadimeWorkspaceRequiredException(ParadimeAPIException):
+    """
+    A workspace-level call was made with a company-level API token and no `workspace_uid`.
+    """
+
+    pass

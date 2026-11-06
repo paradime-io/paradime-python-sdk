@@ -28,5 +28,5 @@ class WorkspacesClient:
             }
         """
 
-        response = self.client._call_gql(query)
+        response = self.client._call_gql(query, workspace_scoped=False)
         return parse_obj_as(List[Workspace], response["listWorkspaces"]["workspaces"])

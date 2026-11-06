@@ -37,8 +37,9 @@ class Paradime(APIClient):
         api_secret (str): The API secret, or a workspace-level (`prdm_wsp_`) or company-level
             (`prdm_cmp_`) bearer token, for authentication. Generate this from Paradime
             account settings.
-        workspace_uid (str, optional): The workspace uid to target. Required when
-            `api_secret` is a company-level (`prdm_cmp_`) token; not used otherwise.
+        workspace_uid (str, optional): The workspace uid to target with a company-level
+            (`prdm_cmp_`) token. Needed for workspace-level calls, which raise
+            `ParadimeWorkspaceRequiredException` without it; not used otherwise.
         api_endpoint (str): The API endpoint URL. Generate this from Paradime account settings.
     """
 

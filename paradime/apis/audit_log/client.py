@@ -36,7 +36,7 @@ class AuditLogClient:
                 }
             }
         """
-        response = self.client._call_gql(query)
+        response = self.client._call_gql(query, workspace_scoped=False)
         return [
             AuditLog(
                 id=audit_log["id"],
