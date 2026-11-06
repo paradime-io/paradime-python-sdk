@@ -1172,7 +1172,7 @@ class BoltClient:
             max_runs=max_runs,
         )
 
-        return download(manifest_url).json()
+        return download(manifest_url, timeout=self.client.timeout).json()
 
     def _get_latest_run_results_json(
         self,
@@ -1201,7 +1201,7 @@ class BoltClient:
                 command_index=command_index,
                 max_runs=1,
             )
-            return download(run_results_url).json()
+            return download(run_results_url, timeout=self.client.timeout).json()
 
         # Get the latest runs for the schedule
         latest_runs = self.list_runs(slug=schedule_name, offset=0, limit=1).runs
@@ -1233,7 +1233,7 @@ class BoltClient:
                 for artifact in artifacts:
                     if artifact.path == "target/run_results.json":
                         artifact_url = self.get_artifact_url(artifact.id)
-                        run_results = download(artifact_url).json()
+                        run_results = download(artifact_url, timeout=self.client.timeout).json()
                         all_run_results.append(run_results)
                         if not merge:
                             # Return first found when merge=False (consistent behavior)
@@ -1282,7 +1282,7 @@ class BoltClient:
                 command_index=command_index,
                 max_runs=1,
             )
-            return download(sources_url).json()
+            return download(sources_url, timeout=self.client.timeout).json()
 
         latest_runs = self.list_runs(slug=schedule_name, offset=0, limit=1).runs
 
@@ -1307,7 +1307,7 @@ class BoltClient:
                 for artifact in artifacts:
                     if artifact.path == "target/sources.json":
                         artifact_url = self.get_artifact_url(artifact.id)
-                        sources = download(artifact_url).json()
+                        sources = download(artifact_url, timeout=self.client.timeout).json()
                         all_sources.append(sources)
                         if not merge:
                             return sources

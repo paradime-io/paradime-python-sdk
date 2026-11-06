@@ -52,8 +52,10 @@ def send_redacted(
     raise error
 
 
-def download(url: str) -> requests.Response:
-    return send_redacted(
-        lambda: requests.get(url),
-        lambda e: same_type_error(e, redact_query_strings(str(e), url)),
-    )
+def download(url: str, *, timeout: float) -> requests.Response:
+    def get() -> requests.Response:
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+        return response
+
+    return send_redacted(get, lambda e: same_type_error(e, redact_query_strings(str(e), url)))

@@ -210,38 +210,81 @@ def test_a_failing_cli_command_never_prints_the_company_token(
     assert _cli_leaks(result) == []
 
 
+EXPIRED = _status(
+    403, b"<Error><Code>AccessDenied</Code><Message>Request has expired</Message></Error>"
+)
+
+
+@pytest.mark.parametrize(
+    "outcome, expected_type, expected_text",
+    [
+        (
+            _unresolvable,
+            requests.exceptions.ConnectionError,
+            "url: /run/1/target/manifest.json (Caused by",
+        ),
+        (
+            EXPIRED,
+            requests.exceptions.HTTPError,
+            "403 Client Error: Error for url: https://bucket.example.test/run/1/target/manifest.json",
+        ),
+    ],
+)
 def test_an_artifact_download_error_drops_the_presigned_query(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, outcome: Outcome, expected_type: type, expected_text: str
 ) -> None:
-    _patch_network(monkeypatch, _unresolvable)
+    _patch_network(monkeypatch, outcome)
     bolt = BoltClient(client=APIClient(api_secret="prdm_wsp_secret", api_endpoint="https://x"))
     monkeypatch.setattr(bolt, "get_latest_artifact_url", lambda **kwargs: PRESIGNED_URL)
 
-    with pytest.raises(requests.exceptions.ConnectionError) as exc_info:
+    with pytest.raises(expected_type) as exc_info:
         bolt.get_latest_manifest_json(slug="daily")
 
+    assert type(exc_info.value) is expected_type
     assert _leaks(exc_info.value) == []
     assert exc_info.value.__context__ is None
-    assert "url: /run/1/target/manifest.json (Caused by" in str(exc_info.value)
+    assert expected_text in str(exc_info.value)
+
+
+def test_an_artifact_download_uses_the_client_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    timeouts: List[Any] = []
+
+    def respond(request: requests.PreparedRequest, **kwargs: Any) -> requests.Response:
+        timeouts.append(kwargs.get("timeout"))
+        return _status(200, b'{"nodes": {}}')(request)
+
+    monkeypatch.setattr(
+        requests.adapters.HTTPAdapter, "send", lambda self, r, **kw: respond(r, **kw)
+    )
+    client = APIClient(api_secret="prdm_wsp_secret", api_endpoint="https://x", timeout=7)
+    bolt = BoltClient(client=client)
+    monkeypatch.setattr(bolt, "get_latest_artifact_url", lambda **kwargs: PRESIGNED_URL)
+
+    assert bolt.get_latest_manifest_json(slug="daily") == {"nodes": {}}
+    assert timeouts == [7]
 
 
 @pytest.mark.usefixtures("cli_env")
-def test_the_artifact_command_never_prints_the_presigned_query(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+@pytest.mark.parametrize("outcome", [_unresolvable, EXPIRED])
+def test_the_artifact_command_fails_without_the_presigned_query(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, outcome: Outcome
 ) -> None:
     from paradime.apis.bolt import client as bolt_client_module
 
-    _patch_network(monkeypatch, _unresolvable)
+    _patch_network(monkeypatch, outcome)
     monkeypatch.setattr(
         bolt_client_module.BoltClient,
         "get_latest_artifact_url",
         lambda self, **kwargs: PRESIGNED_URL,
     )
+    output = tmp_path / "manifest.json"
 
     result = CliRunner().invoke(
-        cli_module.cli,
-        ["bolt", "artifact", "--slug", "daily", "--output-path", str(tmp_path / "manifest.json")],
+        cli_module.cli, ["bolt", "artifact", "--slug", "daily", "--output-path", str(output)]
     )
 
-    assert result.exit_code != 0
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "Failed to get artifact" in result.stderr
+    assert not output.exists()
     assert _cli_leaks(result) == []

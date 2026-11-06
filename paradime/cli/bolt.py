@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from paradime.client.paradime_client import Paradime
 
 import click
+import requests
 
 from paradime.apis.bolt.types import BoltRunState
 from paradime.cli import console as _console
@@ -524,10 +525,10 @@ def artifact(
         else:
             output_file_path = Path(output_path)
 
-        output_file_path.write_text(download(artifact_url).text)
+        output_file_path.write_text(download(artifact_url, timeout=client.timeout).text)
 
         print_artifact_downloaded(output_file_path)
-    except ParadimeException as e:
+    except (ParadimeException, requests.RequestException) as e:
         print_error_table(f"Failed to get artifact: {e}", is_json=False)
         sys.exit(1)
 
