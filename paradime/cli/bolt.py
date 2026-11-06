@@ -21,7 +21,11 @@ from paradime.cli.rich_text_output import (
     print_success,
 )
 from paradime.cli.version import print_version
-from paradime.client.api_exception import ParadimeAPIException, ParadimeException
+from paradime.client.api_exception import (
+    ParadimeAPIException,
+    ParadimeException,
+    ParadimeWorkspaceRequiredException,
+)
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
 from paradime.client.redaction import download
 from paradime.core.bolt.schedule import (
@@ -99,10 +103,14 @@ def unsuspend(slug: str) -> None:
     and shown in the Bolt UI).
     """
     client = get_cli_client_or_exit()
-    client.bolt.suspend_schedule(
-        slug=slug,
-        suspend=False,
-    )
+    try:
+        client.bolt.suspend_schedule(
+            slug=slug,
+            suspend=False,
+        )
+    except ParadimeAPIException as e:
+        print_error_table(f"Failed to enable schedule: {e}", is_json=False)
+        sys.exit(1)
 
     print_success("Successfully enabled schedule.", is_json=False)
 
@@ -117,10 +125,14 @@ def suspend(slug: str) -> None:
     and shown in the Bolt UI).
     """
     client = get_cli_client_or_exit()
-    client.bolt.suspend_schedule(
-        slug=slug,
-        suspend=True,
-    )
+    try:
+        client.bolt.suspend_schedule(
+            slug=slug,
+            suspend=True,
+        )
+    except ParadimeAPIException as e:
+        print_error_table(f"Failed to suspend schedule: {e}", is_json=False)
+        sys.exit(1)
 
     print_success("Successfully suspended schedule.", is_json=False)
 
@@ -301,16 +313,25 @@ def verify(path: str) -> None:
         try:
             all_schedules = client.bolt.list_schedules(offset=0, limit=10000)
             existing_names = {s.name for s in all_schedules.schedules}
+        except ParadimeWorkspaceRequiredException:
+            raise
         except Exception:
             pass
         try:
             all_schedules_ref = set(client.bolt.list_all_schedule_names())
+        except ParadimeWorkspaceRequiredException:
+            raise
         except Exception:
             pass
         try:
             valid_environments = {e.slug for e in client.bolt.list_environments()}
+        except ParadimeWorkspaceRequiredException:
+            raise
         except Exception:
             pass
+    except ParadimeWorkspaceRequiredException as e:
+        _console.result_panel(str(e), style="error", title="Schedules Verification")
+        sys.exit(1)
     except (ParadimeAPIException, ParadimeException):
         client = None
 

@@ -150,6 +150,55 @@ def test_a_cli_command_without_a_workspace_explains_what_is_missing(
     assert post.requests == []
 
 
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["catalog", "refresh"],
+        ["bolt", "schedule", "unsuspend", "daily"],
+        ["bolt", "schedule", "suspend", "daily"],
+    ],
+)
+def test_workspace_commands_without_a_workspace_print_the_error_and_exit_1(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, args: List[str]
+) -> None:
+    post = _company_cli_env(monkeypatch, tmp_path)
+
+    result = CliRunner().invoke(cli_module.cli, args)
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SystemExit)
+    assert "PARADIME_WORKSPACE_UID" in result.stderr
+    assert "Traceback" not in result.output
+    assert post.requests == []
+
+
+def test_bolt_verify_without_a_workspace_fails_instead_of_skipping_checks(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    post = _company_cli_env(monkeypatch, tmp_path)
+    schedules = tmp_path / "paradime_schedules.yml"
+    schedules.write_text("schedules: []\n")
+
+    result = CliRunner().invoke(cli_module.cli, ["bolt", "verify", "--path", str(schedules)])
+
+    assert result.exit_code == 1
+    assert "PARADIME_WORKSPACE_UID" in result.output
+    assert "All schedules verified" not in result.output
+    assert post.requests == []
+
+
+def _company_cli_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakePost:
+    post = FakePost({})
+    monkeypatch.setattr(api_client_module.requests, "post", post)
+    monkeypatch.setattr(cli_module, "get_credentials_path", lambda: tmp_path / "credentials")
+    monkeypatch.setattr(cli_module, "check_for_new_version", lambda: None)
+    monkeypatch.setenv("PARADIME_API_ENDPOINT", ENDPOINT)
+    monkeypatch.setenv("PARADIME_API_SECRET", COMPANY_SECRET)
+    monkeypatch.delenv("PARADIME_WORKSPACE_UID", raising=False)
+    monkeypatch.delenv("WORKSPACE_UID", raising=False)
+    return post
+
+
 def test_login_lets_a_company_token_skip_the_workspace(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
