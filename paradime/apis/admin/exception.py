@@ -46,8 +46,10 @@ class AdminApiException(ParadimeAPIException):
         field: Optional[List[str]] = None,
         extensions: Optional[Dict[str, Any]] = None,
         errors: Optional[List[Dict[str, Any]]] = None,
+        status_code: Optional[int] = None,
+        response_text: Optional[str] = None,
     ):
-        super().__init__(message)
+        super().__init__(message, status_code=status_code, response_text=response_text)
         self.message = message
         self.code = code if code is not None else self.error_code
         self.field = field

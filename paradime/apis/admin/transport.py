@@ -134,12 +134,20 @@ class AdminTransport:
         errors = body.get("errors") if isinstance(body, dict) else None
         if errors:
             raise admin_exception_from_errors(errors, retry_after_header=retry_after_header)
+        response_text = redact_company_token(response.text, self.client.api_endpoint)
         if response.status_code == 429:
             raise AdminRateLimitedException(
-                "Too many requests.", retry_after=parse_retry_after(retry_after_header)
+                "Too many requests.",
+                retry_after=parse_retry_after(retry_after_header),
+                status_code=response.status_code,
+                response_text=response_text,
             )
         if not response.ok:
-            raise ParadimeAPIException(f"Error: {response.status_code} - {response.text}")
+            raise ParadimeAPIException(
+                f"Error: {response.status_code} - {response_text}",
+                status_code=response.status_code,
+                response_text=response_text,
+            )
         if not isinstance(body, dict) or body.get("data") is None:
             raise ParadimeAPIException(f"Error: {response.status_code} - {response.text}")
         return body["data"]

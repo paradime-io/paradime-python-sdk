@@ -163,10 +163,11 @@ class APIClient:
         try:
             response.raise_for_status()
         except Exception:
+            response_text = redact_company_token(response.text, self.api_endpoint)
             error = ParadimeAPIException(
-                redact_company_token(
-                    f"Error: {response.status_code} - {response.text}", self.api_endpoint
-                )
+                f"Error: {response.status_code} - {response_text}",
+                status_code=response.status_code,
+                response_text=response_text,
             )
         else:
             return
@@ -197,12 +198,19 @@ class APIClient:
         retry_after = parse_retry_after(extensions.get("retryAfter"))
         if retry_after is None:
             retry_after = parse_retry_after(response.headers.get("Retry-After"))
-        if response.status_code == 429:
-            message = f"Error: {response.status_code} - {response.text}"
-        else:
-            message = self._get_error_message_from_response(body)
+        if response.status_code != 429:
+            raise ParadimeRateLimitedException(
+                redact_company_token(
+                    self._get_error_message_from_response(body), self.api_endpoint
+                ),
+                retry_after=retry_after,
+            )
+        response_text = redact_company_token(response.text, self.api_endpoint)
         raise ParadimeRateLimitedException(
-            redact_company_token(message, self.api_endpoint), retry_after=retry_after
+            f"Error: {response.status_code} - {response_text}",
+            retry_after=retry_after,
+            status_code=response.status_code,
+            response_text=response_text,
         )
 
     def _raise_for_errors(self, response: requests.Response) -> None:
@@ -262,8 +270,9 @@ class APIClient:
             ParadimeRateLimitedException: If the API still refuses the request for its rate
                 limit after `max_rate_limit_retries` retries, or asks for a wait longer than
                 `max_retry_wait`.
-            requests.RequestException: When the API can't be reached; the message keeps the
-                company token out.
+            requests.RequestException: When the API can't be reached. It keeps its type and
+                its message, with the company token replaced by ``***``; its ``request`` and
+                ``response`` are None, because both would carry the token and the API secret.
         """
 
         if workspace_scoped:
