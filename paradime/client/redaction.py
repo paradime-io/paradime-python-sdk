@@ -1,10 +1,13 @@
 import re
+from typing import Callable, TypeVar
 from urllib.parse import urlsplit
 
 import requests
 
 COMPANY_TOKEN_PATH = re.compile(r"(/api/v\d+/)([^/?#]+)")
 QUERY_STRING = re.compile(r"\?[^\s'\"<>()]+")
+
+T = TypeVar("T")
 
 
 def redact_endpoint(endpoint: str) -> str:
@@ -39,8 +42,18 @@ def redacted_request_error(
     return same_type_error(error, redact_company_token(str(error), endpoint))
 
 
-def download(url: str) -> requests.Response:
+def send_redacted(
+    send: Callable[[], T], redact: Callable[[requests.RequestException], Exception]
+) -> T:
     try:
-        return requests.get(url)
+        return send()
     except requests.RequestException as e:
-        raise same_type_error(e, redact_query_strings(str(e), url)) from None
+        error = redact(e)
+    raise error
+
+
+def download(url: str) -> requests.Response:
+    return send_redacted(
+        lambda: requests.get(url),
+        lambda e: same_type_error(e, redact_query_strings(str(e), url)),
+    )

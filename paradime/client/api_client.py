@@ -14,7 +14,7 @@ from paradime.client.rate_limit import (
     parse_retry_after,
     retry_rate_limited,
 )
-from paradime.client.redaction import redact_company_token, redacted_request_error
+from paradime.client.redaction import redact_company_token, redacted_request_error, send_redacted
 from paradime.client.runtime import detect_runtime, get_python_version, is_telemetry_enabled
 from paradime.version import get_sdk_version
 
@@ -163,11 +163,14 @@ class APIClient:
         try:
             response.raise_for_status()
         except Exception:
-            raise ParadimeAPIException(
+            error = ParadimeAPIException(
                 redact_company_token(
                     f"Error: {response.status_code} - {response.text}", self.api_endpoint
                 )
-            ) from None
+            )
+        else:
+            return
+        raise error
 
     def _raise_for_rate_limit(self, response: requests.Response) -> None:
         """
@@ -273,15 +276,15 @@ class APIClient:
         )
 
     def _call_gql_once(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            response = requests.post(
+        response = send_redacted(
+            lambda: requests.post(
                 url=self.api_endpoint,
                 json={"query": query, "variables": variables},
                 headers=self._get_request_headers(),
                 timeout=self.timeout,
-            )
-        except requests.RequestException as e:
-            raise redacted_request_error(e, self.api_endpoint) from None
+            ),
+            lambda e: redacted_request_error(e, self.api_endpoint),
+        )
         self._raise_for_errors(response)
 
         return response.json()["data"]

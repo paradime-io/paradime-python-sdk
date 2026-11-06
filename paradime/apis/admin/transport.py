@@ -11,7 +11,12 @@ from paradime.apis.admin.exception import (
 from paradime.client.api_client import WORKSPACE_SELECTION_HEADER, APIClient
 from paradime.client.api_exception import ParadimeAPIException
 from paradime.client.rate_limit import parse_retry_after, retry_rate_limited
-from paradime.client.redaction import COMPANY_TOKEN_PATH, redact_company_token, redact_endpoint
+from paradime.client.redaction import (
+    COMPANY_TOKEN_PATH,
+    redact_company_token,
+    redact_endpoint,
+    send_redacted,
+)
 
 
 def _connection_error(endpoint: str, error: requests.RequestException) -> AdminConnectionException:
@@ -99,15 +104,15 @@ class AdminTransport:
     def _execute_once(
         self, query: str, variables: Dict[str, Any], workspace_uid: Optional[str]
     ) -> Dict[str, Any]:
-        try:
-            response = requests.post(
+        response = send_redacted(
+            lambda: requests.post(
                 url=self.client.api_endpoint,
                 json={"query": query, "variables": variables},
                 headers=self._headers(workspace_uid),
                 timeout=self.client.timeout,
-            )
-        except requests.RequestException as e:
-            raise _connection_error(self.client.api_endpoint, e) from None
+            ),
+            lambda e: _connection_error(self.client.api_endpoint, e),
+        )
         retry_after_header = response.headers.get("Retry-After")
         body = _json_body(response)
         errors = body.get("errors") if isinstance(body, dict) else None

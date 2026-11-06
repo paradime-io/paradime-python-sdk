@@ -1,97 +1,172 @@
+import socket
 import traceback
 from pathlib import Path
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Optional, Set, cast
 
 import pytest
 import requests
 from click.testing import CliRunner
+from urllib3.exceptions import MaxRetryError, NameResolutionError, ReadTimeoutError
 
+from paradime.apis.admin.exception import AdminConnectionException
+from paradime.apis.admin.transport import AdminTransport
 from paradime.apis.bolt.client import BoltClient
 from paradime.cli import cli as cli_module
-from paradime.client import api_client as api_client_module
 from paradime.client.api_client import APIClient
 from paradime.client.api_exception import ParadimeAPIException
 
 FAKE_TOKEN = "FAKECOMPANYTOKEN123"
+FAKE_SECRET = "prdm_cmp_FAKESECRET789"
 TOKEN_ENDPOINT = f"https://api.example.test/api/v1/{FAKE_TOKEN}/graphql"
 FAKE_SIGNATURE = "FAKESIGNATURE456"
 PRESIGNED_URL = (
     "https://bucket.example.test/run/1/target/manifest.json"
     f"?X-Amz-Credential=FAKEKEY&X-Amz-Signature={FAKE_SIGNATURE}"
 )
+SECRETS = (FAKE_TOKEN, FAKE_SECRET, FAKE_SIGNATURE, "X-Amz")
+
+Outcome = Callable[[requests.PreparedRequest], requests.Response]
 
 
-def _shown(error: BaseException) -> List[str]:
-    return [
+def _request_texts(request: Optional[requests.PreparedRequest]) -> List[str]:
+    if request is None:
+        return []
+    return [str(request.url), repr(dict(request.headers)), repr(request.body)]
+
+
+def _texts(error: Optional[BaseException], seen: Optional[Set[int]] = None) -> List[str]:
+    seen = set() if seen is None else seen
+    if error is None or id(error) in seen:
+        return []
+    seen.add(id(error))
+    texts = [
         str(error),
         repr(error),
         repr(error.args),
+        repr(vars(error)),
         "".join(traceback.format_exception(type(error), error, error.__traceback__)),
     ]
+    texts += _request_texts(getattr(error, "request", None))
+    response = getattr(error, "response", None)
+    if response is not None:
+        texts += [str(response.url), response.text, repr(dict(response.headers))]
+        texts += _request_texts(response.request)
+    for arg in error.args:
+        if isinstance(arg, BaseException):
+            texts += _texts(arg, seen)
+    texts += _texts(error.__cause__, seen)
+    texts += _texts(error.__context__, seen)
+    return texts
 
 
-def _http_error_response() -> requests.Response:
-    response = requests.Response()
-    response.status_code = 500
-    response.url = TOKEN_ENDPOINT
-    response._content = b"Internal Server Error"
-    return response
+def _leaks(error: Optional[BaseException]) -> List[str]:
+    return sorted({secret for secret in SECRETS for text in _texts(error) if secret in text})
 
 
-def _connection_error(**kwargs: Any) -> Any:
+def _patch_network(monkeypatch: pytest.MonkeyPatch, outcome: Outcome) -> None:
+    def send(self: Any, request: requests.PreparedRequest, **kwargs: Any) -> requests.Response:
+        return outcome(request)
+
+    monkeypatch.setattr(requests.adapters.HTTPAdapter, "send", send)
+
+
+def _unresolvable(request: requests.PreparedRequest) -> requests.Response:
+    host = str(request.url).split("/")[2]
+    reason = NameResolutionError(
+        host, cast(Any, None), socket.gaierror(-2, "Name or service not known")
+    )
     raise requests.exceptions.ConnectionError(
-        f"HTTPSConnectionPool(host='api.example.test', port=443): Max retries exceeded "
-        f"with url: /api/v1/{FAKE_TOKEN}/graphql"
+        MaxRetryError(cast(Any, None), request.path_url, reason), request=request
     )
 
 
-def _read_timeout(**kwargs: Any) -> Any:
-    raise requests.exceptions.ReadTimeout(f"Read timed out. (url={TOKEN_ENDPOINT})")
+def _read_timeout(request: requests.PreparedRequest) -> requests.Response:
+    raise requests.exceptions.ReadTimeout(
+        ReadTimeoutError(cast(Any, None), str(request.url), "Read timed out."),
+        request=request,
+    )
 
 
-def _server_error(**kwargs: Any) -> requests.Response:
-    return _http_error_response()
+def _status(code: int, body: bytes) -> Outcome:
+    def respond(request: requests.PreparedRequest) -> requests.Response:
+        response = requests.Response()
+        response.status_code = code
+        response.reason = "Error"
+        response.url = str(request.url)
+        response.request = request
+        response._content = body
+        return response
+
+    return respond
+
+
+SERVER_ERROR = _status(500, b"Internal Server Error")
+
+
+def _legacy_call() -> None:
+    APIClient(api_secret=FAKE_SECRET, workspace_uid="w1", api_endpoint=TOKEN_ENDPOINT)._call_gql(
+        "query q { x }"
+    )
+
+
+def _admin_call() -> None:
+    client = APIClient(api_secret=FAKE_SECRET, workspace_uid="w1", api_endpoint=TOKEN_ENDPOINT)
+    AdminTransport(client).execute("query q { x }")
 
 
 @pytest.mark.parametrize(
-    "post, expected_type",
+    "call, outcome, expected_type",
     [
-        (_connection_error, requests.exceptions.ConnectionError),
-        (_read_timeout, requests.exceptions.ReadTimeout),
-        (_server_error, ParadimeAPIException),
+        (_legacy_call, _unresolvable, requests.exceptions.ConnectionError),
+        (_legacy_call, _read_timeout, requests.exceptions.ReadTimeout),
+        (_legacy_call, SERVER_ERROR, ParadimeAPIException),
+        (_admin_call, _unresolvable, AdminConnectionException),
+        (_admin_call, _read_timeout, AdminConnectionException),
+        (_admin_call, SERVER_ERROR, ParadimeAPIException),
     ],
 )
-def test_legacy_client_errors_keep_the_company_token_out(
-    monkeypatch: pytest.MonkeyPatch, post: Callable[..., Any], expected_type: type
+def test_errors_keep_the_token_and_secret_out_of_every_attribute(
+    monkeypatch: pytest.MonkeyPatch,
+    call: Callable[[], None],
+    outcome: Outcome,
+    expected_type: type,
 ) -> None:
-    monkeypatch.setattr(api_client_module.requests, "post", post)
-    client = APIClient(api_secret="prdm_wsp_secret", api_endpoint=TOKEN_ENDPOINT)
+    _patch_network(monkeypatch, outcome)
 
     with pytest.raises(expected_type) as exc_info:
-        client._call_gql("query q { x }")
+        call()
 
     raised = exc_info.value
     assert type(raised) is expected_type
-    assert all(FAKE_TOKEN not in text for text in _shown(raised))
-    assert raised.__cause__ is None and raised.__suppress_context__
+    assert _leaks(raised) == []
+    assert raised.__cause__ is None and raised.__context__ is None
+
+
+def test_the_walk_finds_a_token_on_a_suppressed_context() -> None:
+    try:
+        try:
+            raise ValueError(TOKEN_ENDPOINT)
+        except ValueError:
+            raise RuntimeError("redacted") from None
+    except RuntimeError as e:
+        assert _leaks(e) == [FAKE_TOKEN]
 
 
 def test_a_connection_error_keeps_the_useful_text(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(api_client_module.requests, "post", _connection_error)
-    client = APIClient(api_secret="prdm_wsp_secret", api_endpoint=TOKEN_ENDPOINT)
+    _patch_network(monkeypatch, _unresolvable)
 
     with pytest.raises(requests.exceptions.ConnectionError) as exc_info:
-        client._call_gql("query q { x }")
+        _legacy_call()
 
     assert "Max retries exceeded with url: /api/v1/***/graphql" in str(exc_info.value)
+    assert "Name or service not known" in str(exc_info.value)
 
 
 def test_an_http_error_keeps_its_status_and_body(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(api_client_module.requests, "post", _server_error)
-    client = APIClient(api_secret="prdm_wsp_secret", api_endpoint=TOKEN_ENDPOINT)
+    _patch_network(monkeypatch, SERVER_ERROR)
 
     with pytest.raises(ParadimeAPIException) as exc_info:
-        client._call_gql("query q { x }")
+        _legacy_call()
 
     assert str(exc_info.value) == "Error: 500 - Internal Server Error"
 
@@ -102,16 +177,15 @@ def cli_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(cli_module, "check_for_new_version", lambda: None)
     monkeypatch.setenv("PARADIME_DISABLE_VERSION_CHECK", "1")
     monkeypatch.setenv("PARADIME_API_ENDPOINT", TOKEN_ENDPOINT)
-    monkeypatch.setenv("PARADIME_API_SECRET", "prdm_wsp_secret")
+    monkeypatch.setenv("PARADIME_API_SECRET", FAKE_SECRET)
+    monkeypatch.setenv("PARADIME_WORKSPACE_UID", "w1")
     monkeypatch.delenv("PARADIME_API_KEY", raising=False)
-    monkeypatch.delenv("PARADIME_WORKSPACE_UID", raising=False)
 
 
-def _cli_outputs(result: Any) -> List[str]:
+def _cli_leaks(result: Any) -> List[str]:
     texts = [result.stdout, result.stderr]
-    if result.exception is not None:
-        texts.extend(_shown(result.exception))
-    return texts
+    leaks = {secret for secret in SECRETS for text in texts if secret in text}
+    return sorted(leaks.union(_leaks(result.exception)))
 
 
 @pytest.mark.usefixtures("cli_env")
@@ -119,44 +193,36 @@ def test_the_welcome_panel_shows_the_endpoint_without_the_company_token() -> Non
     result = CliRunner().invoke(cli_module.cli, ["version"])
 
     assert result.exit_code == 0, result.output
-    assert all(FAKE_TOKEN not in text for text in _cli_outputs(result))
+    assert _cli_leaks(result) == []
     assert "api.example.test/api/v1/***/graphql" in result.stderr
 
 
 @pytest.mark.usefixtures("cli_env")
-@pytest.mark.parametrize("post", [_connection_error, _read_timeout, _server_error])
+@pytest.mark.parametrize("outcome", [_unresolvable, _read_timeout, SERVER_ERROR])
 def test_a_failing_cli_command_never_prints_the_company_token(
-    monkeypatch: pytest.MonkeyPatch, post: Callable[..., Any]
+    monkeypatch: pytest.MonkeyPatch, outcome: Outcome
 ) -> None:
-    monkeypatch.setattr(api_client_module.requests, "post", post)
+    _patch_network(monkeypatch, outcome)
 
     result = CliRunner().invoke(cli_module.cli, ["bolt", "run", "daily"])
 
     assert result.exit_code != 0
-    assert all(FAKE_TOKEN not in text for text in _cli_outputs(result))
-
-
-def _unreachable_bucket(url: str, **kwargs: Any) -> Any:
-    raise requests.exceptions.ConnectionError(
-        "HTTPSConnectionPool(host='bucket.example.test', port=443): Max retries exceeded with "
-        f"url: /run/1/target/manifest.json?X-Amz-Credential=FAKEKEY&X-Amz-Signature="
-        f"{FAKE_SIGNATURE} (Caused by NameResolutionError)"
-    )
+    assert _cli_leaks(result) == []
 
 
 def test_an_artifact_download_error_drops_the_presigned_query(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(requests, "get", _unreachable_bucket)
+    _patch_network(monkeypatch, _unresolvable)
     bolt = BoltClient(client=APIClient(api_secret="prdm_wsp_secret", api_endpoint="https://x"))
     monkeypatch.setattr(bolt, "get_latest_artifact_url", lambda **kwargs: PRESIGNED_URL)
 
     with pytest.raises(requests.exceptions.ConnectionError) as exc_info:
         bolt.get_latest_manifest_json(slug="daily")
 
-    shown = _shown(exc_info.value)
-    assert all(FAKE_SIGNATURE not in text and "X-Amz" not in text for text in shown)
-    assert "url: /run/1/target/manifest.json (Caused by NameResolutionError)" in str(exc_info.value)
+    assert _leaks(exc_info.value) == []
+    assert exc_info.value.__context__ is None
+    assert "url: /run/1/target/manifest.json (Caused by" in str(exc_info.value)
 
 
 @pytest.mark.usefixtures("cli_env")
@@ -165,7 +231,7 @@ def test_the_artifact_command_never_prints_the_presigned_query(
 ) -> None:
     from paradime.apis.bolt import client as bolt_client_module
 
-    monkeypatch.setattr(requests, "get", _unreachable_bucket)
+    _patch_network(monkeypatch, _unresolvable)
     monkeypatch.setattr(
         bolt_client_module.BoltClient,
         "get_latest_artifact_url",
@@ -177,5 +243,5 @@ def test_the_artifact_command_never_prints_the_presigned_query(
         ["bolt", "artifact", "--slug", "daily", "--output-path", str(tmp_path / "manifest.json")],
     )
 
-    assert isinstance(result.exception, requests.exceptions.ConnectionError)
-    assert all(FAKE_SIGNATURE not in text for text in _cli_outputs(result))
+    assert result.exit_code != 0
+    assert _cli_leaks(result) == []
