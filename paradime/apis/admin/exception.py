@@ -1,7 +1,12 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, Type
 
-from paradime.client.api_exception import ParadimeAPIException, ParadimeException
+from paradime.client.api_exception import (
+    ParadimeAPIException,
+    ParadimeException,
+    ParadimeRateLimitedException,
+)
+from paradime.client.rate_limit import parse_retry_after
 
 
 class ErrorCode(str, Enum):
@@ -87,7 +92,7 @@ class AdminConflictException(AdminApiException):
     error_code = ErrorCode.CONFLICT
 
 
-class AdminRateLimitedException(AdminApiException):
+class AdminRateLimitedException(AdminApiException, ParadimeRateLimitedException):
     """
     The API key used up its rate limit. ``retry_after`` is how many seconds to wait, when the
     server said.
@@ -162,14 +167,6 @@ def parse_error_code(value: Any) -> Optional[ErrorCode]:
         return ErrorCode(value)
     except ValueError:
         return None
-
-
-def parse_retry_after(value: Any) -> Optional[float]:
-    try:
-        seconds = float(value)
-    except (TypeError, ValueError):
-        return None
-    return seconds if seconds >= 0 else None
 
 
 def admin_exception_for(

@@ -1,4 +1,3 @@
-import logging
 import time
 from typing import Any, Callable, Dict, Optional
 
@@ -8,17 +7,11 @@ from paradime.apis.admin.exception import (
     AdminConnectionException,
     AdminRateLimitedException,
     admin_exception_from_errors,
-    parse_retry_after,
 )
 from paradime.client.api_client import WORKSPACE_SELECTION_HEADER, APIClient
 from paradime.client.api_exception import ParadimeAPIException
+from paradime.client.rate_limit import parse_retry_after, retry_rate_limited
 from paradime.client.redaction import COMPANY_TOKEN_PATH, redact_company_token, redact_endpoint
-
-logger = logging.getLogger(__name__)
-
-DEFAULT_MAX_RATE_LIMIT_RETRIES = 3
-DEFAULT_MAX_RETRY_WAIT_SECONDS = 60.0
-DEFAULT_RETRY_WAIT_SECONDS = 1.0
 
 
 def _connection_error(endpoint: str, error: requests.RequestException) -> AdminConnectionException:
@@ -41,9 +34,12 @@ class AdminTransport:
     `extensions.code`.
 
     Args:
-        client (APIClient): The client whose endpoint, credentials and timeout to use.
-        max_rate_limit_retries (int): How many times to retry a rate-limited request.
-        max_retry_wait (float): The longest wait to retry after, in seconds.
+        client (APIClient): The client whose endpoint, credentials, timeout and rate limit
+            retry settings to use.
+        max_rate_limit_retries (int, optional): How many times to retry a rate-limited
+            request, in place of the client's.
+        max_retry_wait (float, optional): The longest wait to retry after, in seconds, in
+            place of the client's.
         sleep (Callable[[float], None]): How to wait between retries.
     """
 
@@ -51,13 +47,17 @@ class AdminTransport:
         self,
         client: APIClient,
         *,
-        max_rate_limit_retries: int = DEFAULT_MAX_RATE_LIMIT_RETRIES,
-        max_retry_wait: float = DEFAULT_MAX_RETRY_WAIT_SECONDS,
+        max_rate_limit_retries: Optional[int] = None,
+        max_retry_wait: Optional[float] = None,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.client = client
-        self.max_rate_limit_retries = max_rate_limit_retries
-        self.max_retry_wait = max_retry_wait
+        self.max_rate_limit_retries = (
+            client.max_rate_limit_retries
+            if max_rate_limit_retries is None
+            else max_rate_limit_retries
+        )
+        self.max_retry_wait = client.max_retry_wait if max_retry_wait is None else max_retry_wait
         self.sleep = sleep
 
     def execute(
@@ -83,20 +83,12 @@ class AdminTransport:
                 company token out.
         """
 
-        retries = 0
-        while True:
-            try:
-                return self._execute_once(query, variables or {}, workspace_uid)
-            except AdminRateLimitedException as e:
-                wait = e.retry_after if e.retry_after is not None else DEFAULT_RETRY_WAIT_SECONDS
-                if retries >= self.max_rate_limit_retries or wait > self.max_retry_wait:
-                    raise
-                retries += 1
-                logger.info(
-                    f"Rate limited by the Paradime API; retrying in {wait:g}s"
-                    f" ({retries}/{self.max_rate_limit_retries})."
-                )
-                self.sleep(wait)
+        return retry_rate_limited(
+            lambda: self._execute_once(query, variables or {}, workspace_uid),
+            max_rate_limit_retries=self.max_rate_limit_retries,
+            max_retry_wait=self.max_retry_wait,
+            sleep=self.sleep,
+        )
 
     def _headers(self, workspace_uid: Optional[str]) -> Dict[str, str]:
         headers = self.client._get_request_headers()

@@ -1,8 +1,19 @@
+import time
 from typing import Any, Dict, Optional
 
 import requests
 
-from paradime.client.api_exception import ParadimeAPIException, ParadimeWorkspaceRequiredException
+from paradime.client.api_exception import (
+    ParadimeAPIException,
+    ParadimeRateLimitedException,
+    ParadimeWorkspaceRequiredException,
+)
+from paradime.client.rate_limit import (
+    DEFAULT_MAX_RATE_LIMIT_RETRIES,
+    DEFAULT_MAX_RETRY_WAIT_SECONDS,
+    parse_retry_after,
+    retry_rate_limited,
+)
 from paradime.client.redaction import redact_company_token, redacted_request_error
 from paradime.client.runtime import detect_runtime, get_python_version, is_telemetry_enabled
 from paradime.version import get_sdk_version
@@ -15,6 +26,8 @@ COMPANY_API_TOKEN_PREFIX = "prdm_cmp_"
 WORKSPACE_API_TOKEN_PREFIX = "prdm_wsp_"
 
 WORKSPACE_SELECTION_HEADER = "X-Paradime-Workspace"
+
+RATE_LIMITED_ERROR_CODE = "RATE_LIMITED"
 
 
 def _is_bearer_token(api_secret: str) -> bool:
@@ -49,6 +62,11 @@ class APIClient:
             (`prdm_cmp_`) token. Needed for workspace-level calls; not used otherwise.
         api_endpoint (str): The endpoint URL for the API.
         timeout (int, optional): The timeout for API requests in seconds. Defaults to 60 seconds.
+        max_rate_limit_retries (int, optional): How many times to retry a request the API
+            refuses for its rate limit (HTTP 429), after the wait the server asks for.
+            Defaults to 3.
+        max_retry_wait (float, optional): The longest wait to retry after, in seconds; a
+            longer one raises at once. Defaults to 60 seconds.
     """
 
     def __init__(
@@ -59,6 +77,8 @@ class APIClient:
         workspace_uid: Optional[str] = None,
         api_endpoint: str,
         timeout: int = 60,
+        max_rate_limit_retries: int = DEFAULT_MAX_RATE_LIMIT_RETRIES,
+        max_retry_wait: float = DEFAULT_MAX_RETRY_WAIT_SECONDS,
     ):
         if not _is_bearer_token(api_secret) and not api_key:
             raise ValueError(
@@ -71,6 +91,8 @@ class APIClient:
         self.workspace_uid = workspace_uid
         self.api_endpoint = api_endpoint
         self.timeout = timeout
+        self.max_rate_limit_retries = max_rate_limit_retries
+        self.max_retry_wait = max_retry_wait
 
     def _get_request_headers(self) -> Dict[str, str]:
         """
@@ -146,6 +168,39 @@ class APIClient:
                 )
             ) from None
 
+    def _raise_for_rate_limit(self, response: requests.Response) -> None:
+        """
+        Raise an exception when the API refused the request for its rate limit.
+
+        Args:
+            response (requests.Response): The API response.
+
+        Raises:
+            ParadimeRateLimitedException: If the response is HTTP 429 or a `RATE_LIMITED` error.
+        """
+
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        errors = body.get("errors") if isinstance(body, dict) else None
+        first = errors[0] if isinstance(errors, list) and errors else None
+        extensions = first.get("extensions") if isinstance(first, dict) else None
+        if not isinstance(extensions, dict):
+            extensions = {}
+        if response.status_code != 429 and extensions.get("code") != RATE_LIMITED_ERROR_CODE:
+            return
+        retry_after = parse_retry_after(extensions.get("retryAfter"))
+        if retry_after is None:
+            retry_after = parse_retry_after(response.headers.get("Retry-After"))
+        if response.status_code == 429:
+            message = f"Error: {response.status_code} - {response.text}"
+        else:
+            message = self._get_error_message_from_response(body)
+        raise ParadimeRateLimitedException(
+            redact_company_token(message, self.api_endpoint), retry_after=retry_after
+        )
+
     def _raise_for_errors(self, response: requests.Response) -> None:
         """
         Raise an exception for any errors in the API response.
@@ -154,9 +209,11 @@ class APIClient:
             response (requests.Response): The API response.
 
         Raises:
+            ParadimeRateLimitedException: If the API refused the request for its rate limit.
             ParadimeAPIException: If there are errors in the API response.
         """
 
+        self._raise_for_rate_limit(response)
         self._raise_for_response_status_errors(response)
         self._raise_for_gql_response_body_errors(response)
 
@@ -198,12 +255,23 @@ class APIClient:
             ParadimeAPIException: If there are errors in the API response.
             ParadimeWorkspaceRequiredException: If the call targets one workspace and a
                 company-level token has no `workspace_uid`.
+            ParadimeRateLimitedException: If the API still refuses the request for its rate
+                limit after `max_rate_limit_retries` retries, or asks for a wait longer than
+                `max_retry_wait`.
             requests.RequestException: When the API can't be reached; the message keeps the
                 company token out.
         """
 
         if workspace_scoped:
             self._raise_for_missing_workspace()
+        return retry_rate_limited(
+            lambda: self._call_gql_once(query, variables),
+            max_rate_limit_retries=self.max_rate_limit_retries,
+            max_retry_wait=self.max_retry_wait,
+            sleep=time.sleep,
+        )
+
+    def _call_gql_once(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
         try:
             response = requests.post(
                 url=self.api_endpoint,
