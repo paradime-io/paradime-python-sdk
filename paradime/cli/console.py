@@ -227,7 +227,7 @@ _LOGO_LINES = [
 
 def welcome_panel(version: str, workspace_endpoint: str | None = None) -> None:
     """
-    Render the Paradime CLI welcome panel — shown on every `paradime` invocation.
+    Render the Paradime CLI welcome panel on stderr — shown on every `paradime` invocation.
 
     Layout mirrors the Claude Code welcome screen:
       left  — logo, version badge, workspace info
@@ -303,7 +303,7 @@ def welcome_panel(version: str, workspace_endpoint: str | None = None) -> None:
         padding=(0, 1),
     )
 
-    console.print(panel)
+    err_console.print(panel)
 
 
 # ---------------------------------------------------------------------------

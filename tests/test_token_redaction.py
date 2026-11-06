@@ -120,7 +120,7 @@ def test_the_welcome_panel_shows_the_endpoint_without_the_company_token() -> Non
 
     assert result.exit_code == 0, result.output
     assert all(FAKE_TOKEN not in text for text in _cli_outputs(result))
-    assert "api.example.test/api/v1/***/graphql" in result.stdout
+    assert "api.example.test/api/v1/***/graphql" in result.stderr
 
 
 @pytest.mark.usefixtures("cli_env")
