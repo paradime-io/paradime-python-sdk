@@ -120,6 +120,21 @@ class NativeIntegrationNodeType(Enum):
     SIGMA_WORKBOOK = "SigmaWorkbook"
     SIGMA_PAGE = "SigmaPage"
     SIGMA_ELEMENT = "SigmaElement"
+    LIGHTDASH_EXPLORE = "LightdashExplore"
+    LIGHTDASH_CHART = "LightdashChart"
+    LIGHTDASH_DASHBOARD = "LightdashDashboard"
+    OMNI_MODEL = "OmniModel"
+    OMNI_VIEW = "OmniView"
+    OMNI_DOCUMENT = "OmniDocument"
+    OMNI_DASHBOARD = "OmniDashboard"
+    OMNI_TILE = "OmniTile"
+    METABASE_COLLECTION = "MetabaseCollection"
+    METABASE_DASHBOARD = "MetabaseDashboard"
+    METABASE_CARD = "MetabaseCard"
+    METABASE_MODEL = "MetabaseModel"
+    METABASE_TABLE = "MetabaseTable"
+    AIRBYTE_SOURCE = "AirbyteSource"
+    AIRBYTE_CONNECTION = "AirbyteConnection"
 
 
 class LineageDependencyNativeIntegration(ParadimeBaseModel):

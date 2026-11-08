@@ -105,3 +105,8 @@ def test_downstream_fields_on_a_datasource_field() -> None:
 def test_a_field_reference_needs_a_field_name() -> None:
     with pytest.raises(ValueError):
         FieldDependencyCustomIntegrationField(node_type="Loader", node_name="Orders loader")  # type: ignore[call-arg]
+
+
+def test_native_node_types_include_every_supported_integration() -> None:
+    values = {member.value for member in NativeIntegrationNodeType}
+    assert {"LightdashChart", "OmniTile", "MetabaseCard", "AirbyteConnection"} <= values
