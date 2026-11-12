@@ -166,22 +166,13 @@ class RefreshFollower:
             last = refresh
             self._report(refresh)
 
-            if self._is_over(refresh):
+            if refresh.finished:
                 return self._summary(refresh, self.monotonic() - started)
 
             now = self.monotonic()
             if now >= deadline:
                 return self._timed_out(refresh, now - started)
             self.sleep(min(POLL_INTERVAL, max(deadline - now, 0.0)))
-
-    @staticmethod
-    def _is_over(refresh: CatalogRefresh) -> bool:
-        if refresh.status in (CatalogRefreshStatus.FAILED, CatalogRefreshStatus.LOST):
-            return True
-        if refresh.status is CatalogRefreshStatus.RUNNING:
-            return False
-        # The refresh can end while non-blocking steps (e.g. integration pushes) still run.
-        return all(step.is_done for step in refresh.steps)
 
     def _report(self, refresh: CatalogRefresh) -> None:
         now = self.monotonic()
@@ -279,7 +270,7 @@ class RefreshFollower:
 
         if refresh.status is CatalogRefreshStatus.SKIPPED:
             reason = f": {refresh.error.message}" if refresh.error else ""
-            self._log(REFRESH_LABEL, f"skipped{reason}")
+            self._log(REFRESH_LABEL, f"WARNING: skipped, nothing was refreshed{reason}")
             return 0
 
         message = f"done in {format_duration(elapsed)}"
