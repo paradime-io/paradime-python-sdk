@@ -21,10 +21,8 @@ EXAMPLE_CONFIG = EXAMPLE_DIR / "config.example.yml"
 API_SECRET = "prdm_cmp_onboarding-test-secret"
 GITHUB_TOKEN = "ghp_onboarding-test-token"
 PRIVATE_KEY = "-----BEGIN PRIVATE KEY-----onboarding-test"
-WEBHOOK_URL = "https://acme.webhook.office.com/webhookb2/onboarding-test-secret"
 ENVIRON = {
     "ONBOARDING_SNOWFLAKE_PRIVATE_KEY": PRIVATE_KEY,
-    "ONBOARDING_TEAMS_WEBHOOK_URL": WEBHOOK_URL,
 }
 
 
@@ -207,7 +205,7 @@ def test_full_run_against_the_stub_passes_every_step_and_deletes_the_workspace(
     assert "RATE_LIMITED: retried after 0.05s" in output
     assert "PENDING_USER_ACTION GITHUB_APP (optional)" in output
     assert "PENDING_USER_ACTION Slack" in output
-    for secret in (API_SECRET, GITHUB_TOKEN, PRIVATE_KEY, WEBHOOK_URL):
+    for secret in (API_SECRET, GITHUB_TOKEN, PRIVATE_KEY):
         assert secret not in output
 
 
@@ -335,7 +333,7 @@ def test_config_reads_variables_from_files_and_keeps_secrets_out_of_argv() -> No
         "": {"COMPANY": "acme", "DBT_SEND_ANONYMOUS_USAGE_STATS": "false"},
         "staging": {"DBT_TARGET_SCHEMA": "analytics_staging"},
     }
-    assert {PRIVATE_KEY, WEBHOOK_URL} <= config.secrets
+    assert PRIVATE_KEY in config.secrets
     assert {"acme", "false", "analytics_staging"} <= config.secrets
 
 
@@ -474,13 +472,15 @@ def test_a_custom_github_api_url_handles_keys_on_any_host(stub: Tuple[StubAdminA
 
 
 def test_short_and_non_text_secrets_are_masked(tmp_path: Path) -> None:
-    config_path = _config_file(tmp_path, "url: {fromEnv: ONBOARDING_TEAMS_WEBHOOK_URL}", "url: 987")
+    config_path = _config_file(
+        tmp_path, "bolt:\n  branch: main\n", "bolt:\n  branch: main\n  token: 987\n"
+    )
     config = onboard.ConfigLoader(config_path, ENVIRON).load()
     runner, out = _runner(secrets=config.secrets)
 
-    runner.run(onboard.Step(11, "notifications", _passes("refused webhook 987 for ab")))
+    runner.run(onboard.Step(10, "deployBoltSchedules", _passes("refused token 987 for ab")))
 
-    assert config.notifications["ms_teams_webhook"]["url"] == 987
+    assert config.bolt["token"] == 987
     assert "987" in config.secrets
     assert "987" not in out.getvalue()
     assert onboard.StepRunner(2, secrets={"ab"}).redact("ab") == "****"
@@ -555,3 +555,61 @@ def test_setup_status_is_read_with_the_sdk_and_reports_each_product(
     assert outcome.detail == "isComplete=true, 9 DONE, 1 PENDING_USER_ACTION"
     assert "products: Code IDE DONE, Bolt DONE, agent DONE (suggested: GITHUB_APP)" in outcome.notes
     assert [w for o, w in api.calls if o == "adminWorkspaceSetupStatus"] == [NEW_UID]
+
+
+def test_a_profile_development_connection_keeps_its_warehouse_type(
+    tmp_path: Path, stub: Tuple[StubAdminApi, str]
+) -> None:
+    api, url = stub
+    profile = (
+        "profileConnection:\n      warehouseType: TRINO\n      schema: analyst_dev\n"
+        "      profile: 'trino: {}'\n\n"
+    )
+    config_path = _config_file(
+        tmp_path, "snowflake:\n      account: acme-xy12345\n      useKeyPairAuth: true\n\n", profile
+    )
+    onboarding = _onboarding(url)
+    onboarding.config = onboard.ConfigLoader(config_path, ENVIRON).load()
+    onboarding.create_workspace()
+
+    outcome = onboarding.development_connection()
+
+    sent = [
+        v["input"]["adapter"]
+        for operation, v in api.variables
+        if operation == "adminSetWarehouseConnection"
+    ]
+    assert sent == [{"profileConnection": {"warehouseType": "TRINO", "profile": "trino: {}"}}]
+    assert "left out per-user fields: schema" in outcome.detail
+
+
+def test_notifications_route_alerts_to_email_and_read_slack(stub: Tuple[StubAdminApi, str]) -> None:
+    api, url = stub
+    onboarding = _onboarding(url)
+    onboarding.create_workspace()
+
+    outcome = onboarding.notifications()
+
+    sent = [
+        v["input"] for operation, v in api.variables if operation == "adminSetAlertNotifications"
+    ]
+    assert sent == [{"category": "BOLT_SYSTEM", "email": {"enabled": True}}]
+    assert outcome.detail == "BOLT_SYSTEM alerts: email True, Slack PENDING_USER_ACTION"
+
+
+@pytest.mark.parametrize(
+    "teams",
+    [
+        "  ms_teams_webhook:\n    name: data-alerts\n    url: https://example.test/hook\n",
+        "  ms_teams: [data-alerts]\n",
+    ],
+)
+def test_a_microsoft_teams_notification_setting_is_a_config_error(
+    tmp_path: Path, teams: str
+) -> None:
+    config_path = _config_file(tmp_path, "notifications:\n", f"notifications:\n{teams}")
+
+    with pytest.raises(
+        onboard.ConfigError, match="notifications takes only email_enabled, not ms_"
+    ):
+        onboard.ConfigLoader(config_path, ENVIRON).load()
