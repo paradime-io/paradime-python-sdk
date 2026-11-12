@@ -57,6 +57,7 @@ GITHUB_API_URL = "https://api.github.com"
 GITHUB_HOST = "github.com"
 NAME_PREFIX_MARKER = "onboarding-"
 ENDPOINT_PATH_WORDS = frozenset({"api", "v1", "graphql"})
+NOTIFICATION_SETTINGS = frozenset({"email_enabled"})
 PERSONAL_DEVELOPMENT_FIELDS: Dict[str, frozenset] = {
     "snowflake": frozenset(
         {
@@ -86,7 +87,7 @@ PERSONAL_DEVELOPMENT_FIELDS: Dict[str, frozenset] = {
             "profile",
         }
     ),
-    "extension": frozenset({"schema_name"}),
+    "profile_connection": frozenset({"schema_name"}),
 }
 FINISHED_RUN_STATES = {
     BoltRunState.SUCCESS,
@@ -309,6 +310,13 @@ class ConfigLoader:
         if not scheduler:
             raise ConfigError("scheduler_connections needs at least one environment.")
         timeouts = self.mapping(data, "timeouts")
+        notifications = self.mapping(data, "notifications")
+        unknown_notifications = sorted(set(notifications) - NOTIFICATION_SETTINGS)
+        if unknown_notifications:
+            raise ConfigError(
+                "notifications takes only email_enabled, not "
+                f"{', '.join(str(key) for key in unknown_notifications)}."
+            )
         config = OnboardingConfig(
             name_prefix=prefix,
             git_provider=provider,
@@ -322,7 +330,7 @@ class ConfigLoader:
             variables=self.variables(self.mapping(data, "environment_variables")),
             agent=data.get("agent"),
             bolt=self.mapping(data, "bolt"),
-            notifications=data.get("notifications"),
+            notifications=notifications or None,
             users=list(data.get("users") or []),
             job_timeout=float(timeouts.get("job", 600)),
             run_timeout=float(timeouts.get("run", 3600)),
@@ -772,22 +780,12 @@ class Onboarding:
             raise SkipStep("no notifications block in the config")
         notifications = self.target.admin.notifications
         parts, notes = [], []
-        webhook = settings.get("ms_teams_webhook") or {}
-        webhook_names: Optional[List[str]] = None
-        if webhook:
-            saved = notifications.set_ms_teams_webhook(str(webhook["name"]), str(webhook["url"]))
-            webhook_names = [saved.name]
-            parts.append(f"Teams webhook {saved.name}")
         email = settings.get("email_enabled")
         alerts = notifications.set_alert_notifications(
-            ms_teams_webhook_names=webhook_names,
             email_enabled=None if email is None else bool(email),
         )
-        teams = alerts.ms_teams.webhook_names if alerts.ms_teams else []
         enabled = alerts.email.enabled if alerts.email else None
-        parts.append(
-            f"{alerts.category.value} alerts: Teams {', '.join(teams) or 'none'}, email {enabled}"
-        )
+        parts.append(f"{alerts.category.value} alerts: email {enabled}")
         slack = notifications.get_slack()
         if slack is not None:
             parts.append(f"Slack {slack.status.value}")

@@ -83,9 +83,6 @@ bolt:
     commands: ["dbt debug"]
 
 notifications:
-  ms_teams_webhook:
-    name: data-alerts
-    url: {fromEnv: ONBOARDING_TEAMS_WEBHOOK_URL}
   email_enabled: true
 
 users:

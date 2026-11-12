@@ -77,8 +77,8 @@ WAREHOUSE_CONNECTION_FIELDS = """
             passwordIsSet
             profileIsSet
         }
-        ... on ExtensionConnectionSettings {
-            dbtType
+        ... on ProfileConnectionSettings {
+            warehouseType
             schema
             profileIsSet
         }
@@ -120,14 +120,6 @@ class BigQueryConnectionType(OpenEnum):
 class DuckDbConnectionType(OpenEnum):
     MOTHERDUCK = "MOTHERDUCK"
     DUCKDB = "DUCKDB"
-    UNKNOWN = "UNKNOWN"
-
-
-class ExtensionDbtType(OpenEnum):
-    TRINO = "TRINO"
-    SQLSERVER = "SQLSERVER"
-    CLICKHOUSE = "CLICKHOUSE"
-    FABRIC = "FABRIC"
     UNKNOWN = "UNKNOWN"
 
 
@@ -198,8 +190,8 @@ class FireboltConnectionSettings(AdminModel):
     profile_is_set: Optional[bool] = None
 
 
-class ExtensionConnectionSettings(AdminModel):
-    dbt_type: Optional[ExtensionDbtType] = None
+class ProfileConnectionSettings(AdminModel):
+    warehouse_type: Optional[WarehouseType] = None
     schema_name: Optional[str] = None
     profile_is_set: Optional[bool] = None
 
@@ -211,7 +203,7 @@ WarehouseConnectionSettings = Union[
     RedshiftConnectionSettings,
     DuckDbConnectionSettings,
     FireboltConnectionSettings,
-    ExtensionConnectionSettings,
+    ProfileConnectionSettings,
 ]
 
 SETTINGS_BY_TYPENAME: Dict[str, Type[AdminModel]] = {
@@ -223,7 +215,7 @@ SETTINGS_BY_TYPENAME: Dict[str, Type[AdminModel]] = {
         RedshiftConnectionSettings,
         DuckDbConnectionSettings,
         FireboltConnectionSettings,
-        ExtensionConnectionSettings,
+        ProfileConnectionSettings,
     )
 }
 
@@ -326,8 +318,8 @@ class FireboltConnectionInput(AdminInputModel):
     profile: Optional[StrictStr] = None
 
 
-class ExtensionConnectionInput(AdminInputModel):
-    dbt_type: Optional[ExtensionDbtType] = None
+class ProfileConnectionInput(AdminInputModel):
+    warehouse_type: Optional[WarehouseType] = None
     schema_name: Optional[StrictStr] = None
     profile: Optional[StrictStr] = None
 
@@ -339,7 +331,7 @@ class WarehouseAdapterInput(AdminInputModel):
     redshift: Optional[RedshiftConnectionInput] = None
     duckdb: Optional[DuckDbConnectionInput] = None
     firebolt: Optional[FireboltConnectionInput] = None
-    extension: Optional[ExtensionConnectionInput] = None
+    profile_connection: Optional[ProfileConnectionInput] = None
 
 
 ConnectionAdapter = Union[
@@ -350,7 +342,7 @@ ConnectionAdapter = Union[
     RedshiftConnectionInput,
     DuckDbConnectionInput,
     FireboltConnectionInput,
-    ExtensionConnectionInput,
+    ProfileConnectionInput,
 ]
 
 ADAPTER_KEYS: Dict[Type[AdminInputModel], str] = {
@@ -360,7 +352,7 @@ ADAPTER_KEYS: Dict[Type[AdminInputModel], str] = {
     RedshiftConnectionInput: "redshift",
     DuckDbConnectionInput: "duckdb",
     FireboltConnectionInput: "firebolt",
-    ExtensionConnectionInput: "extension",
+    ProfileConnectionInput: "profile_connection",
 }
 
 
