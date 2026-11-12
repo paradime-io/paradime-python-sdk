@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 import pytest
 from click.testing import CliRunner
 
-from paradime.apis.admin.connections.types import WarehouseConnection
+from paradime.apis.admin.connections.types import WarehouseConnection, WarehouseType
 from paradime.apis.admin.environment_variables.types import SetEnvironmentVariablesResult
 from paradime.apis.admin.exception import AdminValidationFailedException
 from paradime.cli.admin import admin, common
@@ -223,6 +223,43 @@ def test_connection_config_rejects_unknown_settings(fake_admin: FakeAdmin) -> No
 
     assert result.exit_code == 2
     assert "acount" in result.output
+    assert fake_admin.connections.set_calls == []
+
+
+def test_a_profile_connection_config_takes_its_warehouse_type(fake_admin: FakeAdmin) -> None:
+    result = _run(
+        "connections",
+        "set",
+        "--scope",
+        "SCHEDULER",
+        "--environment",
+        "prod",
+        "--config",
+        "-",
+        input="profileConnection:\n  warehouseType: TRINO\n  schema: analytics\n  profile: 'x'\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    settings = fake_admin.connections.set_calls[0]["adapter"].profile_connection
+    assert settings.warehouse_type == WarehouseType.TRINO
+    assert settings.schema_name == "analytics"
+
+
+def test_an_extension_connection_config_is_refused(fake_admin: FakeAdmin) -> None:
+    result = _run(
+        "connections",
+        "set",
+        "--scope",
+        "SCHEDULER",
+        "--environment",
+        "prod",
+        "--config",
+        "-",
+        input="extension:\n  dbtType: TRINO\n  schema: analytics\n",
+    )
+
+    assert result.exit_code == 2
+    assert "extension" in result.output
     assert fake_admin.connections.set_calls == []
 
 

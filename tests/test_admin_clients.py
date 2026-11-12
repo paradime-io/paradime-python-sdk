@@ -8,6 +8,8 @@ from paradime.apis.admin.connections.types import (
     BigQueryConnectionSettings,
     ConnectionScope,
     DuckDbConnectionSettings,
+    ProfileConnectionInput,
+    ProfileConnectionSettings,
     SnowflakeConnectionInput,
     SnowflakeConnectionSettings,
     WarehouseAdapterInput,
@@ -441,6 +443,68 @@ class TestConnections:
         assert duckdb.settings.schema_name == "main"
         assert "... on SnowflakeConnectionSettings" in transport.calls[0].query
         assert transport.calls[0].variables["scope"] == "SCHEDULER"
+
+    def test_a_profile_connection_is_sent_with_its_warehouse_type(self) -> None:
+        admin, transport = _admin(
+            {"setWarehouseConnection": {"warehouseConnection": CONNECTION}},
+        )
+
+        settings = ProfileConnectionInput(
+            warehouse_type=WarehouseType.SQL_SERVER, schema_name="dbo", profile="dbt: {}"
+        )
+        admin.connections.set(settings, scope=ConnectionScope.SCHEDULER, environment_slug="prod")
+
+        assert transport.calls[0].variables["input"]["adapter"] == {
+            "profileConnection": {
+                "warehouseType": "SQL_SERVER",
+                "schema": "dbo",
+                "profile": "dbt: {}",
+            }
+        }
+        assert "dbt: {}" not in repr(settings)
+
+    def test_list_reads_a_profile_connection_and_its_warehouse_type(self) -> None:
+        profile_connection = {
+            **CONNECTION,
+            "type": "TRINO",
+            "settings": {
+                "__typename": "ProfileConnectionSettings",
+                "warehouseType": "TRINO",
+                "schema": "analytics",
+                "profileIsSet": True,
+            },
+        }
+        admin, transport = _admin(
+            {
+                "workspace": {
+                    "warehouseConnections": _connection(
+                        [
+                            profile_connection,
+                            {
+                                **profile_connection,
+                                "settings": {
+                                    **profile_connection["settings"],
+                                    "warehouseType": "SOMETHING_NEW",
+                                },
+                            },
+                        ],
+                        None,
+                        False,
+                    )
+                }
+            }
+        )
+
+        trino, unknown = list(admin.connections.list(scope=ConnectionScope.SCHEDULER))
+
+        assert isinstance(trino.settings, ProfileConnectionSettings)
+        assert trino.settings.warehouse_type == WarehouseType.TRINO
+        assert trino.settings.schema_name == "analytics"
+        assert trino.settings.profile_is_set is True
+        assert isinstance(unknown.settings, ProfileConnectionSettings)
+        assert unknown.settings.warehouse_type == WarehouseType.UNKNOWN
+        assert "... on ProfileConnectionSettings" in transport.calls[0].query
+        assert "warehouseType" in transport.calls[0].query
 
     def test_delete_and_set_default(self) -> None:
         admin, transport = _admin(
