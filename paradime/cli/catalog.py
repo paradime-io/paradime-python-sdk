@@ -270,8 +270,10 @@ class RefreshFollower:
 
         if refresh.status is CatalogRefreshStatus.SKIPPED:
             reason = f": {refresh.error.message}" if refresh.error else ""
-            self._log(REFRESH_LABEL, f"WARNING: skipped, nothing was refreshed{reason}")
-            return 0
+            self._log(
+                REFRESH_LABEL, f"FAILED: the refresh was skipped, nothing was refreshed{reason}"
+            )
+            return 1
 
         message = f"done in {format_duration(elapsed)}"
         succeeded = sum(
