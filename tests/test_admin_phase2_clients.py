@@ -16,8 +16,9 @@ from paradime.apis.admin.integrations.types import (
     LookerIntegrationInput,
     LookerSettings,
 )
-from paradime.apis.admin.notifications.types import AlertCategory, SetMsTeamsWebhookInput
+from paradime.apis.admin.notifications.types import AlertCategory, SetAlertNotificationsInput
 from paradime.apis.admin.users.types import UserStatus
+from paradime.tools.pydantic import ValidationError
 
 
 class TestUsers:
@@ -56,40 +57,43 @@ class TestNotifications:
         notifications = {
             "category": "BOLT_SYSTEM",
             "slack": {"channelIds": ["C1"], "userIds": []},
-            "msTeams": {"webhookNames": []},
             "email": None,
         }
         admin, transport = _admin({"setAlertNotifications": {"alertNotifications": notifications}})
 
-        result = admin.notifications.set_alert_notifications(
-            slack_channel_ids=["C1"], ms_teams_webhook_names=[]
-        )
+        result = admin.notifications.set_alert_notifications(slack_channel_ids=["C1"])
 
         assert transport.calls[0].variables == {
             "input": {
                 "category": "BOLT_SYSTEM",
                 "slack": {"channelIds": ["C1"], "userIds": []},
-                "msTeams": {"webhookNames": []},
             }
         }
         assert result.category == AlertCategory.BOLT_SYSTEM
         assert result.slack is not None and result.slack.channel_ids == ["C1"]
 
-    def test_the_webhook_url_stays_out_of_repr(self) -> None:
-        webhook = SetMsTeamsWebhookInput(name="alerts", url="https://example.test/hook/abc")
-
-        assert "hook/abc" not in repr(webhook)
-
-    def test_set_webhook_and_slack(self) -> None:
+    def test_alerts_have_no_microsoft_teams_destination(self) -> None:
         admin, transport = _admin(
-            {"setMsTeamsWebhook": {"msTeamsWebhook": {"name": "alerts", "urlIsSet": True}}},
+            {"workspace": {"alertNotifications": {"category": "BOLT_SYSTEM", "email": None}}}
+        )
+
+        admin.notifications.get_alert_notifications()
+
+        assert "msTeams" not in transport.calls[0].query
+        assert not hasattr(admin.notifications, "set_ms_teams_webhook")
+        with pytest.raises(ValidationError):
+            SetAlertNotificationsInput.parse_obj(
+                {"category": "BOLT_SYSTEM", "msTeams": {"webhookNames": ["alerts"]}}
+            )
+
+    def test_get_slack(self) -> None:
+        admin, transport = _admin(
             {"slack": {"status": "PENDING_USER_ACTION", "installUrl": "https://app/slack"}},
         )
 
-        assert admin.notifications.set_ms_teams_webhook("alerts", "https://x").url_is_set
         slack = admin.notifications.get_slack()
         assert slack is not None and slack.install_url == "https://app/slack"
-        assert transport.calls[0].variables == {"input": {"name": "alerts", "url": "https://x"}}
+        assert transport.calls[0].variables == {}
 
 
 TRIGGER_URL = {"publicId": "p1", "name": "ci", "enabled": True, "url": "https://hooks/p1"}

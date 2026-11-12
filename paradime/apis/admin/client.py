@@ -37,7 +37,7 @@ class AdminClient:
         usage (AdminUsageClient): Bolt and DinoAI usage.
         jobs (AdminJobsClient): Async jobs, and waiting for them.
         users (AdminUsersClient): Users and auto-join domains.
-        notifications (AdminNotificationsClient): Slack, Microsoft Teams and email alerts.
+        notifications (AdminNotificationsClient): Slack and email alerts.
         bolt (AdminBoltClient): Schedule updates and deploys, and Trigger URLs.
         integrations (AdminIntegrationsClient): Integrations and external secret managers.
         dinoai (AdminDinoaiClient): DinoAI agent definitions and settings.
