@@ -62,7 +62,11 @@ def _step(
 
 def _refresh(status: str, *steps: CatalogRefreshStep, error: Any = None) -> CatalogRefresh:
     return CatalogRefresh(
-        token="refresh-1", status=CatalogRefreshStatus(status), steps=list(steps), error=error
+        token="refresh-1",
+        status=CatalogRefreshStatus(status),
+        finished=status != "RUNNING",
+        steps=list(steps),
+        error=error,
     )
 
 
@@ -171,10 +175,10 @@ class TestFollowSuccess:
             "[dbt docs generate] still running (3m00s)",
         ]
 
-    def test_waits_for_integration_steps_after_the_refresh_succeeded(self) -> None:
+    def test_waits_while_an_integration_push_keeps_the_refresh_running(self) -> None:
         polls: List[Poll] = [
             _refresh(
-                "SUCCEEDED",
+                "RUNNING",
                 _step(BUILD, "SUCCEEDED", started=0, finished=10),
                 _step(DATAHUB, "RUNNING", blocking=False, started=10),
             ),
@@ -298,6 +302,15 @@ class TestFollowFailure:
 
         assert code == 1
         assert lines == ["[catalog refresh] FAILED: no production environment"]
+
+    def test_a_skipped_refresh_warns_and_exits_zero(self) -> None:
+        error = CatalogRefreshError(code="SKIPPED", message="no warehouse connection")
+        code, lines, _ = _follow([_refresh("SKIPPED", error=error)])
+
+        assert code == 0
+        assert lines == [
+            "[catalog refresh] WARNING: skipped, nothing was refreshed: no warehouse connection"
+        ]
 
 
 class TestFollowTimeout:
