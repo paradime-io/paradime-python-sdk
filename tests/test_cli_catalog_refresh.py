@@ -303,13 +303,14 @@ class TestFollowFailure:
         assert code == 1
         assert lines == ["[catalog refresh] FAILED: no production environment"]
 
-    def test_a_skipped_refresh_warns_and_exits_zero(self) -> None:
+    def test_a_skipped_refresh_fails(self) -> None:
         error = CatalogRefreshError(code="SKIPPED", message="no warehouse connection")
         code, lines, _ = _follow([_refresh("SKIPPED", error=error)])
 
-        assert code == 0
+        assert code == 1
         assert lines == [
-            "[catalog refresh] WARNING: skipped, nothing was refreshed: no warehouse connection"
+            "[catalog refresh] FAILED: the refresh was skipped, nothing was refreshed: "
+            "no warehouse connection"
         ]
 
 

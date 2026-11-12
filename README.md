@@ -99,7 +99,7 @@ If a refresh is already running, the command follows that refresh instead of sta
 | `--timeout` | How long to wait, e.g. `90s`, `45m`, `2h` (default `2h`). When it expires the command fails and names the steps that had not finished; the refresh itself continues. |
 | `--allow-integration-failures` | Log a failed integration sync (e.g. DataHub, Altimate) as a warning and exit 0. A failed docs generate or catalog build always fails the command. |
 
-The command exits 0 only when every step succeeded (or, with `--allow-integration-failures`, only integration syncs failed). A single failed read of the refresh state is retried with backoff and does not fail the command.
+The command exits 0 only when every step succeeded (or, with `--allow-integration-failures`, only integration syncs failed). It also fails when the refresh is skipped and nothing is refreshed, e.g. when the workspace has no warehouse connection for its production catalog. A single failed read of the refresh state is retried with backoff and does not fail the command.
 
 ## Examples
 
