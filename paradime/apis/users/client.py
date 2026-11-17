@@ -153,8 +153,8 @@ class UsersClient:
 
     def list_seats(self, product: SeatProduct) -> SeatPool:
         """
-        Retrieves the company's seat pool for a product and who holds each seat.
-        Needs the users:read permission.
+        Retrieves the company's seat pool for a product, and which users of the
+        workspace hold a seat. Needs the users:read permission.
 
         Args:
             product (SeatProduct): The seat product.
@@ -209,7 +209,8 @@ class UsersClient:
         expected_seats_after: Optional[int] = None,
     ) -> SeatAssignment:
         """
-        Gives a user a seat on a product. Needs the users:write permission.
+        Gives a user of the workspace a seat on a product. Needs the users:write
+        permission, which can buy seats.
 
         When the pool is full nothing is bought: the result has ``ok=False``,
         ``needs_purchase=True``, ``seats_after`` and ``proration_cents``. Call again with
@@ -271,8 +272,8 @@ class UsersClient:
 
     def unassign_seat(self, user_uid: str, product: SeatProduct) -> bool:
         """
-        Takes a user's seat back; the seat stays in the pool. Needs the users:write
-        permission.
+        Takes back the seat of a user of the workspace; the seat stays in the pool.
+        Needs the users:write permission.
 
         Args:
             user_uid (str): The ID of the user.

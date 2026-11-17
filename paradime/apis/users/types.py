@@ -40,20 +40,22 @@ class SeatProduct(str, Enum):
 
 
 class SeatHolder(BaseModel):
-    uid: Optional[str]
-    name: Optional[str]
+    uid: str
+    name: str
     email: Optional[str]
     assigned_at: str
 
 
 class SeatPool(BaseModel):
+    """Counts are company-wide; ``holders`` are the users of the key's workspace."""
+
     product: SeatProduct
     seats: Optional[int]
     scheduled_seats: Optional[int]
     scheduled_from: Optional[str]
     paid_seats: Optional[int]
     contracted_seats: Optional[int]
-    assigned: int
+    assigned: Optional[int]
     available: Optional[int]
     holders: List[SeatHolder]
 
