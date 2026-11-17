@@ -1,6 +1,14 @@
-from typing import List
+from typing import List, Optional
 
-from paradime.apis.users.types import ActiveUser, InvitedUser, UserAccountType
+from paradime.apis.users.types import (
+    ActiveUser,
+    InvitedUser,
+    SeatAssignment,
+    SeatHolder,
+    SeatPool,
+    SeatProduct,
+    UserAccountType,
+)
 from paradime.client.api_client import APIClient
 
 
@@ -142,3 +150,148 @@ class UsersClient:
             """
 
         self.client._call_gql(query=query, variables={"uid": user_uid})
+
+    def list_seats(self, product: SeatProduct) -> SeatPool:
+        """
+        Retrieves the company's seat pool for a product and who holds each seat.
+        Needs the users:read permission.
+
+        Args:
+            product (SeatProduct): The seat product.
+
+        Returns:
+            SeatPool: The pool and its holders.
+        """
+
+        query = """
+            query listSeats($product: SeatProduct!) {
+                listSeats(product: $product) {
+                    product
+                    seats
+                    scheduledSeats
+                    scheduledFrom
+                    paidSeats
+                    contractedSeats
+                    assigned
+                    available
+                    holders { uid name email assignedAt }
+                }
+            }
+        """
+
+        pool = self.client._call_gql(query=query, variables={"product": product.value})["listSeats"]
+        return SeatPool(
+            product=pool["product"],
+            seats=pool["seats"],
+            scheduled_seats=pool["scheduledSeats"],
+            scheduled_from=pool["scheduledFrom"],
+            paid_seats=pool["paidSeats"],
+            contracted_seats=pool["contractedSeats"],
+            assigned=pool["assigned"],
+            available=pool["available"],
+            holders=[
+                SeatHolder(
+                    uid=holder["uid"],
+                    name=holder["name"],
+                    email=holder["email"],
+                    assigned_at=holder["assignedAt"],
+                )
+                for holder in pool["holders"]
+            ],
+        )
+
+    def assign_seat(
+        self,
+        user_uid: str,
+        product: SeatProduct,
+        *,
+        confirm_purchase: bool = False,
+        expected_seats_after: Optional[int] = None,
+    ) -> SeatAssignment:
+        """
+        Gives a user a seat on a product. Needs the users:write permission.
+
+        When the pool is full nothing is bought: the result has ``ok=False``,
+        ``needs_purchase=True``, ``seats_after`` and ``proration_cents``. Call again with
+        ``confirm_purchase=True`` and ``expected_seats_after=result.seats_after`` to buy
+        the seat and assign it.
+
+        Args:
+            user_uid (str): The ID of the user.
+            product (SeatProduct): The seat product.
+            confirm_purchase (bool): Buy a seat when the pool is full.
+            expected_seats_after (Optional[int]): The ``seats_after`` being confirmed.
+
+        Returns:
+            SeatAssignment: The outcome.
+        """
+
+        query = """
+            mutation assignSeat(
+                $uid: String!,
+                $product: SeatProduct!,
+                $confirmPurchase: Boolean,
+                $expectedSeatsAfter: Int
+            ) {
+                assignSeat(
+                    uid: $uid,
+                    product: $product,
+                    confirmPurchase: $confirmPurchase,
+                    expectedSeatsAfter: $expectedSeatsAfter
+                ) {
+                    ok
+                    needsPurchase
+                    assigned
+                    purchased
+                    seats
+                    seatsAfter
+                    prorationCents
+                }
+            }
+        """
+
+        result = self.client._call_gql(
+            query=query,
+            variables={
+                "uid": user_uid,
+                "product": product.value,
+                "confirmPurchase": confirm_purchase,
+                "expectedSeatsAfter": expected_seats_after,
+            },
+        )["assignSeat"]
+        return SeatAssignment(
+            ok=result["ok"],
+            needs_purchase=result["needsPurchase"],
+            assigned=result["assigned"],
+            purchased=result["purchased"],
+            seats=result["seats"],
+            seats_after=result["seatsAfter"],
+            proration_cents=result["prorationCents"],
+        )
+
+    def unassign_seat(self, user_uid: str, product: SeatProduct) -> bool:
+        """
+        Takes a user's seat back; the seat stays in the pool. Needs the users:write
+        permission.
+
+        Args:
+            user_uid (str): The ID of the user.
+            product (SeatProduct): The seat product.
+
+        Returns:
+            bool: False when the user held no seat.
+        """
+
+        query = """
+            mutation unassignSeat($uid: String!, $product: SeatProduct!) {
+                unassignSeat(uid: $uid, product: $product) {
+                    freed
+                }
+            }
+        """
+
+        return bool(
+            self.client._call_gql(
+                query=query, variables={"uid": user_uid, "product": product.value}
+            )["unassignSeat"]["freed"]
+        )
