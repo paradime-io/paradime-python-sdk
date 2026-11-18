@@ -616,6 +616,21 @@ def test_a_profile_connection_without_a_known_warehouse_type_is_a_config_error(
         onboard.ConfigLoader(config_path, ENVIRON).load()
 
 
+def test_an_extension_connection_block_is_a_config_error(tmp_path: Path) -> None:
+    extension = "extension:\n      dbtType: trino\n      profile: 'trino: {}'\n\n"
+    config_path = _config_file(
+        tmp_path,
+        "snowflake:\n      account: acme-xy12345\n      useKeyPairAuth: true\n\n",
+        extension,
+    )
+
+    with pytest.raises(
+        onboard.ConfigError,
+        match="development.adapter has settings the API does not take: extension",
+    ):
+        onboard.ConfigLoader(config_path, ENVIRON).load()
+
+
 @pytest.mark.parametrize(
     "teams",
     [
