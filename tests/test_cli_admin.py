@@ -4,7 +4,11 @@ from typing import Any, Dict, List, Optional
 import pytest
 from click.testing import CliRunner
 
-from paradime.apis.admin.connections.types import WarehouseConnection, WarehouseType
+from paradime.apis.admin.connections.types import (
+    WarehouseConnection,
+    WarehouseConnectionTestResult,
+    WarehouseType,
+)
 from paradime.apis.admin.environment_variables.types import SetEnvironmentVariablesResult
 from paradime.apis.admin.exception import AdminValidationFailedException
 from paradime.cli.admin import admin, common
@@ -30,6 +34,11 @@ class FakeEnvironmentVariables:
 class FakeConnections:
     def __init__(self) -> None:
         self.set_calls: List[Dict[str, Any]] = []
+        self.test_calls: List[Dict[str, Any]] = []
+
+    def test(self, adapter: Any, **kwargs: Any) -> WarehouseConnectionTestResult:
+        self.test_calls.append({"adapter": adapter, **kwargs})
+        return WarehouseConnectionTestResult(type="SNOWFLAKE", tested_at="2026-11-05T10:00:00Z")
 
     def set(self, adapter: Any, **kwargs: Any) -> WarehouseConnection:
         self.set_calls.append({"adapter": adapter, **kwargs})
@@ -498,3 +507,25 @@ def test_environment_scopes_need_an_environment(fake_admin: FakeAdmin) -> None:
     assert result.exit_code == 2
     assert "--environment" in result.output
     assert fake_admin.connections.set_calls == []
+
+
+@pytest.mark.parametrize("command", ["set", "test"])
+def test_connection_name_option_is_sent_as_name(fake_admin: FakeAdmin, command: str) -> None:
+    result = _run(
+        "connections",
+        command,
+        "--scope",
+        "SCHEDULER",
+        "--environment",
+        "prod",
+        "--name",
+        "Dev",
+        "--config",
+        "-",
+        input="snowflake:\n  account: acme\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    calls = getattr(fake_admin.connections, f"{command}_calls")
+    assert len(calls) == 1 and calls[0]["name"] == "Dev"
+    assert "connection_name" not in calls[0]
