@@ -529,3 +529,185 @@ def test_connection_name_option_is_sent_as_name(fake_admin: FakeAdmin, command: 
     calls = getattr(fake_admin.connections, f"{command}_calls")
     assert len(calls) == 1 and calls[0]["name"] == "Dev"
     assert "connection_name" not in calls[0]
+
+
+class FakeBolt:
+    def __init__(self) -> None:
+        self.calls: List[Dict[str, Any]] = []
+
+    def _stored(self, slug: str, **settings: Any) -> Any:
+        from paradime.apis.admin.bolt.types import BoltScheduleDefinition
+
+        return BoltScheduleDefinition(
+            slug=slug,
+            name=settings["name"],
+            schedule=settings["schedule"],
+            environment=settings["environment"],
+            commands=settings.get("commands"),
+            is_suspended=bool(settings.get("suspended")),
+        )
+
+    def create_schedule(self, **kwargs: Any) -> Any:
+        self.calls.append({"method": "create", **kwargs})
+        settings = {key: value for key, value in kwargs.items() if key != "slug"}
+        return self._stored(kwargs["slug"] or "minted", **settings)
+
+    def update_schedule(self, slug: str, **kwargs: Any) -> Any:
+        self.calls.append({"method": "update", "slug": slug, **kwargs})
+        return self._stored(slug, **kwargs)
+
+    def delete_schedule(self, slug: str, **kwargs: Any) -> str:
+        self.calls.append({"method": "delete", "slug": slug, **kwargs})
+        return slug
+
+    def list_schedules(self, **kwargs: Any) -> Any:
+        self.calls.append({"method": "list", **kwargs})
+        return iter(
+            [
+                self._stored("nightly", name="Nightly", schedule="0 1 * * *", environment="prod"),
+                self._stored("hourly", name="Hourly", schedule="0 * * * *", environment="prod"),
+            ]
+        )
+
+
+@pytest.fixture
+def fake_bolt(monkeypatch: pytest.MonkeyPatch) -> FakeBolt:
+    bolt = FakeBolt()
+
+    class Admin:
+        pass
+
+    admin_client = Admin()
+    admin_client.bolt = bolt  # type: ignore[attr-defined]
+    monkeypatch.setattr(common, "get_admin", lambda: admin_client)
+    return bolt
+
+
+def test_bolt_schedules_list_prints_every_schedule(fake_bolt: FakeBolt) -> None:
+    import json
+
+    result = _run("bolt", "schedules", "list", "--workspace", "w2", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert [schedule["slug"] for schedule in json.loads(result.output)] == ["nightly", "hourly"]
+    assert fake_bolt.calls == [{"method": "list", "workspace_uid": "w2"}]
+
+
+def test_bolt_schedules_create_merges_the_config_with_the_options(
+    fake_bolt: FakeBolt,
+) -> None:
+    from paradime.apis.bolt.types import BoltNotificationsInput
+
+    config = """
+name: Nightly
+schedule: "0 1 * * *"
+environment: production
+commands: [dbt build]
+continueOnError: true
+notifications:
+  slackNotifications:
+    - channel: "#data"
+      events: [FAILED]
+"""
+
+    result = _run(
+        "bolt",
+        "schedules",
+        "create",
+        "--slug",
+        "nightly",
+        "--config",
+        "-",
+        "--name",
+        "Nightly build",
+        "--suspended",
+        input=config,
+    )
+
+    assert result.exit_code == 0, result.output
+    call = fake_bolt.calls[0]
+    notifications = call.pop("notifications")
+    assert call == {
+        "method": "create",
+        "slug": "nightly",
+        "workspace_uid": None,
+        "name": "Nightly build",
+        "schedule": "0 1 * * *",
+        "environment": "production",
+        "commands": ["dbt build"],
+        "continue_on_error": True,
+        "suspended": True,
+    }
+    assert isinstance(notifications, BoltNotificationsInput)
+    assert notifications.slack_notifications[0].channel == "#data"
+
+
+def test_bolt_schedules_update_sends_the_options(fake_bolt: FakeBolt) -> None:
+    result = _run(
+        "bolt",
+        "schedules",
+        "update",
+        "nightly",
+        "--name",
+        "Nightly",
+        "--schedule",
+        "OFF",
+        "--environment",
+        "production",
+        "--command",
+        "dbt run",
+        "--command",
+        "dbt test",
+        "--trigger-on-webhook",
+        "--active",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_bolt.calls == [
+        {
+            "method": "update",
+            "slug": "nightly",
+            "workspace_uid": None,
+            "name": "Nightly",
+            "schedule": "OFF",
+            "environment": "production",
+            "commands": ["dbt run", "dbt test"],
+            "trigger_on_webhook": True,
+            "suspended": False,
+        }
+    ]
+
+
+def test_bolt_schedules_update_needs_the_required_settings(fake_bolt: FakeBolt) -> None:
+    result = _run("bolt", "schedules", "update", "nightly", "--name", "Nightly")
+
+    assert result.exit_code == 2
+    assert "schedule, environment" in result.output
+    assert fake_bolt.calls == []
+
+
+def test_bolt_schedules_config_refuses_a_setting_the_api_does_not_take(
+    fake_bolt: FakeBolt,
+) -> None:
+    config = "name: Nightly\nschedule: OFF\nenvironment: production\ncron: '0 1 * * *'\n"
+
+    result = _run("bolt", "schedules", "create", "--config", "-", input=config)
+
+    assert result.exit_code == 2
+    assert "cron" in result.output
+    assert fake_bolt.calls == []
+
+
+@pytest.mark.parametrize("as_json", [False, True])
+def test_bolt_schedules_delete_reports_the_deleted_slug(fake_bolt: FakeBolt, as_json: bool) -> None:
+    import json
+
+    args = ["bolt", "schedules", "delete", "nightly", "--yes"]
+    result = _run(*args, *(["--json"] if as_json else []))
+
+    assert result.exit_code == 0, result.output
+    if as_json:
+        assert json.loads(result.output) == {"deletedSlug": "nightly"}
+    else:
+        assert "Deleted schedule nightly." in result.output
+    assert fake_bolt.calls == [{"method": "delete", "slug": "nightly", "workspace_uid": None}]

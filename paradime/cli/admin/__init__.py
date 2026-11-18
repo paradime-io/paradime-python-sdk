@@ -1,5 +1,6 @@
 import click
 
+from paradime.cli.admin.bolt import bolt
 from paradime.cli.admin.connections import connections
 from paradime.cli.admin.env_vars import env_vars
 from paradime.cli.admin.environments import environments
@@ -25,6 +26,7 @@ admin.add_command(git)
 admin.add_command(connections)
 admin.add_command(environments)
 admin.add_command(env_vars)
+admin.add_command(bolt)
 admin.add_command(jobs)
 admin.add_command(usage)
 admin.add_command(setup_status)
