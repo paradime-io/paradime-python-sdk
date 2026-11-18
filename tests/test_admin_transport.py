@@ -412,4 +412,4 @@ def test_a_connection_error_keeps_the_company_token_out(
     ]
     assert all(FAKE_TOKEN not in text for text in shown)
     assert "/api/v1/***/graphql" in str(raised)
-    assert raised.__cause__ is None and raised.__suppress_context__
+    assert raised.__cause__ is None and raised.__context__ is None
