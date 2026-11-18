@@ -76,7 +76,8 @@ def schedule_options(f: Any) -> Any:
                 "--command",
                 "commands",
                 multiple=True,
-                help="A command each run runs; repeat it for several, in order.",
+                help="A command each run runs; repeat it for several, in order. Replaces the "
+                "commands and command_configs of --config.",
             ),
             click.option("--git-branch", default=None, help="The git branch runs use."),
             click.option("--timezone", default=None, help="The cron expression's timezone."),
@@ -132,6 +133,8 @@ def _settings(
         "trigger_on_webhook": trigger_on_webhook or None,
         "suspended": suspended,
     }
+    if options["commands"] is not None:
+        settings.pop("command_configs", None)
     settings.update({key: value for key, value in options.items() if value is not None})
     missing = [setting for setting in REQUIRED_SETTINGS if settings.get(setting) is None]
     if missing:

@@ -780,3 +780,57 @@ selfHealing:
         "msTeamsTeam": "Data",
         "msTeamsChannel": "healing",
     }
+
+
+def test_bolt_schedules_command_option_replaces_the_config_command_configs(
+    fake_bolt: FakeBolt,
+) -> None:
+    config = """
+name: Nightly
+schedule: "OFF"
+environment: production
+command_configs:
+  - command: dbt build
+    continue_on_error: true
+"""
+
+    result = _run(
+        "bolt",
+        "schedules",
+        "update",
+        "nightly",
+        "--config",
+        "-",
+        "--command",
+        "dbt run",
+        input=config,
+    )
+
+    assert result.exit_code == 0, result.output
+    call = fake_bolt.calls[0]
+    assert call["commands"] == ["dbt run"]
+    assert "command_configs" not in call
+
+
+def test_bolt_schedules_config_command_configs_stay_without_a_command_option(
+    fake_bolt: FakeBolt,
+) -> None:
+    from paradime.apis.bolt.types import BoltCommandConfigInput
+
+    config = """
+name: Nightly
+schedule: "OFF"
+environment: production
+commandConfigs:
+  - command: dbt build
+    continueOnError: true
+"""
+
+    result = _run("bolt", "schedules", "create", "--config", "-", input=config)
+
+    assert result.exit_code == 0, result.output
+    call = fake_bolt.calls[0]
+    assert call["command_configs"] == [
+        BoltCommandConfigInput(command="dbt build", continue_on_error=True)
+    ]
+    assert "commands" not in call
