@@ -317,6 +317,24 @@ class TestDinoAi:
         assert job_started.id == "j1"
         assert admin.dinoai.get_agent("missing") is None
 
+    def test_reads_use_the_dino_ai_keys(self) -> None:
+        admin, transport = _admin(
+            {"workspace": {"dinoAiAgentDefinitions": _connection([AGENT], None, False)}},
+            {"workspace": {"dinoAiAgentDefinition": AGENT}},
+            {"workspace": {"dinoAiSettings": {"sqlQueryToolEnabled": True}}},
+        )
+
+        agents = list(admin.dinoai.list_agents())
+        agent = admin.dinoai.get_agent("analyst")
+        settings = admin.dinoai.get_settings()
+
+        assert [a.slug for a in agents] == ["analyst"]
+        assert agent is not None and agent.slug == "analyst"
+        assert settings is not None and settings.sql_query_tool_enabled is True
+        assert "dinoAiAgentDefinitions(first: $first" in transport.calls[0].query
+        assert "dinoAiAgentDefinition(slug: $slug)" in transport.calls[1].query
+        assert "dinoAiSettings {" in transport.calls[2].query
+
 
 def test_every_domain_is_on_the_admin_client() -> None:
     admin, _ = _admin()
