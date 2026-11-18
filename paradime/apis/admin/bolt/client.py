@@ -8,7 +8,6 @@ from paradime.apis.admin.bolt.types import (
     BoltScheduleDefinition,
     CreateTriggerUrlInput,
     DeployBoltSchedulesInput,
-    SetTriggerUrlEnabledInput,
     TriggerUrl,
     TriggerUrlKeyInput,
     TriggerUrlWithSecret,
@@ -290,39 +289,45 @@ class AdminBoltClient:
         )
         return TriggerUrlWithSecret.parse_obj(response["rotateTriggerUrlSecret"])
 
-    def set_trigger_url_enabled(
-        self, public_id: str, enabled: bool, *, workspace_uid: Optional[str] = None
+    def pause_trigger_url(
+        self, public_id: str, *, workspace_uid: Optional[str] = None
     ) -> TriggerUrl:
         """
-        Pauses or resumes a Trigger URL.
+        Pauses a Trigger URL: a request to it starts no run. Pausing a paused one changes
+        nothing.
 
         Args:
             public_id (str): The Trigger URL's public id.
-            enabled (bool): Whether a request to the URL starts a run.
             workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
-            TriggerUrl: The Trigger URL.
+            TriggerUrl: The Trigger URL, now paused.
+
+        Raises:
+            AdminNotFoundException: When there is no Trigger URL with this public id.
         """
 
-        query = f"""
-            mutation adminSetTriggerUrlEnabled($input: SetTriggerUrlEnabledInput!) {{
-                setTriggerUrlEnabled(input: $input) {{
-                    triggerUrl {{
-                        {TRIGGER_URL_FIELDS}
-                    }}
-                }}
-            }}
+        return self._change_trigger_url("pauseTriggerUrl", public_id, workspace_uid)
+
+    def resume_trigger_url(
+        self, public_id: str, *, workspace_uid: Optional[str] = None
+    ) -> TriggerUrl:
+        """
+        Resumes a paused Trigger URL: a request to it starts a run again. Resuming one that
+        runs changes nothing.
+
+        Args:
+            public_id (str): The Trigger URL's public id.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
+
+        Returns:
+            TriggerUrl: The Trigger URL, now running.
+
+        Raises:
+            AdminNotFoundException: When there is no Trigger URL with this public id.
         """
 
-        enabled_input = SetTriggerUrlEnabledInput(public_id=public_id, enabled=enabled)
-        response = self.transport.execute(
-            query,
-            {"input": serialize_input(enabled_input)},
-            workspace_uid=workspace_uid,
-            linked_fields=TRIGGER_URL_LINKS,
-        )
-        return TriggerUrl.parse_obj(response["setTriggerUrlEnabled"]["triggerUrl"])
+        return self._change_trigger_url("resumeTriggerUrl", public_id, workspace_uid)
 
     def delete_trigger_url(self, public_id: str, *, workspace_uid: Optional[str] = None) -> str:
         """
@@ -350,3 +355,25 @@ class AdminBoltClient:
             workspace_uid=workspace_uid,
         )
         return response["deleteTriggerUrl"]["deletedPublicId"]
+
+    def _change_trigger_url(
+        self, mutation: str, public_id: str, workspace_uid: Optional[str]
+    ) -> TriggerUrl:
+        input_type = mutation[0].upper() + mutation[1:] + "Input"
+        query = f"""
+            mutation admin{input_type[:-5]}($input: {input_type}!) {{
+                {mutation}(input: $input) {{
+                    triggerUrl {{
+                        {TRIGGER_URL_FIELDS}
+                    }}
+                }}
+            }}
+        """
+
+        response = self.transport.execute(
+            query,
+            {"input": serialize_input(TriggerUrlKeyInput(public_id=public_id))},
+            workspace_uid=workspace_uid,
+            linked_fields=TRIGGER_URL_LINKS,
+        )
+        return TriggerUrl.parse_obj(response[mutation]["triggerUrl"])
