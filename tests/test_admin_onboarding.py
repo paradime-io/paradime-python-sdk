@@ -647,3 +647,21 @@ def test_a_microsoft_teams_notification_setting_is_a_config_error(
         onboard.ConfigError, match="notifications takes only email_enabled, not ms_"
     ):
         onboard.ConfigLoader(config_path, ENVIRON).load()
+
+
+@pytest.mark.parametrize(
+    "block, value", [("development", "snowflake"), ("agent", "agent"), ("development", "[]")]
+)
+def test_a_development_or_agent_block_that_is_not_a_mapping_is_a_config_error(
+    tmp_path: Path, block: str, value: str
+) -> None:
+    config_path = _config_file(tmp_path, "", "")
+    text = config_path.read_text()
+    start = text.index(f"\n{block}:\n") + 1
+    end = start + len(f"{block}:\n")
+    while end < len(text) and text[end] in " \n":
+        end = text.index("\n", end) + 1
+    config_path.write_text(f"{text[:start]}{block}: {value}\n{text[end:]}")
+
+    with pytest.raises(onboard.ConfigError, match=f"{block} must be a mapping."):
+        onboard.ConfigLoader(config_path, ENVIRON).load()
