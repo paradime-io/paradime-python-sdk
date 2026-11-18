@@ -186,7 +186,8 @@ def create(
     as_json: bool,
 ) -> None:
     """
-    Test, then save a new connection. Needs --name, --target and --threads, except for COST.
+    Test, then save a new connection. Needs --name and --target, and --threads except for
+    DEVELOPMENT_SHARED and COST.
     The same settings again change nothing; a connection that exists with other settings is
     refused, so change it with `update`.
     """
