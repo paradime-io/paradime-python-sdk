@@ -29,7 +29,7 @@ class AdminNotificationsClient:
         the page where an account admin connects it in a browser.
 
         Args:
-            workspace_uid (str, optional): The workspace to target, for a company-level key.
+            workspace_uid (str, optional): The workspace to target, for a company API key.
 
         Returns:
             Optional[SlackInstallation]: The connection, or None when the server returned none.
@@ -56,7 +56,7 @@ class AdminNotificationsClient:
         Args:
             team_id (str, optional): The Slack team expected to be connected; when another
                 team is, nothing changes and the call fails with `CONFLICT`.
-            workspace_uid (str, optional): The workspace to target, for a company-level key.
+            workspace_uid (str, optional): The workspace to target, for a company API key.
 
         Returns:
             SlackInstallation: The connection, now pending.
@@ -91,7 +91,7 @@ class AdminNotificationsClient:
 
         Args:
             category (AlertCategory): The alerts to read; `BOLT_SYSTEM` by default.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
             Optional[AlertNotifications]: The destinations, or None when the server returned none.
@@ -134,7 +134,7 @@ class AdminNotificationsClient:
                 without `slack_user_ids`, it replaces the Slack destination.
             slack_user_ids (Sequence[str], optional): Slack user ids.
             email_enabled (bool, optional): Whether alert emails are on.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             AlertNotifications: Where the category's alerts now go.

@@ -103,7 +103,7 @@ paradime.admin.environments.create(EnvironmentType.SCHEDULER, "Production", slug
 paradime.admin.environment_variables.set({"DBT_TARGET": "prod"}, environment_slug="production", workspace_uid=workspace.uid)
 ```
 
-`workspace_uid` on a call sends `X-Paradime-Workspace` for that call only, so one company-level
+`workspace_uid` on a call sends `X-Paradime-Workspace` for that call only, so one company API
 key can work across workspaces. The same operations are on the CLI under `paradime admin`;
 environment variable values and connection secrets are read from stdin or a file, never from
 the command line:

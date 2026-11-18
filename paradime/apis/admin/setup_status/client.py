@@ -19,7 +19,7 @@ class AdminSetupStatusClient:
 
         Args:
             workspace_uid (str, optional): The workspace to read. Leave it out for the key's
-                workspace, or the one a company-level key targets.
+                workspace, or the one a company API key targets.
 
         Returns:
             Optional[WorkspaceSetupStatus]: The checklist, or None when the server returned none.

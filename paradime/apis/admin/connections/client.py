@@ -61,7 +61,7 @@ class AdminConnectionsClient:
         Args:
             scope (ConnectionScope, optional): Only connections of this scope.
             environment_slug (str, optional): Only this environment's connections.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
             page_size (int): How many connections to read per request, at most 500.
 
         Returns:
@@ -140,7 +140,7 @@ class AdminConnectionsClient:
             connection_name (str, optional): A name for the connection.
             target_name (str, optional): The dbt target name runs see.
             threads (int, optional): How many threads dbt runs with.
-            workspace_uid (str, optional): The workspace to use, for a company-level key.
+            workspace_uid (str, optional): The workspace to use, for a company API key.
 
         Returns:
             WarehouseConnectionTestResult: The warehouse the connection opened, and when.
@@ -195,7 +195,7 @@ class AdminConnectionsClient:
             connection_name (str, optional): A name; required for a new connection.
             target_name (str, optional): The dbt target name; required for a new connection.
             threads (int, optional): dbt threads; required for a new connection.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             WarehouseConnection: The saved connection.
@@ -244,7 +244,7 @@ class AdminConnectionsClient:
             environment_slug (str, optional): The environment's slug, for `SCHEDULER` and
                 `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
             connection_id (str, optional): The connection's id; `default` when left out.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             str: The id of the deleted connection.
@@ -286,7 +286,7 @@ class AdminConnectionsClient:
             scope (ConnectionScope): `SCHEDULER`, `AGENT`, `DEVELOPMENT_SHARED` or `COST`.
             environment_slug (str, optional): The environment's slug, for `SCHEDULER` and
                 `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             WarehouseConnection: The connection, now the default.

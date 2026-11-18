@@ -318,7 +318,7 @@ def test_main_refuses_a_workspace_key_before_any_request(capsys: pytest.CaptureF
     }
 
     assert onboard.main([], environ) == 2
-    assert "account API key" in capsys.readouterr().err
+    assert "company API key" in capsys.readouterr().err
 
 
 def test_a_secret_reference_to_an_unset_variable_is_a_config_error() -> None:

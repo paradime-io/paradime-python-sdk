@@ -40,7 +40,7 @@ class AdminDinoaiClient:
         Iterates over the workspace's DinoAI agent definitions, from YAML and from the UI.
 
         Args:
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
             page_size (int): How many agents to read per request, at most 500.
 
         Returns:
@@ -84,7 +84,7 @@ class AdminDinoaiClient:
 
         Args:
             slug (str): The agent's slug.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
             Optional[DinoaiAgentDefinition]: The agent, or None when there is none.
@@ -126,7 +126,7 @@ class AdminDinoaiClient:
             slug (str, optional): The agent's slug; minted when left out.
             slack_bot_name (str, optional): The name the agent posts under in Slack.
             slack_bot_icon_url (str, optional): The icon the agent posts with in Slack.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             DinoaiAgentDefinition: The agent, as now stored.
@@ -164,7 +164,7 @@ class AdminDinoaiClient:
 
         Args:
             slug (str): The agent's slug.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             str: The slug of the deleted agent.
@@ -192,7 +192,7 @@ class AdminDinoaiClient:
         Args:
             edges (Sequence[Tuple[str, str]]): ``(from_slug, to_slug)`` pairs: the first agent
                 may delegate to the second.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
         """
 
         query = """
@@ -222,7 +222,7 @@ class AdminDinoaiClient:
         Reads the workspace's DinoAI settings.
 
         Args:
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
             Optional[DinoaiWorkspaceSettings]: The settings.
@@ -255,7 +255,7 @@ class AdminDinoaiClient:
 
         Args:
             sql_query_tool_enabled (bool, optional): Whether agents may run SQL queries.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             Optional[DinoaiWorkspaceSettings]: The settings now.
@@ -294,7 +294,7 @@ class AdminDinoaiClient:
 
         Args:
             branch (str, optional): The branch to read; the default branch when left out.
-            workspace_uid (str, optional): The workspace to sync, for a company-level key.
+            workspace_uid (str, optional): The workspace to sync, for a company API key.
 
         Returns:
             AdminJob: The job; wait for it with `admin.jobs.wait`.

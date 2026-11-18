@@ -984,7 +984,7 @@ def parse_arguments(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Onboard a new workspace with the Paradime Administration API, then delete it. "
-            "Credentials come from PARADIME_API_ENDPOINT, PARADIME_API_SECRET (an account key, "
+            "Credentials come from PARADIME_API_ENDPOINT, PARADIME_API_SECRET (a company API key, "
             "prdm_cmp_...) and PARADIME_WORKSPACE_UID (an existing workspace the key reaches, "
             "never deleted); everything else from the config file."
         ),
@@ -1028,7 +1028,7 @@ def main(
         api_secret = required_environment(environ, "PARADIME_API_SECRET")
         if not api_secret.startswith(COMPANY_API_TOKEN_PREFIX):
             raise ConfigError(
-                f"PARADIME_API_SECRET must be an account API key ({COMPANY_API_TOKEN_PREFIX}...)."
+                f"PARADIME_API_SECRET must be a company API key ({COMPANY_API_TOKEN_PREFIX}...)."
             )
         api_endpoint = required_environment(environ, "PARADIME_API_ENDPOINT")
         bootstrap_uid = required_environment(environ, "PARADIME_WORKSPACE_UID")

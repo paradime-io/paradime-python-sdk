@@ -26,7 +26,7 @@ class AdminClient:
     The Admin API is available on the Enterprise plan. Errors raise the `AdminApiException`
     subclass of their `extensions.code`, and rate-limited requests are retried after the wait
     the server asks for. Workspace-level operations take `workspace_uid` to target a workspace
-    with a company-level key for one call, in place of the client's `workspace_uid`.
+    with a company API key for one call, in place of the client's `workspace_uid`.
 
     Attributes:
         workspaces (AdminWorkspacesClient): Workspaces and their settings.

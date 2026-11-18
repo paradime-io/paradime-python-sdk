@@ -41,7 +41,7 @@ class AdminGitClient:
         A key with `git:write` creates the workspace's first deploy key when it has none.
 
         Args:
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
             Optional[GitRepository]: The repository, or None when the server returned none.
@@ -72,7 +72,7 @@ class AdminGitClient:
         Args:
             connection: How to reach the repository: a `DeployKeyConnectionInput`, a
                 `GitHubAppConnectionInput` or a `GitLabAppConnectionInput`.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             ConnectGitRepositoryResult: The repository now and, when the deploy key connects it
@@ -105,7 +105,7 @@ class AdminGitClient:
 
         Args:
             uri (str): The repository's SSH URI.
-            workspace_uid (str, optional): The workspace to use, for a company-level key.
+            workspace_uid (str, optional): The workspace to use, for a company API key.
 
         Returns:
             AdminJob: The job; wait for it with `admin.jobs.wait`.
@@ -136,7 +136,7 @@ class AdminGitClient:
         Args:
             force (bool): Rotate a key the connected repository uses. Clone and push break
                 until the new key is added to the repository.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             GitDeployKey: The new deploy key.
