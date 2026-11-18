@@ -528,3 +528,28 @@ def test_a_list_keeps_its_nodes_when_their_environment_is_unreadable(
     [connection] = AdminClient(transport.client, transport=transport).connections.list()
 
     assert connection.connection_id == "default" and connection.environment_slug is None
+
+
+@pytest.mark.parametrize(
+    "code, exception_class",
+    [("INTERNAL", AdminInternalException), ("NOT_FOUND", AdminNotFoundException)],
+)
+def test_other_codes_on_a_null_linked_field_still_raise(
+    monkeypatch: pytest.MonkeyPatch, sleeps: List[float], code: str, exception_class: type
+) -> None:
+    body = {"data": _environments(None), "errors": [_link_error(code, LINK_PATH)]}
+    transport, _ = _transport(monkeypatch, sleeps, FakeResponse(body))
+
+    with pytest.raises(exception_class):
+        transport.execute("query q { x }", linked_fields={"deferSchedule"})
+
+
+def test_an_error_without_a_path_still_raises_with_linked_fields(
+    monkeypatch: pytest.MonkeyPatch, sleeps: List[float]
+) -> None:
+    error = {"message": "missing access", "extensions": {"code": "MISSING_CAPABILITY"}}
+    body = {"data": _environments(None), "errors": [error]}
+    transport, _ = _transport(monkeypatch, sleeps, FakeResponse(body))
+
+    with pytest.raises(AdminMissingCapabilityException):
+        transport.execute("query q { x }", linked_fields={"deferSchedule"})
