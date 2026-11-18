@@ -232,17 +232,6 @@ class StubAdminApi:
         job = _job("job-deploy", "deployBoltSchedules", "QUEUED")
         return self.ok({"deployBoltSchedules": {"job": job}})
 
-    def op_adminSetMsTeamsWebhook(
-        self, variables: Dict[str, Any], workspace: Optional[str]
-    ) -> Reply:
-        webhook = {
-            "name": variables["input"]["name"],
-            "urlIsSet": True,
-            "urlHint": "https://acme.webhook.office.com/...",
-            "updatedAt": NOW,
-        }
-        return self.ok({"setMsTeamsWebhook": {"msTeamsWebhook": webhook}})
-
     def op_adminSetAlertNotifications(
         self, variables: Dict[str, Any], workspace: Optional[str]
     ) -> Reply:
@@ -250,7 +239,6 @@ class StubAdminApi:
         alerts = {
             "category": notifications_input["category"],
             "slack": None,
-            "msTeams": notifications_input.get("msTeams"),
             "email": notifications_input.get("email"),
         }
         return self.ok({"setAlertNotifications": {"alertNotifications": alerts}})
