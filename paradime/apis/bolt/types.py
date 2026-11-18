@@ -202,6 +202,7 @@ class BoltNotificationChannelInput(_BoltInputBase):
     channel: str
     events: List[str]
     template_slug: Optional[str] = None
+    team: Optional[str] = None
 
 
 class BoltNotificationsInput(_BoltInputBase):
@@ -283,6 +284,8 @@ class BoltSelfHealingConfigInput(_BoltInputBase):
     enabled: bool
     slack_channel: Optional[str] = None
     agent_name: Optional[str] = None
+    ms_teams_team: Optional[str] = None
+    ms_teams_channel: Optional[str] = None
 
 
 class BoltDeferredScheduleConfigInput(_BoltInputBase):

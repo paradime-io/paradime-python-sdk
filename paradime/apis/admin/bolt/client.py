@@ -7,6 +7,7 @@ from paradime.apis.admin.bolt.types import (
     TRIGGER_URL_LINKS,
     BoltScheduleDefinition,
     CreateTriggerUrlInput,
+    DeleteBoltScheduleDefinitionInput,
     DeployBoltSchedulesInput,
     SetTriggerUrlEnabledInput,
     TriggerUrl,
@@ -42,12 +43,106 @@ from paradime.apis.bolt.types import (
 
 class AdminBoltClient:
     """
-    Bolt administration: changing UI-defined schedules, deploying YAML schedules and managing
-    Trigger URLs. Running schedules stays on `paradime.bolt`.
+    Bolt administration: creating, changing, listing and deleting UI-defined schedules,
+    deploying YAML schedules and managing Trigger URLs. Running schedules stays on
+    `paradime.bolt`.
     """
 
     def __init__(self, transport: AdminTransport) -> None:
         self.transport = transport
+
+    def create_schedule(
+        self,
+        *,
+        name: str,
+        schedule: str,
+        environment: str,
+        slug: Optional[str] = None,
+        commands: Optional[List[str]] = None,
+        command_configs: Optional[List[Union[BoltCommandConfigInput, Dict[str, Any]]]] = None,
+        continue_on_error: Optional[bool] = None,
+        git_branch: Optional[str] = None,
+        description: Optional[str] = None,
+        timezone: Optional[str] = None,
+        owner_email: Optional[str] = None,
+        suspended: Optional[bool] = None,
+        sla_seconds: Optional[int] = None,
+        trigger_on_merge: Optional[bool] = None,
+        trigger_on_webhook: Optional[bool] = None,
+        notifications: Optional[Union[BoltNotificationsInput, Dict[str, Any]]] = None,
+        integrations: Optional[Union[BoltIntegrationsInput, Dict[str, Any]]] = None,
+        self_healing: Optional[Union[BoltSelfHealingConfigInput, Dict[str, Any]]] = None,
+        turbo_ci: Optional[Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]] = None,
+        deferred_schedule: Optional[Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]] = None,
+        schedule_trigger: Optional[Union[BoltScheduleTriggerInput, Dict[str, Any]]] = None,
+        env_vars: Optional[List[Union[BoltEnvironmentVariableInput, Dict[str, Any]]]] = None,
+        workspace_uid: Optional[str] = None,
+    ) -> BoltScheduleDefinition:
+        """
+        Creates a schedule, as the UI does, and deploys it. It takes the settings
+        `paradime.bolt.create_schedule` takes; give exactly one of `commands` or
+        `command_configs`. Leaving out `suspended` or `continue_on_error` sets them to false.
+
+        Args:
+            name (str): The schedule's display name.
+            schedule (str): The cron expression, or `OFF` for no time-based runs.
+            environment (str): The slug of the environment the schedule runs in.
+            slug (str, optional): The slug to give it; minted when left out. With a slug,
+                sending the same input again returns the same schedule; without one, every call
+                creates another. A slug in use by a YAML schedule or once used by a deleted
+                schedule is a `CONFLICT`.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
+
+        Returns:
+            BoltScheduleDefinition: The new schedule as stored, or the existing one when the same
+                input was sent before.
+        """
+
+        query = f"""
+            mutation adminCreateBoltScheduleDefinition($input: CreateBoltScheduleDefinitionInput!) {{
+                createBoltScheduleDefinition(input: $input) {{
+                    schedule {{
+                        {BOLT_SCHEDULE_DEFINITION_FIELDS}
+                    }}
+                }}
+            }}
+        """
+
+        schedule_input = _schedule_input(
+            name=name,
+            schedule=schedule,
+            environment=environment,
+            commands=commands,
+            command_configs=command_configs,
+            continue_on_error=continue_on_error,
+            git_branch=git_branch,
+            description=description,
+            timezone=timezone,
+            owner_email=owner_email,
+            suspended=suspended,
+            sla_seconds=sla_seconds,
+            trigger_on_merge=trigger_on_merge,
+            trigger_on_webhook=trigger_on_webhook,
+            notifications=notifications,
+            integrations=integrations,
+            self_healing=self_healing,
+            turbo_ci=turbo_ci,
+            deferred_schedule=deferred_schedule,
+            schedule_trigger=schedule_trigger,
+            env_vars=env_vars,
+        )
+        create_input: Dict[str, Any] = {"schedule": schedule_input}
+        if slug is not None:
+            create_input["slug"] = slug
+        response = self.transport.execute(
+            query,
+            {"input": create_input},
+            workspace_uid=workspace_uid,
+            linked_fields=BOLT_SCHEDULE_DEFINITION_LINKS,
+        )
+        return BoltScheduleDefinition.parse_obj(
+            response["createBoltScheduleDefinition"]["schedule"]
+        )
 
     def update_schedule(
         self,
@@ -91,8 +186,8 @@ class AdminBoltClient:
         """
 
         query = f"""
-            mutation adminUpdateBoltSchedule($input: UpdateBoltScheduleInput!) {{
-                updateBoltSchedule(input: $input) {{
+            mutation adminUpdateBoltScheduleDefinition($input: UpdateBoltScheduleDefinitionInput!) {{
+                updateBoltScheduleDefinition(input: $input) {{
                     schedule {{
                         {BOLT_SCHEDULE_DEFINITION_FIELDS}
                     }}
@@ -100,37 +195,113 @@ class AdminBoltClient:
             }}
         """
 
-        settings: Dict[str, Any] = {
-            "name": name,
-            "schedule": schedule,
-            "environment": environment,
-            "commands": commands,
-            "commandConfigs": _serialize_input_list(command_configs),
-            "continueOnError": continue_on_error,
-            "gitBranch": git_branch,
-            "description": description,
-            "timezone": timezone,
-            "ownerEmail": owner_email,
-            "suspended": suspended,
-            "slaSeconds": sla_seconds,
-            "triggerOnMerge": trigger_on_merge,
-            "triggerOnWebhook": trigger_on_webhook,
-            "notifications": _serialize_input(notifications),
-            "integrations": _serialize_input(integrations),
-            "selfHealing": _serialize_input(self_healing),
-            "turboCi": _serialize_input(turbo_ci),
-            "deferredSchedule": _serialize_input(deferred_schedule),
-            "scheduleTrigger": _serialize_input(schedule_trigger),
-            "envVars": _serialize_input_list(env_vars),
-        }
-        schedule_input = {key: value for key, value in settings.items() if value is not None}
+        schedule_input = _schedule_input(
+            name=name,
+            schedule=schedule,
+            environment=environment,
+            commands=commands,
+            command_configs=command_configs,
+            continue_on_error=continue_on_error,
+            git_branch=git_branch,
+            description=description,
+            timezone=timezone,
+            owner_email=owner_email,
+            suspended=suspended,
+            sla_seconds=sla_seconds,
+            trigger_on_merge=trigger_on_merge,
+            trigger_on_webhook=trigger_on_webhook,
+            notifications=notifications,
+            integrations=integrations,
+            self_healing=self_healing,
+            turbo_ci=turbo_ci,
+            deferred_schedule=deferred_schedule,
+            schedule_trigger=schedule_trigger,
+            env_vars=env_vars,
+        )
         response = self.transport.execute(
             query,
             {"input": {"slug": slug, "schedule": schedule_input}},
             workspace_uid=workspace_uid,
             linked_fields=BOLT_SCHEDULE_DEFINITION_LINKS,
         )
-        return BoltScheduleDefinition.parse_obj(response["updateBoltSchedule"]["schedule"])
+        return BoltScheduleDefinition.parse_obj(
+            response["updateBoltScheduleDefinition"]["schedule"]
+        )
+
+    def delete_schedule(self, slug: str, *, workspace_uid: Optional[str] = None) -> str:
+        """
+        Deletes a UI or API-created schedule and redeploys the schedules. A YAML schedule is a
+        `CONFLICT`: remove it from the repository. Its Trigger URLs stay, and start nothing.
+        Deleting it again is not an error.
+
+        Args:
+            slug (str): The slug of the schedule to delete. It is never given out again.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
+
+        Returns:
+            str: The slug of the deleted schedule.
+        """
+
+        query = """
+            mutation adminDeleteBoltScheduleDefinition($input: DeleteBoltScheduleDefinitionInput!) {
+                deleteBoltScheduleDefinition(input: $input) {
+                    deletedSlug
+                }
+            }
+        """
+
+        response = self.transport.execute(
+            query,
+            {"input": serialize_input(DeleteBoltScheduleDefinitionInput(slug=slug))},
+            workspace_uid=workspace_uid,
+        )
+        return response["deleteBoltScheduleDefinition"]["deletedSlug"]
+
+    def list_schedules(
+        self,
+        *,
+        workspace_uid: Optional[str] = None,
+        page_size: int = DEFAULT_PAGE_SIZE,
+    ) -> Iterator[BoltScheduleDefinition]:
+        """
+        Iterates over the workspace's schedules created in the UI or through the API, as
+        stored, by slug. YAML schedules are not listed.
+
+        Args:
+            workspace_uid (str, optional): The workspace to read, for a company API key.
+            page_size (int): How many schedules to read per request, at most 500.
+
+        Returns:
+            Iterator[BoltScheduleDefinition]: The schedules, read a page at a time.
+        """
+
+        check_page_size(page_size)
+        query = f"""
+            query adminBoltSchedules($workspaceUid: String, $first: Int, $after: String) {{
+                workspace(workspaceUid: $workspaceUid) {{
+                    boltSchedules(first: $first, after: $after) {{
+                        edges {{
+                            node {{
+                                {BOLT_SCHEDULE_DEFINITION_FIELDS}
+                            }}
+                        }}
+                        {CONNECTION_FIELDS}
+                    }}
+                }}
+            }}
+        """
+
+        def fetch_page(after: Optional[str]) -> Page[BoltScheduleDefinition]:
+            response = self.transport.execute(
+                query,
+                {"workspaceUid": workspace_uid, "first": page_size, "after": after},
+                workspace_uid=workspace_uid,
+                linked_fields=BOLT_SCHEDULE_DEFINITION_LINKS,
+            )
+            workspace = response["workspace"] or {}
+            return parse_page(workspace.get("boltSchedules"), BoltScheduleDefinition.parse_obj)
+
+        return iterate_pages(fetch_page)
 
     def deploy_schedules(
         self, *, branch: Optional[str] = None, workspace_uid: Optional[str] = None
@@ -356,3 +527,53 @@ class AdminBoltClient:
             workspace_uid=workspace_uid,
         )
         return response["deleteTriggerUrl"]["deletedPublicId"]
+
+
+def _schedule_input(
+    *,
+    name: str,
+    schedule: str,
+    environment: str,
+    commands: Optional[List[str]] = None,
+    command_configs: Optional[List[Union[BoltCommandConfigInput, Dict[str, Any]]]] = None,
+    continue_on_error: Optional[bool] = None,
+    git_branch: Optional[str] = None,
+    description: Optional[str] = None,
+    timezone: Optional[str] = None,
+    owner_email: Optional[str] = None,
+    suspended: Optional[bool] = None,
+    sla_seconds: Optional[int] = None,
+    trigger_on_merge: Optional[bool] = None,
+    trigger_on_webhook: Optional[bool] = None,
+    notifications: Optional[Union[BoltNotificationsInput, Dict[str, Any]]] = None,
+    integrations: Optional[Union[BoltIntegrationsInput, Dict[str, Any]]] = None,
+    self_healing: Optional[Union[BoltSelfHealingConfigInput, Dict[str, Any]]] = None,
+    turbo_ci: Optional[Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]] = None,
+    deferred_schedule: Optional[Union[BoltDeferredScheduleConfigInput, Dict[str, Any]]] = None,
+    schedule_trigger: Optional[Union[BoltScheduleTriggerInput, Dict[str, Any]]] = None,
+    env_vars: Optional[List[Union[BoltEnvironmentVariableInput, Dict[str, Any]]]] = None,
+) -> Dict[str, Any]:
+    settings: Dict[str, Any] = {
+        "name": name,
+        "schedule": schedule,
+        "environment": environment,
+        "commands": commands,
+        "commandConfigs": _serialize_input_list(command_configs),
+        "continueOnError": continue_on_error,
+        "gitBranch": git_branch,
+        "description": description,
+        "timezone": timezone,
+        "ownerEmail": owner_email,
+        "suspended": suspended,
+        "slaSeconds": sla_seconds,
+        "triggerOnMerge": trigger_on_merge,
+        "triggerOnWebhook": trigger_on_webhook,
+        "notifications": _serialize_input(notifications),
+        "integrations": _serialize_input(integrations),
+        "selfHealing": _serialize_input(self_healing),
+        "turboCi": _serialize_input(turbo_ci),
+        "deferredSchedule": _serialize_input(deferred_schedule),
+        "scheduleTrigger": _serialize_input(schedule_trigger),
+        "envVars": _serialize_input_list(env_vars),
+    }
+    return {key: value for key, value in settings.items() if value is not None}
