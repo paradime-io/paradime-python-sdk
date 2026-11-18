@@ -156,7 +156,7 @@ class AdminNotificationsClient:
                 channel_ids=list(slack_channel_ids or []), user_ids=list(slack_user_ids or [])
             )
         if email_enabled is not None:
-            destinations["email"] = EmailAlertDestinationInput(enabled=email_enabled)
+            destinations["email"] = EmailAlertDestinationInput(is_enabled=email_enabled)
         notifications_input = SetAlertNotificationsInput(category=category, **destinations)
         response = self.transport.execute(
             query, {"input": serialize_input(notifications_input)}, workspace_uid=workspace_uid

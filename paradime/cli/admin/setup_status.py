@@ -46,7 +46,7 @@ def setup_status(workspace_uid: Optional[str], as_json: bool) -> None:
                 step.step.value,
                 step.environment_slug or "",
                 step.status.value,
-                common.show(step.required),
+                common.show(step.is_required),
                 _details(step.detail, step.install_url, step.status),
             ]
             for step in status.steps or []

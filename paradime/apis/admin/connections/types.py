@@ -26,11 +26,11 @@ WAREHOUSE_CONNECTION_FIELDS = """
             useKeyPairAuth
             useSso
             clientId
-            passwordIsSet
-            privateKeyIsSet
-            privateKeyPassphraseIsSet
-            clientSecretIsSet
-            profileIsSet
+            hasPassword
+            hasPrivateKey
+            hasPrivateKeyPassphrase
+            hasClientSecret
+            hasProfile
         }
         ... on BigQueryConnectionSettings {
             bigqueryConnectionType: connectionType
@@ -41,17 +41,17 @@ WAREHOUSE_CONNECTION_FIELDS = """
             clientId
             costGcsBucketName
             costProjectIds
-            serviceAccountJsonIsSet
-            clientSecretIsSet
-            profileIsSet
+            hasServiceAccountJson
+            hasClientSecret
+            hasProfile
         }
         ... on DatabricksConnectionSettings {
             host
             httpPath
             catalog
             schema
-            tokenIsSet
-            profileIsSet
+            hasToken
+            hasProfile
         }
         ... on RedshiftConnectionSettings {
             hostName
@@ -59,13 +59,13 @@ WAREHOUSE_CONNECTION_FIELDS = """
             database
             schema
             username
-            passwordIsSet
-            profileIsSet
+            hasPassword
+            hasProfile
         }
         ... on DuckDbConnectionSettings {
             duckdbConnectionType: connectionType
             schema
-            profileIsSet
+            hasProfile
         }
         ... on FireboltConnectionSettings {
             hostName
@@ -74,13 +74,13 @@ WAREHOUSE_CONNECTION_FIELDS = """
             engineName
             schema
             username
-            passwordIsSet
-            profileIsSet
+            hasPassword
+            hasProfile
         }
         ... on ProfileConnectionSettings {
             warehouseType
             schema
-            profileIsSet
+            hasProfile
         }
     }
 """
@@ -133,11 +133,11 @@ class SnowflakeConnectionSettings(AdminModel):
     use_key_pair_auth: Optional[bool] = None
     use_sso: Optional[bool] = None
     client_id: Optional[str] = None
-    password_is_set: Optional[bool] = None
-    private_key_is_set: Optional[bool] = None
-    private_key_passphrase_is_set: Optional[bool] = None
-    client_secret_is_set: Optional[bool] = None
-    profile_is_set: Optional[bool] = None
+    has_password: Optional[bool] = None
+    has_private_key: Optional[bool] = None
+    has_private_key_passphrase: Optional[bool] = None
+    has_client_secret: Optional[bool] = None
+    has_profile: Optional[bool] = None
 
 
 class BigQueryConnectionSettings(AdminModel):
@@ -149,9 +149,9 @@ class BigQueryConnectionSettings(AdminModel):
     client_id: Optional[str] = None
     cost_gcs_bucket_name: Optional[str] = None
     cost_project_ids: Optional[List[str]] = None
-    service_account_json_is_set: Optional[bool] = None
-    client_secret_is_set: Optional[bool] = None
-    profile_is_set: Optional[bool] = None
+    has_service_account_json: Optional[bool] = None
+    has_client_secret: Optional[bool] = None
+    has_profile: Optional[bool] = None
 
 
 class DatabricksConnectionSettings(AdminModel):
@@ -159,8 +159,8 @@ class DatabricksConnectionSettings(AdminModel):
     http_path: Optional[str] = None
     catalog: Optional[str] = None
     schema_name: Optional[str] = None
-    token_is_set: Optional[bool] = None
-    profile_is_set: Optional[bool] = None
+    has_token: Optional[bool] = None
+    has_profile: Optional[bool] = None
 
 
 class RedshiftConnectionSettings(AdminModel):
@@ -169,14 +169,14 @@ class RedshiftConnectionSettings(AdminModel):
     database: Optional[str] = None
     schema_name: Optional[str] = None
     username: Optional[str] = None
-    password_is_set: Optional[bool] = None
-    profile_is_set: Optional[bool] = None
+    has_password: Optional[bool] = None
+    has_profile: Optional[bool] = None
 
 
 class DuckDbConnectionSettings(AdminModel):
     connection_type: Optional[DuckDbConnectionType] = None
     schema_name: Optional[str] = None
-    profile_is_set: Optional[bool] = None
+    has_profile: Optional[bool] = None
 
 
 class FireboltConnectionSettings(AdminModel):
@@ -186,14 +186,14 @@ class FireboltConnectionSettings(AdminModel):
     engine_name: Optional[str] = None
     schema_name: Optional[str] = None
     username: Optional[str] = None
-    password_is_set: Optional[bool] = None
-    profile_is_set: Optional[bool] = None
+    has_password: Optional[bool] = None
+    has_profile: Optional[bool] = None
 
 
 class ProfileConnectionSettings(AdminModel):
     warehouse_type: Optional[WarehouseType] = None
     schema_name: Optional[str] = None
-    profile_is_set: Optional[bool] = None
+    has_profile: Optional[bool] = None
 
 
 WarehouseConnectionSettings = Union[

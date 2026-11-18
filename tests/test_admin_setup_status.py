@@ -12,22 +12,22 @@ READINESS = {"status": "DONE", "missing": [], "missingSuggested": ["AGENT_CONNEC
 SETUP_STATUS = {
     "isComplete": False,
     "steps": [
-        {"step": "GIT_REPOSITORY", "status": "DONE", "required": True},
+        {"step": "GIT_REPOSITORY", "status": "DONE", "isRequired": True},
         {
             "step": "GITHUB_APP",
             "status": "PENDING_USER_ACTION",
-            "required": False,
+            "isRequired": False,
             "installUrl": "https://app.example.test/install-github",
             "detail": "Install the GitHub App.",
         },
         {
             "step": "SCHEDULER_CONNECTION",
             "status": "MISSING",
-            "required": True,
+            "isRequired": True,
             "environmentSlug": "production",
             "detail": "No warehouse connection.",
         },
-        {"step": "SOMETHING_NEW", "status": "DONE", "required": False},
+        {"step": "SOMETHING_NEW", "status": "DONE", "isRequired": False},
     ],
     "products": {
         "codeIde": READINESS,

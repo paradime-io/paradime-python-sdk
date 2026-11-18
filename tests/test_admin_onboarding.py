@@ -593,7 +593,7 @@ def test_notifications_route_alerts_to_email_and_read_slack(stub: Tuple[StubAdmi
     sent = [
         v["input"] for operation, v in api.variables if operation == "adminSetAlertNotifications"
     ]
-    assert sent == [{"category": "BOLT_SYSTEM", "email": {"enabled": True}}]
+    assert sent == [{"category": "BOLT_SYSTEM", "email": {"isEnabled": True}}]
     assert outcome.detail == "BOLT_SYSTEM alerts: email True, Slack PENDING_USER_ACTION"
 
 

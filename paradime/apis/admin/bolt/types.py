@@ -14,7 +14,7 @@ BOLT_SCHEDULE_DEFINITION_FIELDS = """
     description
     slaSeconds
     commands
-    suspended
+    isSuspended
     triggerOnMerge
     triggerOnWebhook
     updatedAt
@@ -23,13 +23,13 @@ BOLT_SCHEDULE_DEFINITION_FIELDS = """
 TRIGGER_URL_FIELDS = """
     publicId
     name
-    enabled
+    isEnabled
     url
     scheduleSlug
     scheduleFound
     createdAt
     lastEventAt
-    secretIsSet
+    hasSecret
     secretUpdatedAt
 """
 
@@ -45,7 +45,7 @@ class BoltScheduleDefinition(AdminModel):
     description: Optional[str] = None
     sla_seconds: Optional[int] = None
     commands: Optional[List[str]] = None
-    suspended: Optional[bool] = None
+    is_suspended: Optional[bool] = None
     trigger_on_merge: Optional[bool] = None
     trigger_on_webhook: Optional[bool] = None
     updated_at: Optional[datetime] = None
@@ -54,13 +54,13 @@ class BoltScheduleDefinition(AdminModel):
 class TriggerUrl(AdminModel):
     public_id: str
     name: str
-    enabled: Optional[bool] = None
+    is_enabled: Optional[bool] = None
     url: Optional[str] = None
     schedule_slug: Optional[str] = None
     schedule_found: Optional[bool] = None
     created_at: Optional[datetime] = None
     last_event_at: Optional[datetime] = None
-    secret_is_set: Optional[bool] = None
+    has_secret: Optional[bool] = None
     secret_updated_at: Optional[datetime] = None
 
 

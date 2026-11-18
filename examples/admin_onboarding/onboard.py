@@ -797,7 +797,7 @@ class Onboarding:
         alerts = notifications.set_alert_notifications(
             email_enabled=None if email is None else bool(email),
         )
-        enabled = alerts.email.enabled if alerts.email else None
+        enabled = alerts.email.is_enabled if alerts.email else None
         parts.append(f"{alerts.category.value} alerts: email {enabled}")
         slack = notifications.get_slack()
         if slack is not None:
@@ -868,13 +868,13 @@ class Onboarding:
             state = row.status.value
             counts[state] = counts.get(state, 0) + 1
             name = row.step.value + (f" {row.environment_slug}" if row.environment_slug else "")
-            note = f"{state:<19} {name}" + ("" if row.required else " (optional)")
+            note = f"{state:<19} {name}" + ("" if row.is_required else " (optional)")
             if row.install_url:
                 note += f" {row.install_url}"
             if row.status == SetupStepStatus.MISSING and row.detail:
                 note += f": {row.detail}"
             notes.append(note)
-            if row.status == SetupStepStatus.MISSING and row.required:
+            if row.status == SetupStepStatus.MISSING and row.is_required:
                 missing_required.append(name)
         products = status.products
         notes.append(

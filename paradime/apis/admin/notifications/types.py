@@ -7,7 +7,7 @@ SLACK_INSTALLATION_FIELDS = """
     installUrl
     teamId
     teamName
-    reconnectRequired
+    isReconnectRequired
     missingScopes
 """
 
@@ -18,7 +18,7 @@ ALERT_NOTIFICATIONS_FIELDS = """
         userIds
     }
     email {
-        enabled
+        isEnabled
     }
 """
 
@@ -39,7 +39,7 @@ class SlackInstallation(AdminModel):
     install_url: Optional[str] = None
     team_id: Optional[str] = None
     team_name: Optional[str] = None
-    reconnect_required: Optional[bool] = None
+    is_reconnect_required: Optional[bool] = None
     missing_scopes: Optional[List[str]] = None
 
 
@@ -49,7 +49,7 @@ class SlackAlertDestination(AdminModel):
 
 
 class EmailAlertDestination(AdminModel):
-    enabled: Optional[bool] = None
+    is_enabled: Optional[bool] = None
 
 
 class AlertNotifications(AdminModel):
@@ -68,7 +68,7 @@ class SlackAlertDestinationInput(AdminInputModel):
 
 
 class EmailAlertDestinationInput(AdminInputModel):
-    enabled: bool
+    is_enabled: bool
 
 
 class SetAlertNotificationsInput(AdminInputModel):

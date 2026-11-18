@@ -96,13 +96,23 @@ class TestNotifications:
         assert transport.calls[0].variables == {}
 
 
-TRIGGER_URL = {"publicId": "p1", "name": "ci", "enabled": True, "url": "https://hooks/p1"}
+TRIGGER_URL = {
+    "publicId": "p1",
+    "name": "ci",
+    "isEnabled": True,
+    "url": "https://hooks/p1",
+    "hasSecret": True,
+}
 
 
 class TestBolt:
     def test_update_schedule_sends_the_whole_schedule(self) -> None:
         admin, transport = _admin(
-            {"updateBoltSchedule": {"schedule": {"slug": "nightly", "name": "Nightly"}}}
+            {
+                "updateBoltSchedule": {
+                    "schedule": {"slug": "nightly", "name": "Nightly", "isSuspended": True}
+                }
+            }
         )
 
         definition = admin.bolt.update_schedule(
@@ -126,7 +136,7 @@ class TestBolt:
                 },
             }
         }
-        assert definition.slug == "nightly"
+        assert definition.slug == "nightly" and definition.is_suspended is True
 
     def test_trigger_url_secrets_are_returned_but_kept_out_of_repr(self) -> None:
         admin, _ = _admin({"createTriggerUrl": {"triggerUrl": TRIGGER_URL, "secret": "tok-123"}})
@@ -134,6 +144,7 @@ class TestBolt:
         created = admin.bolt.create_trigger_url("nightly", "ci")
 
         assert created.secret == "tok-123"
+        assert created.trigger_url.is_enabled is True and created.trigger_url.has_secret is True
         assert "tok-123" not in repr(created)
         assert "https://hooks/p1" in repr(created)
 
@@ -153,7 +164,7 @@ class TestIntegrations:
             "settings": {
                 "__typename": "LookerSettings",
                 "baseUrl": "https://looker.example.test",
-                "clientSecretIsSet": True,
+                "hasClientSecret": True,
             },
         }
         admin, transport = _admin({"setIntegration": {"integration": integration}})
@@ -177,7 +188,7 @@ class TestIntegrations:
         }
         assert result.name == IntegrationName.LOOKER
         assert isinstance(result.settings, LookerSettings)
-        assert result.settings.client_secret_is_set is True
+        assert result.settings.has_client_secret is True
 
     def test_test_and_disconnect(self) -> None:
         admin, transport = _admin(
@@ -203,7 +214,7 @@ class TestIntegrations:
             "settings": {
                 "__typename": "AwsSecretsManagerSettings",
                 "accessKeyIdHint": "AKIA…WXYZ",
-                "secretAccessKeyIsSet": True,
+                "hasSecretAccessKey": True,
             },
         }
         admin, transport = _admin(

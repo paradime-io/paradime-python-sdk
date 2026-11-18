@@ -141,7 +141,7 @@ class StubAdminApi:
             "provider": "GITHUB" if self.connected else None,
             "uri": "git@github.com:acme/analytics.git" if self.connected else None,
             "dbtProjectDir": None,
-            "verified": self.connected,
+            "isVerified": self.connected,
             "deployKey": {"publicKey": PUBLIC_KEY},
             "githubApp": None,
             "gitlabApp": None,
@@ -249,7 +249,7 @@ class StubAdminApi:
             "installUrl": "https://app.paradime.io/slack/install?state=stub",
             "teamId": None,
             "teamName": None,
-            "reconnectRequired": False,
+            "isReconnectRequired": False,
             "missingScopes": [],
         }
         return self.ok({"slack": slack})
@@ -276,7 +276,7 @@ class StubAdminApi:
             return {
                 "step": step,
                 "status": status,
-                "required": required,
+                "isRequired": required,
                 "environmentSlug": fields.get("environmentSlug"),
                 "installUrl": fields.get("installUrl"),
                 "detail": fields.get("detail"),

@@ -288,7 +288,7 @@ REPOSITORY = {
     "provider": "GITHUB",
     "uri": "git@github.com:acme/analytics.git",
     "dbtProjectDir": None,
-    "verified": False,
+    "isVerified": False,
     "deployKey": {"publicKey": "ssh-ed25519 AAAA"},
     "githubApp": None,
     "gitlabApp": None,
@@ -411,7 +411,7 @@ class TestConnections:
                                 "settings": {
                                     "__typename": "BigQueryConnectionSettings",
                                     "bigqueryConnectionType": "SERVICE_ACCOUNT",
-                                    "serviceAccountJsonIsSet": True,
+                                    "hasServiceAccountJson": True,
                                 },
                             },
                             {
@@ -434,7 +434,7 @@ class TestConnections:
         snowflake, bigquery, duckdb = list(admin.connections.list(scope=ConnectionScope.SCHEDULER))
 
         assert isinstance(snowflake.settings, SnowflakeConnectionSettings)
-        assert snowflake.settings.password_is_set is True
+        assert snowflake.settings.has_password is True
         assert snowflake.settings.schema_name == "dbt"
         assert isinstance(bigquery.settings, BigQueryConnectionSettings)
         assert bigquery.settings.connection_type is not None
@@ -471,7 +471,7 @@ class TestConnections:
                 "__typename": "ProfileConnectionSettings",
                 "warehouseType": "TRINO",
                 "schema": "analytics",
-                "profileIsSet": True,
+                "hasProfile": True,
             },
         }
         admin, transport = _admin(
@@ -500,7 +500,7 @@ class TestConnections:
         assert isinstance(trino.settings, ProfileConnectionSettings)
         assert trino.settings.warehouse_type == WarehouseType.TRINO
         assert trino.settings.schema_name == "analytics"
-        assert trino.settings.profile_is_set is True
+        assert trino.settings.has_profile is True
         assert isinstance(unknown.settings, ProfileConnectionSettings)
         assert unknown.settings.warehouse_type == WarehouseType.UNKNOWN
         assert "... on ProfileConnectionSettings" in transport.calls[0].query
@@ -546,7 +546,7 @@ CONNECTION = {
         "__typename": "SnowflakeConnectionSettings",
         "account": "acme",
         "schema": "dbt",
-        "passwordIsSet": True,
+        "hasPassword": True,
     },
 }
 
@@ -625,7 +625,7 @@ class TestDevelopmentAndCostConnections:
                 "__typename": "BigQueryConnectionSettings",
                 "costGcsBucketName": "audit-logs",
                 "costProjectIds": ["p1", "p2"],
-                "serviceAccountJsonIsSet": True,
+                "hasServiceAccountJson": True,
             },
         }
         admin, transport = _admin({"setWarehouseConnection": {"warehouseConnection": cost}})
@@ -667,7 +667,7 @@ class TestDevelopmentAndCostConnections:
                 "account": "acme",
                 "useSso": True,
                 "clientId": "cid",
-                "clientSecretIsSet": True,
+                "hasClientSecret": True,
             },
         }
         admin, transport = _admin(
