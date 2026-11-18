@@ -101,7 +101,13 @@ if result.job:
     paradime.admin.jobs.wait(result.job.id, workspace_uid=workspace.uid)
 paradime.admin.environments.create(EnvironmentType.SCHEDULER, "Production", slug="production", workspace_uid=workspace.uid)
 paradime.admin.environment_variables.set({"DBT_TARGET": "prod"}, environment_slug="production", workspace_uid=workspace.uid)
+paradime.admin.bolt.create_schedule(slug="nightly", name="Nightly", schedule="0 2 * * *", environment="production", commands=["dbt build"], workspace_uid=workspace.uid)
 ```
+
+`admin.bolt` creates, updates, lists and deletes the schedules made in the UI or through the
+API (`create_schedule`, `update_schedule`, `list_schedules`, `delete_schedule`); YAML schedules
+stay in the repository and deploy with `deploy_schedules`. `update_schedule` replaces every
+setting except `suspended`, `continue_on_error` and `env_vars`, so send the whole schedule.
 
 `workspace_uid` on a call sends `X-Paradime-Workspace` for that call only, so one company API
 key can work across workspaces. The same operations are on the CLI under `paradime admin`;
@@ -111,6 +117,9 @@ the command line:
 ```bash
 printf '%s' "$DBT_TOKEN" | paradime admin env-vars set DBT_TOKEN --environment production
 paradime admin connections set --scope SCHEDULER --environment production --config snowflake.yml
+paradime admin bolt schedules create --slug nightly --name Nightly --schedule "0 2 * * *" --environment production --command "dbt build"
+paradime admin bolt schedules update nightly --config nightly.yml
+paradime admin bolt schedules list --json
 ```
 
 ## Examples
