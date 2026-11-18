@@ -623,7 +623,7 @@ def fake_bolt(monkeypatch: pytest.MonkeyPatch) -> FakeBolt:
         pass
 
     admin_client = Admin()
-    admin_client.bolt = bolt  # type: ignore[attr-defined]
+    admin_client.bolt = bolt
     monkeypatch.setattr(common, "get_admin", lambda: admin_client)
     return bolt
 
