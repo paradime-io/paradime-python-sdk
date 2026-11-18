@@ -603,3 +603,74 @@ def test_jobs_wait_prints_the_typed_deploy_result(
         assert "result.git_hash: 0f3c2a1" in result.output
         assert "result.schedules: 1 of 1" in result.output
         assert "daily_run" in result.output and "no command" in result.output
+
+
+def test_jobs_wait_says_a_truncated_deploy_result_shows_only_its_first_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from paradime.apis.admin.jobs.types import AdminJob
+
+    done = AdminJob.parse_obj(
+        {
+            "id": "job-1",
+            "kind": "DEPLOY_BOLT_SCHEDULES",
+            "status": "SUCCEEDED",
+            "result": {
+                "__typename": "DeployBoltSchedulesResult",
+                "schedules": {
+                    "totalCount": 250,
+                    "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                    "edges": [{"cursor": "c1", "node": {"slug": "daily_run", "source": "YAML"}}],
+                },
+            },
+        }
+    )
+
+    class Jobs:
+        def wait(self, job_id: str, **kwargs: Any) -> AdminJob:
+            return done
+
+    class Admin:
+        jobs = Jobs()
+
+    monkeypatch.setattr(common, "get_admin", lambda: Admin())
+
+    result = _run("jobs", "wait", "job-1")
+
+    assert result.exit_code == 0, result.output
+    output = " ".join(result.output.split())
+    assert "result.schedules: 1 of 250" in output
+    assert "Showing the first 1 of 250 schedules." in output
+    assert "paradime admin jobs deployed-schedules job-1" in output
+
+
+def test_jobs_deployed_schedules_lists_every_schedule(monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+
+    from paradime.apis.admin.jobs.types import DeployedBoltSchedule
+
+    calls: List[Dict[str, Any]] = []
+
+    class Jobs:
+        def deployed_schedules(self, job_id: str, **kwargs: Any) -> Any:
+            calls.append({"job_id": job_id, **kwargs})
+            return iter(
+                [
+                    DeployedBoltSchedule(slug="daily_run", source="YAML"),
+                    DeployedBoltSchedule(slug="nightly", source="UI", failure_reason="bad cron"),
+                ]
+            )
+
+    class Admin:
+        jobs = Jobs()
+
+    monkeypatch.setattr(common, "get_admin", lambda: Admin())
+
+    result = _run("jobs", "deployed-schedules", "job-1", "--workspace", "w1", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == [
+        {"slug": "daily_run", "source": "YAML", "failureReason": None},
+        {"slug": "nightly", "source": "UI", "failureReason": "bad cron"},
+    ]
+    assert calls == [{"job_id": "job-1", "workspace_uid": "w1"}]

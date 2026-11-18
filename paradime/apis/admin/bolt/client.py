@@ -143,8 +143,9 @@ class AdminBoltClient:
 
         Returns:
             AdminJob: The job; wait for it with `admin.jobs.wait`. Its result is a
-                `DeployBoltSchedulesResult` that lists each schedule with its source and,
-                when it was not deployed, why.
+                `DeployBoltSchedulesResult` that holds the first page of the schedules it read,
+                each with its source and, when it was not deployed, why. Read them all with
+                `admin.jobs.deployed_schedules`.
         """
 
         query = f"""

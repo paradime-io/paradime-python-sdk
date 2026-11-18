@@ -41,3 +41,20 @@ def wait(job_id: str, timeout: float, workspace_uid: Optional[str], as_json: boo
     """
     job = common.get_admin().jobs.wait(job_id, timeout=timeout, workspace_uid=workspace_uid)
     common.print_job(job, as_json=as_json)
+
+
+@jobs.command(name="deployed-schedules")
+@click.argument("job_id")
+@common.workspace_option
+@common.json_option
+@common.handle_admin_errors
+def deployed_schedules(job_id: str, workspace_uid: Optional[str], as_json: bool) -> None:
+    """
+    List every schedule a deploy job read, with why it was not deployed when it was not.
+    """
+    common.print_models(
+        common.get_admin().jobs.deployed_schedules(job_id, workspace_uid=workspace_uid),
+        columns=common.DEPLOYED_SCHEDULE_COLUMNS,
+        fields=common.DEPLOYED_SCHEDULE_FIELDS,
+        as_json=as_json,
+    )

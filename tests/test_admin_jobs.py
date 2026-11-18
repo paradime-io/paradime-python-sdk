@@ -21,6 +21,7 @@ from paradime.apis.admin.jobs.types import (
     AdminJobStatus,
     BoltScheduleSource,
     DeployBoltSchedulesResult,
+    DeployedBoltSchedule,
     DinoAiAgentSyncResult,
     GitRepositoryCheckResult,
     GitRepositoryConnectResult,
@@ -314,3 +315,74 @@ def test_a_job_the_key_cannot_see_is_not_found() -> None:
     assert jobs.get("job-1") is None
     with pytest.raises(AdminNotFoundException):
         jobs.wait("job-1")
+
+
+class DeployedSchedulesTransport:
+    def __init__(self, *answers: Optional[Dict[str, Any]]) -> None:
+        self.answers = list(answers)
+        self.calls: List[Dict[str, Any]] = []
+
+    def execute(
+        self,
+        query: str,
+        variables: Optional[Dict[str, Any]] = None,
+        *,
+        workspace_uid: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        assert "schedules(first: $first, after: $after)" in query
+        self.calls.append({"variables": variables, "workspace_uid": workspace_uid})
+        return {"adminJob": self.answers.pop(0)}
+
+
+def _deployed(slugs: List[str], end_cursor: Optional[str], has_next: bool) -> Dict[str, Any]:
+    return {
+        "result": {
+            "__typename": "DeployBoltSchedulesResult",
+            "schedules": {
+                "edges": [
+                    {"node": {"slug": slug, "source": "YAML", "failureReason": None}}
+                    for slug in slugs
+                ],
+                "totalCount": 3,
+                "pageInfo": {"endCursor": end_cursor, "hasNextPage": has_next},
+            },
+        }
+    }
+
+
+def test_deployed_schedules_reads_every_page_of_a_deploy() -> None:
+    transport = DeployedSchedulesTransport(
+        _deployed(["a", "b"], "c2", True), _deployed(["c"], "c3", False)
+    )
+    jobs = AdminJobsClient(transport)
+
+    schedules = list(jobs.deployed_schedules("job-1", page_size=2, workspace_uid="w1"))
+
+    assert [schedule.slug for schedule in schedules] == ["a", "b", "c"]
+    assert all(isinstance(schedule, DeployedBoltSchedule) for schedule in schedules)
+    assert [call["variables"] for call in transport.calls] == [
+        {"jobId": "job-1", "first": 2, "after": None},
+        {"jobId": "job-1", "first": 2, "after": "c2"},
+    ]
+    assert transport.calls[0]["workspace_uid"] == "w1"
+
+
+def test_deployed_schedules_of_a_job_without_a_deploy_result_are_empty() -> None:
+    jobs = AdminJobsClient(DeployedSchedulesTransport({"result": None}))
+
+    assert list(jobs.deployed_schedules("job-1")) == []
+
+
+def test_deployed_schedules_of_a_job_the_key_cannot_see_is_not_found() -> None:
+    jobs = AdminJobsClient(DeployedSchedulesTransport(None))
+
+    with pytest.raises(AdminNotFoundException):
+        list(jobs.deployed_schedules("job-1"))
+
+
+def test_deployed_schedules_checks_the_page_size() -> None:
+    transport = DeployedSchedulesTransport()
+
+    with pytest.raises(ValueError):
+        AdminJobsClient(transport).deployed_schedules("job-1", page_size=0)
+    assert transport.calls == []

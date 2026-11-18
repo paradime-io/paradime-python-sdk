@@ -5,6 +5,12 @@ from paradime.apis.admin.exception import ErrorCode, parse_error_code
 from paradime.apis.admin.types import AdminModel, GitProvider, OpenEnum, parse_page
 from paradime.tools.pydantic import validator
 
+DEPLOYED_BOLT_SCHEDULE_FIELDS = """
+    slug
+    source
+    failureReason
+"""
+
 DEPLOY_BOLT_SCHEDULES_RESULT_FIELDS = """
     ... on DeployBoltSchedulesResult {
         scheduleParseId

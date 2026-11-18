@@ -91,19 +91,27 @@ def print_model(model: BaseModel, *, as_json: bool) -> None:
             console.kv(name, show(value))
 
 
-def print_job_result(result: Optional[BaseModel]) -> None:
-    if result is None:
+DEPLOYED_SCHEDULE_COLUMNS = ["Slug", "Source", "Failure reason"]
+DEPLOYED_SCHEDULE_FIELDS = ["slug", "source", "failure_reason"]
+
+
+def print_job_result(job: AdminJob) -> None:
+    if job.result is None:
         return
-    for name, value in result:
+    for name, value in job.result:
         if isinstance(value, DeployedBoltSchedulePage):
             console.kv(f"result.{name}", f"{len(value.nodes)} of {value.total_count}")
-            console.table(
-                ["Slug", "Source", "Failure reason"],
-                [
-                    [show(schedule.slug), show(schedule.source), show(schedule.failure_reason)]
-                    for schedule in value.nodes
-                ],
+            print_models(
+                value.nodes,
+                columns=DEPLOYED_SCHEDULE_COLUMNS,
+                fields=DEPLOYED_SCHEDULE_FIELDS,
+                as_json=False,
             )
+            if value.has_next_page:
+                console.info(
+                    f"Showing the first {len(value.nodes)} of {value.total_count} schedules. "
+                    f"List them all with: paradime admin jobs deployed-schedules {job.id}"
+                )
         else:
             console.kv(f"result.{name}", show(value))
 
@@ -120,7 +128,7 @@ def print_job(job: AdminJob, *, as_json: bool) -> None:
                 console.kv(f"{name}.{child_name}", show(child_value))
         else:
             console.kv(name, show(value))
-    print_job_result(job.result)
+    print_job_result(job)
 
 
 def wait_for_job(job: AdminJob, *, timeout: float, workspace_uid: Optional[str]) -> AdminJob:
@@ -144,7 +152,7 @@ def report_job(
         console.json_out({"job": to_json(job)})
         return
     console.kv("job", f"{job.id} ({job.status.value})")
-    print_job_result(job.result)
+    print_job_result(job)
     if not wait:
         console.info(f"Follow it with: paradime admin jobs wait {job.id}")
 

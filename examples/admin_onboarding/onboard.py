@@ -43,7 +43,7 @@ from paradime.apis.admin.git.types import (
     GitRepository,
     GitRepositoryState,
 )
-from paradime.apis.admin.jobs.types import AdminJob, DeployBoltSchedulesResult
+from paradime.apis.admin.jobs.types import AdminJob, DeployBoltSchedulesResult, DeployedBoltSchedule
 from paradime.apis.admin.notifications.types import SlackInstallationStatus
 from paradime.apis.admin.setup_status.types import SetupStepStatus
 from paradime.apis.admin.types import SECRET_INPUT_FIELDS, UNSET, given
@@ -774,8 +774,7 @@ class Onboarding:
     def deploy_schedules(self) -> Outcome:
         job = self.target.admin.bolt.deploy_schedules(branch=self.config.bolt.get("branch"))
         job = self._wait_for_job(self.target, job.id)
-        result = job.result
-        schedules = result.schedules.nodes if isinstance(result, DeployBoltSchedulesResult) else []
+        schedules = self._deployed_schedules(job)
         failed = [s for s in schedules if s.failure_reason]
         if failed:
             raise StepFailed(
@@ -788,6 +787,14 @@ class Onboarding:
             f"job {job.id} {job.status.value}, {len(schedules)} schedule(s): "
             + ", ".join(self.deployed_schedules)
         )
+
+    def _deployed_schedules(self, job: AdminJob) -> List[DeployedBoltSchedule]:
+        result = job.result
+        if not isinstance(result, DeployBoltSchedulesResult):
+            return []
+        if not result.schedules.has_next_page:
+            return list(result.schedules.nodes)
+        return list(self.target.admin.jobs.deployed_schedules(job.id))
 
     def notifications(self) -> Outcome:
         settings = self.config.notifications
