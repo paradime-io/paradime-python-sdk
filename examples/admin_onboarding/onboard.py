@@ -43,6 +43,7 @@ from paradime.apis.admin.git.types import (
     GitRepository,
     GitRepositoryState,
 )
+from paradime.apis.admin.jobs.types import AdminJob, DeployBoltSchedulesResult
 from paradime.apis.admin.notifications.types import SlackInstallationStatus
 from paradime.apis.admin.setup_status.types import SetupStepStatus
 from paradime.apis.admin.types import SECRET_INPUT_FIELDS, UNSET, given
@@ -551,7 +552,7 @@ class Onboarding:
         self.notes.append(f"RATE_LIMITED: retried after {seconds:g}s")
         self.sleep(seconds)
 
-    def _wait_for_job(self, client: Paradime, job_id: str) -> Any:
+    def _wait_for_job(self, client: Paradime, job_id: str) -> AdminJob:
         return client.admin.jobs.wait(
             job_id, timeout=self.config.job_timeout, poll_interval=self.config.poll_interval
         )
@@ -773,15 +774,16 @@ class Onboarding:
     def deploy_schedules(self) -> Outcome:
         job = self.target.admin.bolt.deploy_schedules(branch=self.config.bolt.get("branch"))
         job = self._wait_for_job(self.target, job.id)
-        schedules = (job.result or {}).get("schedules") or []
-        failed = [s for s in schedules if s.get("error")]
+        result = job.result
+        schedules = result.schedules.nodes if isinstance(result, DeployBoltSchedulesResult) else []
+        failed = [s for s in schedules if s.failure_reason]
         if failed:
             raise StepFailed(
-                "; ".join(f"{s.get('slug')}: {s.get('error')}" for s in failed) + f" (job {job.id})"
+                "; ".join(f"{s.slug}: {s.failure_reason}" for s in failed) + f" (job {job.id})"
             )
         if not schedules:
             raise StepFailed(f"the deploy read no schedules from the repository (job {job.id})")
-        self.deployed_schedules = [str(s["slug"]) for s in schedules]
+        self.deployed_schedules = [s.slug for s in schedules]
         return Outcome(
             f"job {job.id} {job.status.value}, {len(schedules)} schedule(s): "
             + ", ".join(self.deployed_schedules)

@@ -1,7 +1,7 @@
-import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import pytest
+from test_admin_clients import REPOSITORY, _admin
 
 from paradime.apis.admin.exception import (
     AdminApiException,
@@ -11,15 +11,27 @@ from paradime.apis.admin.exception import (
     AdminValidationFailedException,
     ErrorCode,
 )
+from paradime.apis.admin.git.types import GitHubAppConnectionInput
 from paradime.apis.admin.jobs import client as jobs_client
 from paradime.apis.admin.jobs.client import AdminJobsClient
-from paradime.apis.admin.jobs.types import AdminJobStatus
+from paradime.apis.admin.jobs.types import (
+    RESULT_BY_TYPENAME,
+    AdminJob,
+    AdminJobKind,
+    AdminJobStatus,
+    BoltScheduleSource,
+    DeployBoltSchedulesResult,
+    DinoAiAgentSyncResult,
+    GitRepositoryCheckResult,
+    GitRepositoryConnectResult,
+)
+from paradime.apis.admin.types import GitProvider
 
 
 def _job(status: str, **fields: Any) -> Dict[str, Any]:
     return {
         "id": "job-1",
-        "kind": "checkGitRepository",
+        "kind": "CHECK_GIT_REPOSITORY",
         "status": status,
         "failure": None,
         "result": None,
@@ -35,6 +47,7 @@ class JobTransport:
     def __init__(self, *jobs: Optional[Dict[str, Any]]) -> None:
         self.jobs = list(jobs)
         self.calls: List[Dict[str, Any]] = []
+        self.queries: List[str] = []
 
     def execute(
         self,
@@ -45,6 +58,7 @@ class JobTransport:
     ) -> Dict[str, Any]:
         assert "adminJob(jobId: $jobId)" in query
         self.calls.append({"variables": variables, "workspace_uid": workspace_uid})
+        self.queries.append(query)
         job = self.jobs[min(len(self.calls), len(self.jobs)) - 1]
         return {"adminJob": job}
 
@@ -55,18 +69,176 @@ def _jobs(*jobs: Optional[Dict[str, Any]]) -> "tuple[AdminJobsClient, JobTranspo
     return AdminJobsClient(transport, sleep=sleeps.append), transport, sleeps
 
 
-def test_wait_polls_until_the_job_succeeds_and_parses_its_result() -> None:
-    result = {"uri": "git@github.com:acme/analytics.git"}
+def test_wait_polls_until_the_job_succeeds_and_returns_its_typed_result() -> None:
+    result = {"__typename": "GitRepositoryCheckResult", "uri": "git@github.com:acme/analytics.git"}
     jobs, transport, sleeps = _jobs(
-        _job("QUEUED"), _job("RUNNING"), _job("SUCCEEDED", result=json.dumps(result))
+        _job("QUEUED"), _job("RUNNING"), _job("SUCCEEDED", result=result)
     )
 
     job = jobs.wait("job-1", poll_interval=3, workspace_uid="w1")
 
     assert job.status == AdminJobStatus.SUCCEEDED
-    assert job.result == result
+    assert job.kind == AdminJobKind.CHECK_GIT_REPOSITORY
+    assert isinstance(job.result, GitRepositoryCheckResult)
+    assert job.result.uri == "git@github.com:acme/analytics.git"
     assert sleeps == [3, 3]
     assert transport.calls[0] == {"variables": {"jobId": "job-1"}, "workspace_uid": "w1"}
+
+
+def test_the_poll_selects_every_result_type() -> None:
+    jobs, transport, _ = _jobs(_job("SUCCEEDED"))
+
+    jobs.wait("job-1")
+
+    for typename in RESULT_BY_TYPENAME:
+        assert f"... on {typename} {{" in transport.queries[0]
+    assert "__typename" in transport.queries[0]
+
+
+@pytest.mark.parametrize(
+    "start, field, typename",
+    [
+        (
+            lambda admin: admin.bolt.deploy_schedules(),
+            "deployBoltSchedules",
+            "DeployBoltSchedulesResult",
+        ),
+        (
+            lambda admin: admin.git.check_repository("git@x:y.git"),
+            "checkGitRepository",
+            "GitRepositoryCheckResult",
+        ),
+        (
+            lambda admin: admin.dinoai.sync_agents_from_code(),
+            "syncDinoAiAgentDefinitionsFromCode",
+            "DinoAiAgentSyncResult",
+        ),
+    ],
+)
+def test_a_starting_operation_selects_only_its_own_result(
+    start: Callable[[Any], AdminJob], field: str, typename: str
+) -> None:
+    admin, transport = _admin({field: {"job": _job("QUEUED")}})
+
+    assert start(admin).status == AdminJobStatus.QUEUED
+    query = transport.calls[0].query
+    assert [name for name in RESULT_BY_TYPENAME if f"... on {name} {{" in query] == [typename]
+
+
+def test_connect_selects_only_the_connect_result() -> None:
+    admin, transport = _admin(
+        {"connectGitRepository": {"gitRepository": REPOSITORY, "job": _job("QUEUED")}}
+    )
+
+    admin.git.connect(GitHubAppConnectionInput(installation_id="1", repository_id="2"))
+
+    query = transport.calls[0].query
+    selected = [name for name in RESULT_BY_TYPENAME if f"... on {name} {{" in query]
+    assert selected == ["GitRepositoryConnectResult"]
+
+
+def test_a_deploy_result_parses_its_schedules_page() -> None:
+    job = AdminJob.parse_obj(
+        _job(
+            "SUCCEEDED",
+            kind="DEPLOY_BOLT_SCHEDULES",
+            result={
+                "__typename": "DeployBoltSchedulesResult",
+                "scheduleParseId": 7,
+                "gitHash": "0f3c2a1",
+                "schedules": {
+                    "totalCount": 3,
+                    "pageInfo": {"hasNextPage": True, "endCursor": "c2"},
+                    "edges": [
+                        {
+                            "cursor": "c1",
+                            "node": {"slug": "daily", "source": "YAML", "failureReason": None},
+                        },
+                        {
+                            "cursor": "c2",
+                            "node": {"slug": "adhoc", "source": "NEW", "failureReason": "bad"},
+                        },
+                    ],
+                },
+            },
+        )
+    )
+
+    result = job.result
+    assert job.kind == AdminJobKind.DEPLOY_BOLT_SCHEDULES
+    assert isinstance(result, DeployBoltSchedulesResult)
+    assert result.schedule_parse_id == 7 and result.git_hash == "0f3c2a1"
+    assert [schedule.slug for schedule in result.schedules.nodes] == ["daily", "adhoc"]
+    assert result.schedules.nodes[0].source == BoltScheduleSource.YAML
+    assert result.schedules.nodes[1].source == BoltScheduleSource.UNKNOWN
+    assert result.schedules.nodes[1].failure_reason == "bad"
+    assert result.schedules.total_count == 3
+    assert result.schedules.has_next_page is True and result.schedules.end_cursor == "c2"
+
+
+def test_a_deploy_result_without_schedules_has_an_empty_page() -> None:
+    job = AdminJob.parse_obj(
+        _job(
+            "SUCCEEDED",
+            kind="DEPLOY_BOLT_SCHEDULES",
+            result={"__typename": "DeployBoltSchedulesResult", "scheduleParseId": None},
+        )
+    )
+
+    assert isinstance(job.result, DeployBoltSchedulesResult)
+    assert job.result.schedules.nodes == [] and job.result.schedules.total_count == 0
+
+
+def test_a_connect_result_parses_its_provider() -> None:
+    job = AdminJob.parse_obj(
+        _job(
+            "SUCCEEDED",
+            kind="CONNECT_GIT_REPOSITORY",
+            result={
+                "__typename": "GitRepositoryConnectResult",
+                "uri": "git@gitlab.com:acme/analytics.git",
+                "provider": "GITLAB",
+                "dbtProjectDir": "dbt",
+            },
+        )
+    )
+
+    assert job.kind == AdminJobKind.CONNECT_GIT_REPOSITORY
+    assert isinstance(job.result, GitRepositoryConnectResult)
+    assert job.result.provider == GitProvider.GITLAB
+    assert job.result.dbt_project_dir == "dbt"
+
+
+def test_a_sync_result_parses_its_counts() -> None:
+    job = AdminJob.parse_obj(
+        _job(
+            "SUCCEEDED",
+            kind="SYNC_DINOAI_AGENT_DEFINITIONS_FROM_CODE",
+            result={
+                "__typename": "DinoAiAgentSyncResult",
+                "added": 2,
+                "updated": 1,
+                "skipped": 0,
+                "branch": "main",
+                "commitSha": "abc123",
+                "isFetched": True,
+            },
+        )
+    )
+
+    assert job.kind == AdminJobKind.SYNC_DINOAI_AGENT_DEFINITIONS_FROM_CODE
+    assert job.result == DinoAiAgentSyncResult(
+        added=2, updated=1, skipped=0, branch="main", commit_sha="abc123", is_fetched=True
+    )
+
+
+def test_an_unknown_kind_is_unknown_and_an_unknown_result_type_is_none() -> None:
+    job = AdminJob.parse_obj(
+        _job("SUCCEEDED", kind="EXPORT_EVERYTHING", result={"__typename": "ExportResult"})
+    )
+
+    assert job.kind == AdminJobKind.UNKNOWN
+    assert job.result is None
 
 
 @pytest.mark.parametrize(

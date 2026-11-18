@@ -58,7 +58,8 @@ class AdminJobsClient:
             workspace_uid (str, optional): The workspace to target, for a company API key.
 
         Returns:
-            AdminJob: The succeeded job; its `result` holds what it produced.
+            AdminJob: The succeeded job; its `result` is the typed result of its `kind`, such as
+                a `DeployBoltSchedulesResult`.
 
         Raises:
             AdminApiException: The typed exception of the failure's code, when the job fails.

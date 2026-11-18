@@ -51,7 +51,7 @@ def _job(job_id: str, kind: str, status: str, result: Any = None) -> Dict[str, A
         "kind": kind,
         "status": status,
         "failure": None,
-        "result": json.dumps(result) if result is not None else None,
+        "result": result,
         "createdAt": NOW,
         "updatedAt": NOW,
     }
@@ -155,7 +155,7 @@ class StubAdminApi:
         self, variables: Dict[str, Any], workspace: Optional[str]
     ) -> Reply:
         repository = dict(self._repository(), state="PENDING_VALIDATION")
-        job = _job("job-git", "connectGitRepository", "QUEUED")
+        job = _job("job-git", "CONNECT_GIT_REPOSITORY", "QUEUED")
         return self.ok({"connectGitRepository": {"gitRepository": repository, "job": job}})
 
     def op_adminJob(self, variables: Dict[str, Any], workspace: Optional[str]) -> Reply:
@@ -163,16 +163,23 @@ class StubAdminApi:
         polls = self.polls[job_id] = self.polls.get(job_id, 0) + 1
         if job_id == "job-git":
             if polls == 1:
-                return self.ok({"adminJob": _job(job_id, "connectGitRepository", "RUNNING")})
+                return self.ok({"adminJob": _job(job_id, "CONNECT_GIT_REPOSITORY", "RUNNING")})
             self.connected = True
-            result = {"uri": "git@github.com:acme/analytics.git"}
-            return self.ok({"adminJob": _job(job_id, "connectGitRepository", "SUCCEEDED", result)})
+            result = {
+                "__typename": "GitRepositoryConnectResult",
+                "uri": "git@github.com:acme/analytics.git",
+                "provider": "GITHUB",
+                "dbtProjectDir": None,
+            }
+            job = _job(job_id, "CONNECT_GIT_REPOSITORY", "SUCCEEDED", result)
+            return self.ok({"adminJob": job})
         result = {
+            "__typename": "DeployBoltSchedulesResult",
             "scheduleParseId": 7,
             "gitHash": "0f3c2a1",
-            "schedules": [{"slug": "daily_run", "source": "YAML", "error": None}],
+            "schedules": _page([{"slug": "daily_run", "source": "YAML", "failureReason": None}]),
         }
-        return self.ok({"adminJob": _job(job_id, "deployBoltSchedules", "SUCCEEDED", result)})
+        return self.ok({"adminJob": _job(job_id, "DEPLOY_BOLT_SCHEDULES", "SUCCEEDED", result)})
 
     def op_adminCreateEnvironment(
         self, variables: Dict[str, Any], workspace: Optional[str]
@@ -229,7 +236,7 @@ class StubAdminApi:
     def op_adminDeployBoltSchedules(
         self, variables: Dict[str, Any], workspace: Optional[str]
     ) -> Reply:
-        job = _job("job-deploy", "deployBoltSchedules", "QUEUED")
+        job = _job("job-deploy", "DEPLOY_BOLT_SCHEDULES", "QUEUED")
         return self.ok({"deployBoltSchedules": {"job": job}})
 
     def op_adminSetAlertNotifications(
