@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Optional
 
 from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum
@@ -18,19 +17,9 @@ ALERT_NOTIFICATIONS_FIELDS = """
         channelIds
         userIds
     }
-    msTeams {
-        webhookNames
-    }
     email {
         enabled
     }
-"""
-
-MS_TEAMS_WEBHOOK_FIELDS = """
-    name
-    urlIsSet
-    urlHint
-    updatedAt
 """
 
 
@@ -59,10 +48,6 @@ class SlackAlertDestination(AdminModel):
     user_ids: List[str]
 
 
-class MsTeamsAlertDestination(AdminModel):
-    webhook_names: List[str]
-
-
 class EmailAlertDestination(AdminModel):
     enabled: Optional[bool] = None
 
@@ -70,37 +55,16 @@ class EmailAlertDestination(AdminModel):
 class AlertNotifications(AdminModel):
     category: AlertCategory
     slack: Optional[SlackAlertDestination] = None
-    ms_teams: Optional[MsTeamsAlertDestination] = None
     email: Optional[EmailAlertDestination] = None
-
-
-class MsTeamsWebhook(AdminModel):
-    name: str
-    url_is_set: bool
-    url_hint: Optional[str] = None
-    updated_at: Optional[datetime] = None
 
 
 class DisconnectSlackInput(AdminInputModel):
     team_id: Optional[str] = None
 
 
-class SetMsTeamsWebhookInput(AdminInputModel):
-    name: str
-    url: str
-
-
-class DeleteMsTeamsWebhookInput(AdminInputModel):
-    name: str
-
-
 class SlackAlertDestinationInput(AdminInputModel):
     channel_ids: List[str] = []
     user_ids: List[str] = []
-
-
-class MsTeamsAlertDestinationInput(AdminInputModel):
-    webhook_names: List[str]
 
 
 class EmailAlertDestinationInput(AdminInputModel):
@@ -110,5 +74,4 @@ class EmailAlertDestinationInput(AdminInputModel):
 class SetAlertNotificationsInput(AdminInputModel):
     category: AlertCategory
     slack: Optional[SlackAlertDestinationInput] = None
-    ms_teams: Optional[MsTeamsAlertDestinationInput] = None
     email: Optional[EmailAlertDestinationInput] = None

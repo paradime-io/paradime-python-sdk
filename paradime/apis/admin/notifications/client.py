@@ -1,36 +1,23 @@
-from typing import Any, Dict, Iterator, Optional, Sequence
+from typing import Any, Dict, Optional, Sequence
 
 from paradime.apis.admin.notifications.types import (
     ALERT_NOTIFICATIONS_FIELDS,
-    MS_TEAMS_WEBHOOK_FIELDS,
     SLACK_INSTALLATION_FIELDS,
     AlertCategory,
     AlertNotifications,
-    DeleteMsTeamsWebhookInput,
     DisconnectSlackInput,
     EmailAlertDestinationInput,
-    MsTeamsAlertDestinationInput,
-    MsTeamsWebhook,
     SetAlertNotificationsInput,
-    SetMsTeamsWebhookInput,
     SlackAlertDestinationInput,
     SlackInstallation,
 )
 from paradime.apis.admin.transport import AdminTransport
-from paradime.apis.admin.types import (
-    CONNECTION_FIELDS,
-    DEFAULT_PAGE_SIZE,
-    Page,
-    check_page_size,
-    iterate_pages,
-    parse_page,
-    serialize_input,
-)
+from paradime.apis.admin.types import serialize_input
 
 
 class AdminNotificationsClient:
     """
-    Where a workspace's alerts go: Slack, Microsoft Teams webhooks and email.
+    Where a workspace's alerts go: Slack and email.
     """
 
     def __init__(self, transport: AdminTransport) -> None:
@@ -93,106 +80,6 @@ class AdminNotificationsClient:
         )
         return SlackInstallation.parse_obj(response["disconnectSlack"]["slack"])
 
-    def list_ms_teams_webhooks(
-        self, *, workspace_uid: Optional[str] = None, page_size: int = DEFAULT_PAGE_SIZE
-    ) -> Iterator[MsTeamsWebhook]:
-        """
-        Iterates over the workspace's Microsoft Teams webhooks, ordered by name. Their URLs are
-        never returned.
-
-        Args:
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
-            page_size (int): How many webhooks to read per request, at most 500.
-
-        Returns:
-            Iterator[MsTeamsWebhook]: The webhooks, read a page at a time.
-        """
-
-        check_page_size(page_size)
-        query = f"""
-            query adminMsTeamsWebhooks($workspaceUid: String, $first: Int, $after: String) {{
-                workspace(uid: $workspaceUid) {{
-                    msTeamsWebhooks(first: $first, after: $after) {{
-                        edges {{
-                            node {{
-                                {MS_TEAMS_WEBHOOK_FIELDS}
-                            }}
-                        }}
-                        {CONNECTION_FIELDS}
-                    }}
-                }}
-            }}
-        """
-
-        def fetch_page(after: Optional[str]) -> Page[MsTeamsWebhook]:
-            response = self.transport.execute(
-                query,
-                {"workspaceUid": workspace_uid, "first": page_size, "after": after},
-                workspace_uid=workspace_uid,
-            )
-            workspace = response["workspace"] or {}
-            return parse_page(workspace.get("msTeamsWebhooks"), MsTeamsWebhook.parse_obj)
-
-        return iterate_pages(fetch_page)
-
-    def set_ms_teams_webhook(
-        self, name: str, url: str, *, workspace_uid: Optional[str] = None
-    ) -> MsTeamsWebhook:
-        """
-        Adds a Microsoft Teams webhook, or changes one by name. The URL is stored as a secret.
-
-        Args:
-            name (str): The webhook's name, unique in its workspace.
-            url (str): The webhook's https URL.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
-
-        Returns:
-            MsTeamsWebhook: The webhook.
-        """
-
-        query = f"""
-            mutation adminSetMsTeamsWebhook($input: SetMsTeamsWebhookInput!) {{
-                setMsTeamsWebhook(input: $input) {{
-                    msTeamsWebhook {{
-                        {MS_TEAMS_WEBHOOK_FIELDS}
-                    }}
-                }}
-            }}
-        """
-
-        webhook_input = SetMsTeamsWebhookInput(name=name, url=url)
-        response = self.transport.execute(
-            query, {"input": serialize_input(webhook_input)}, workspace_uid=workspace_uid
-        )
-        return MsTeamsWebhook.parse_obj(response["setMsTeamsWebhook"]["msTeamsWebhook"])
-
-    def delete_ms_teams_webhook(self, name: str, *, workspace_uid: Optional[str] = None) -> str:
-        """
-        Deletes a Microsoft Teams webhook. Deleting it again is not an error.
-
-        Args:
-            name (str): The webhook's name.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
-
-        Returns:
-            str: The name of the deleted webhook.
-        """
-
-        query = """
-            mutation adminDeleteMsTeamsWebhook($input: DeleteMsTeamsWebhookInput!) {
-                deleteMsTeamsWebhook(input: $input) {
-                    deletedName
-                }
-            }
-        """
-
-        response = self.transport.execute(
-            query,
-            {"input": serialize_input(DeleteMsTeamsWebhookInput(name=name))},
-            workspace_uid=workspace_uid,
-        )
-        return response["deleteMsTeamsWebhook"]["deletedName"]
-
     def get_alert_notifications(
         self,
         category: AlertCategory = AlertCategory.BOLT_SYSTEM,
@@ -234,7 +121,6 @@ class AdminNotificationsClient:
         *,
         slack_channel_ids: Optional[Sequence[str]] = None,
         slack_user_ids: Optional[Sequence[str]] = None,
-        ms_teams_webhook_names: Optional[Sequence[str]] = None,
         email_enabled: Optional[bool] = None,
         workspace_uid: Optional[str] = None,
     ) -> AlertNotifications:
@@ -247,7 +133,6 @@ class AdminNotificationsClient:
             slack_channel_ids (Sequence[str], optional): Slack channel ids. Given with or
                 without `slack_user_ids`, it replaces the Slack destination.
             slack_user_ids (Sequence[str], optional): Slack user ids.
-            ms_teams_webhook_names (Sequence[str], optional): Names of the workspace's webhooks.
             email_enabled (bool, optional): Whether alert emails are on.
             workspace_uid (str, optional): The workspace to change, for a company-level key.
 
@@ -269,10 +154,6 @@ class AdminNotificationsClient:
         if slack_channel_ids is not None or slack_user_ids is not None:
             destinations["slack"] = SlackAlertDestinationInput(
                 channel_ids=list(slack_channel_ids or []), user_ids=list(slack_user_ids or [])
-            )
-        if ms_teams_webhook_names is not None:
-            destinations["ms_teams"] = MsTeamsAlertDestinationInput(
-                webhook_names=list(ms_teams_webhook_names)
             )
         if email_enabled is not None:
             destinations["email"] = EmailAlertDestinationInput(enabled=email_enabled)
