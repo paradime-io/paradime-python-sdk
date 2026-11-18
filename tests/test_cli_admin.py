@@ -834,3 +834,32 @@ commandConfigs:
         BoltCommandConfigInput(command="dbt build", continue_on_error=True)
     ]
     assert "commands" not in call
+
+
+def test_declining_the_schedule_delete_prompt_deletes_nothing(fake_bolt: FakeBolt) -> None:
+    declined = _run("bolt", "schedules", "delete", "nightly", input="n\n")
+
+    assert declined.exit_code == 1
+    assert "Delete this schedule?" in declined.output
+    assert fake_bolt.calls == []
+
+
+def test_bolt_schedules_list_reads_past_the_first_page(monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+
+    from test_admin_clients import FakeTransport, _connection
+
+    from paradime.apis.admin.client import AdminClient
+
+    transport = FakeTransport(
+        {"workspace": {"boltSchedules": _connection([{"slug": "a", "name": "A"}], "c1", True)}},
+        {"workspace": {"boltSchedules": _connection([{"slug": "b", "name": "B"}], None, False)}},
+    )
+    admin_client = AdminClient(client=None, transport=transport)
+    monkeypatch.setattr(common, "get_admin", lambda: admin_client)
+
+    result = _run("bolt", "schedules", "list", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert [schedule["slug"] for schedule in json.loads(result.output)] == ["a", "b"]
+    assert [call.variables["after"] for call in transport.calls] == [None, "c1"]
