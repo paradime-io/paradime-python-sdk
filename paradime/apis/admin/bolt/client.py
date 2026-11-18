@@ -11,7 +11,11 @@ from paradime.apis.admin.bolt.types import (
     TriggerUrlKeyInput,
     TriggerUrlWithSecret,
 )
-from paradime.apis.admin.jobs.types import ADMIN_JOB_FIELDS, AdminJob
+from paradime.apis.admin.jobs.types import (
+    DEPLOY_BOLT_SCHEDULES_RESULT_FIELDS,
+    AdminJob,
+    admin_job_fields,
+)
 from paradime.apis.admin.transport import AdminTransport
 from paradime.apis.admin.types import (
     CONNECTION_FIELDS,
@@ -138,15 +142,17 @@ class AdminBoltClient:
             workspace_uid (str, optional): The workspace to deploy, for a company API key.
 
         Returns:
-            AdminJob: The job; wait for it with `admin.jobs.wait`. Its result lists each
-                schedule with its source and, when it was not deployed, why.
+            AdminJob: The job; wait for it with `admin.jobs.wait`. Its result is a
+                `DeployBoltSchedulesResult` that holds the first page of the schedules it read,
+                each with its source and, when it was not deployed, why. Read them all with
+                `admin.jobs.deployed_schedules`.
         """
 
         query = f"""
             mutation adminDeployBoltSchedules($input: DeployBoltSchedulesInput!) {{
                 deployBoltSchedules(input: $input) {{
                     job {{
-                        {ADMIN_JOB_FIELDS}
+                        {admin_job_fields(DEPLOY_BOLT_SCHEDULES_RESULT_FIELDS)}
                     }}
                 }}
             }}

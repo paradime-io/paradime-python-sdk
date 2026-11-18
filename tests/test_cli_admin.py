@@ -458,8 +458,19 @@ def test_connect_deploy_key_json_prints_the_repository_and_the_job_together(
     from paradime.apis.admin.git.types import ConnectGitRepositoryResult
     from paradime.apis.admin.jobs.types import AdminJob
 
-    queued = AdminJob(id="job-1", kind="connectGitRepository", status="QUEUED")
-    done = AdminJob(id="job-1", kind="connectGitRepository", status="SUCCEEDED", result={"x": 1})
+    queued = AdminJob(id="job-1", kind="CONNECT_GIT_REPOSITORY", status="QUEUED")
+    done = AdminJob.parse_obj(
+        {
+            "id": "job-1",
+            "kind": "CONNECT_GIT_REPOSITORY",
+            "status": "SUCCEEDED",
+            "result": {
+                "__typename": "GitRepositoryConnectResult",
+                "uri": "git@x:y.git",
+                "provider": "GITHUB",
+            },
+        }
+    )
 
     class Git:
         def connect(self, connection: Any, **kwargs: Any) -> ConnectGitRepositoryResult:
@@ -487,6 +498,8 @@ def test_connect_deploy_key_json_prints_the_repository_and_the_job_together(
     payload = json.loads(result.output)
     assert payload["gitRepository"]["state"] == "CONNECTED"
     assert payload["job"]["status"] == ("SUCCEEDED" if wait else "QUEUED")
+    connected = {"uri": "git@x:y.git", "provider": "GITHUB", "dbtProjectDir": None}
+    assert payload["job"]["result"] == (connected if wait else None)
 
 
 def test_a_connection_error_prints_without_the_company_token(
@@ -574,6 +587,138 @@ def test_connection_name_option_is_sent_as_name(fake_admin: FakeAdmin, command: 
     calls = getattr(fake_admin.connections, f"{command}_calls")
     assert len(calls) == 1 and calls[0]["name"] == "Dev"
     assert "connection_name" not in calls[0]
+
+
+@pytest.mark.parametrize("as_json", [False, True])
+def test_jobs_wait_prints_the_typed_deploy_result(
+    monkeypatch: pytest.MonkeyPatch, as_json: bool
+) -> None:
+    import json
+
+    from paradime.apis.admin.jobs.types import AdminJob
+
+    done = AdminJob.parse_obj(
+        {
+            "id": "job-1",
+            "kind": "DEPLOY_BOLT_SCHEDULES",
+            "status": "SUCCEEDED",
+            "result": {
+                "__typename": "DeployBoltSchedulesResult",
+                "scheduleParseId": 7,
+                "gitHash": "0f3c2a1",
+                "schedules": {
+                    "totalCount": 1,
+                    "pageInfo": {"hasNextPage": False, "endCursor": "c1"},
+                    "edges": [
+                        {
+                            "cursor": "c1",
+                            "node": {
+                                "slug": "daily_run",
+                                "source": "YAML",
+                                "failureReason": "no command",
+                            },
+                        }
+                    ],
+                },
+            },
+        }
+    )
+
+    class Jobs:
+        def wait(self, job_id: str, **kwargs: Any) -> AdminJob:
+            return done
+
+    class Admin:
+        jobs = Jobs()
+
+    monkeypatch.setattr(common, "get_admin", lambda: Admin())
+
+    result = _run("jobs", "wait", "job-1", *(["--json"] if as_json else []))
+
+    assert result.exit_code == 0, result.output
+    if as_json:
+        payload = json.loads(result.output)
+        assert payload["kind"] == "DEPLOY_BOLT_SCHEDULES"
+        assert payload["result"]["gitHash"] == "0f3c2a1"
+        assert payload["result"]["schedules"]["nodes"] == [
+            {"slug": "daily_run", "source": "YAML", "failureReason": "no command"}
+        ]
+    else:
+        assert "DEPLOY_BOLT_SCHEDULES" in result.output
+        assert "result.git_hash: 0f3c2a1" in result.output
+        assert "result.schedules: 1 of 1" in result.output
+        assert "daily_run" in result.output and "no command" in result.output
+
+
+def test_jobs_wait_says_a_truncated_deploy_result_shows_only_its_first_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from paradime.apis.admin.jobs.types import AdminJob
+
+    done = AdminJob.parse_obj(
+        {
+            "id": "job-1",
+            "kind": "DEPLOY_BOLT_SCHEDULES",
+            "status": "SUCCEEDED",
+            "result": {
+                "__typename": "DeployBoltSchedulesResult",
+                "schedules": {
+                    "totalCount": 250,
+                    "pageInfo": {"hasNextPage": True, "endCursor": "c1"},
+                    "edges": [{"cursor": "c1", "node": {"slug": "daily_run", "source": "YAML"}}],
+                },
+            },
+        }
+    )
+
+    class Jobs:
+        def wait(self, job_id: str, **kwargs: Any) -> AdminJob:
+            return done
+
+    class Admin:
+        jobs = Jobs()
+
+    monkeypatch.setattr(common, "get_admin", lambda: Admin())
+
+    result = _run("jobs", "wait", "job-1")
+
+    assert result.exit_code == 0, result.output
+    output = " ".join(result.output.split())
+    assert "result.schedules: 1 of 250" in output
+    assert "Showing the first 1 of 250 schedules." in output
+    assert "paradime admin jobs deployed-schedules job-1" in output
+
+
+def test_jobs_deployed_schedules_lists_every_schedule(monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+
+    from paradime.apis.admin.jobs.types import DeployedBoltSchedule
+
+    calls: List[Dict[str, Any]] = []
+
+    class Jobs:
+        def deployed_schedules(self, job_id: str, **kwargs: Any) -> Any:
+            calls.append({"job_id": job_id, **kwargs})
+            return iter(
+                [
+                    DeployedBoltSchedule(slug="daily_run", source="YAML"),
+                    DeployedBoltSchedule(slug="nightly", source="UI", failure_reason="bad cron"),
+                ]
+            )
+
+    class Admin:
+        jobs = Jobs()
+
+    monkeypatch.setattr(common, "get_admin", lambda: Admin())
+
+    result = _run("jobs", "deployed-schedules", "job-1", "--workspace", "w1", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == [
+        {"slug": "daily_run", "source": "YAML", "failureReason": None},
+        {"slug": "nightly", "source": "UI", "failureReason": "bad cron"},
+    ]
+    assert calls == [{"job_id": "job-1", "workspace_uid": "w1"}]
 
 
 def test_users_create_invites_the_email_with_the_role(fake_admin: FakeAdmin) -> None:

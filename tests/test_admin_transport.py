@@ -348,7 +348,7 @@ def test_admin_exceptions_survive_pickling() -> None:
     from paradime.apis.admin.exception import AdminJobTimeoutException
     from paradime.apis.admin.jobs.types import AdminJob
 
-    job = AdminJob(id="job-1", kind="checkGitRepository", status="RUNNING")
+    job = AdminJob(id="job-1", kind="CHECK_GIT_REPOSITORY", status="RUNNING")
     validation = AdminValidationFailedException(
         "Bad value.",
         field=["input", "name"],

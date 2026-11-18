@@ -1,10 +1,24 @@
 import logging
 import time
-from typing import Callable, Optional
+from typing import Callable, Iterator, Optional
 
 from paradime.apis.admin.exception import AdminJobTimeoutException, ErrorCode, admin_exception_for
-from paradime.apis.admin.jobs.types import ADMIN_JOB_FIELDS, AdminJob, AdminJobStatus
+from paradime.apis.admin.jobs.types import (
+    ADMIN_JOB_FIELDS,
+    DEPLOYED_BOLT_SCHEDULE_FIELDS,
+    AdminJob,
+    AdminJobStatus,
+    DeployedBoltSchedule,
+)
 from paradime.apis.admin.transport import AdminTransport
+from paradime.apis.admin.types import (
+    CONNECTION_FIELDS,
+    DEFAULT_PAGE_SIZE,
+    Page,
+    check_page_size,
+    iterate_pages,
+    parse_page,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +54,65 @@ class AdminJobsClient:
         job = response["adminJob"]
         return AdminJob.parse_obj(job) if job is not None else None
 
+    def deployed_schedules(
+        self,
+        job_id: str,
+        *,
+        workspace_uid: Optional[str] = None,
+        page_size: int = DEFAULT_PAGE_SIZE,
+    ) -> Iterator[DeployedBoltSchedule]:
+        """
+        Iterates over every schedule a deploy job read, YAML and UI, in the order the deploy
+        stored them. The job's `result` holds only their first page.
+
+        Args:
+            job_id (str): The id of the job `admin.bolt.deploy_schedules` started.
+            workspace_uid (str, optional): The workspace to target, for a company API key.
+            page_size (int): How many schedules to read per request, at most 500.
+
+        Returns:
+            Iterator[DeployedBoltSchedule]: The schedules, read a page at a time; none unless the
+                job is a deploy that succeeded.
+
+        Raises:
+            AdminNotFoundException: When the key can't see the job.
+        """
+
+        check_page_size(page_size)
+        query = f"""
+            query adminJobDeployedSchedules($jobId: String!, $first: Int, $after: String) {{
+                adminJob(jobId: $jobId) {{
+                    result {{
+                        __typename
+                        ... on DeployBoltSchedulesResult {{
+                            schedules(first: $first, after: $after) {{
+                                edges {{
+                                    node {{
+                                        {DEPLOYED_BOLT_SCHEDULE_FIELDS}
+                                    }}
+                                }}
+                                {CONNECTION_FIELDS}
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        """
+
+        def fetch_page(after: Optional[str]) -> Page[DeployedBoltSchedule]:
+            response = self.transport.execute(
+                query,
+                {"jobId": job_id, "first": page_size, "after": after},
+                workspace_uid=workspace_uid,
+            )
+            job = response["adminJob"]
+            if job is None:
+                raise admin_exception_for(ErrorCode.NOT_FOUND, f"No admin job with id {job_id!r}.")
+            result = job.get("result") or {}
+            return parse_page(result.get("schedules"), DeployedBoltSchedule.parse_obj)
+
+        return iterate_pages(fetch_page)
+
     def wait(
         self,
         job_id: str,
@@ -58,7 +131,8 @@ class AdminJobsClient:
             workspace_uid (str, optional): The workspace to target, for a company API key.
 
         Returns:
-            AdminJob: The succeeded job; its `result` holds what it produced.
+            AdminJob: The succeeded job; its `result` is the typed result of its `kind`, such as
+                a `DeployBoltSchedulesResult`.
 
         Raises:
             AdminApiException: The typed exception of the failure's code, when the job fails.

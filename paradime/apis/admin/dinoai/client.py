@@ -9,7 +9,11 @@ from paradime.apis.admin.dinoai.types import (
     SetDinoAiAgentDefinitionInput,
     SetDinoAiWorkspaceSettingsInput,
 )
-from paradime.apis.admin.jobs.types import ADMIN_JOB_FIELDS, AdminJob
+from paradime.apis.admin.jobs.types import (
+    DINOAI_AGENT_SYNC_RESULT_FIELDS,
+    AdminJob,
+    admin_job_fields,
+)
 from paradime.apis.admin.transport import AdminTransport
 from paradime.apis.admin.types import (
     CONNECTION_FIELDS,
@@ -297,7 +301,8 @@ class AdminDinoAiClient:
             workspace_uid (str, optional): The workspace to sync, for a company API key.
 
         Returns:
-            AdminJob: The job; wait for it with `admin.jobs.wait`.
+            AdminJob: The job; wait for it with `admin.jobs.wait`. Its result is a
+                `DinoAiAgentSyncResult`.
         """
 
         query = f"""
@@ -306,7 +311,7 @@ class AdminDinoAiClient:
             ) {{
                 syncDinoAiAgentDefinitionsFromCode(input: $input) {{
                     job {{
-                        {ADMIN_JOB_FIELDS}
+                        {admin_job_fields(DINOAI_AGENT_SYNC_RESULT_FIELDS)}
                     }}
                 }}
             }}
