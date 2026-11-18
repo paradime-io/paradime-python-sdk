@@ -102,8 +102,14 @@ if result.job:
     paradime.admin.jobs.wait(result.job.id, workspace_uid=workspace.uid)
 paradime.admin.environments.create(EnvironmentType.SCHEDULER, "Production", slug="production", workspace_uid=workspace.uid)
 paradime.admin.environment_variables.set({"DBT_TARGET": "prod"}, environment_slug="production", workspace_uid=workspace.uid)
+paradime.admin.bolt.create_schedule(slug="nightly", name="Nightly", schedule="0 2 * * *", environment="production", commands=["dbt build"], workspace_uid=workspace.uid)
 paradime.admin.users.create("data-lead@example.com", UserAccountType.ADMIN, workspace_uid=workspace.uid)
 ```
+
+`admin.bolt` creates, updates, lists and deletes the schedules made in the UI or through the
+API (`create_schedule`, `update_schedule`, `list_schedules`, `delete_schedule`); YAML schedules
+stay in the repository and deploy with `deploy_schedules`. `update_schedule` replaces every
+setting except `suspended`, `continue_on_error` and `env_vars`, so send the whole schedule.
 
 Async operations return an `AdminJob`. `admin.jobs.wait` polls it until it finishes and returns
 it with a typed `result` for its `kind`: a `DeployBoltSchedulesResult` holds the first page of
@@ -121,6 +127,9 @@ printf '%s' "$DBT_TOKEN" | paradime admin env-vars set DBT_TOKEN --environment p
 paradime admin connections create --scope SCHEDULER --environment production --config snowflake.yml \
   --name Snowflake --target prod --threads 8
 paradime admin connections update --scope SCHEDULER --environment production --config snowflake.yml
+paradime admin bolt schedules create --slug nightly --name Nightly --schedule "0 2 * * *" --environment production --command "dbt build"
+paradime admin bolt schedules update nightly --config nightly.yml
+paradime admin bolt schedules list --json
 ```
 
 `paradime.admin.connections.create` saves a new connection: sending the same settings again

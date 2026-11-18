@@ -8,6 +8,7 @@ import click
 from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.exception import AdminJobTimeoutException
 from paradime.apis.admin.jobs.types import AdminJob, DeployedBoltSchedulePage
+from paradime.apis.admin.types import BoltScheduleLink, EnvironmentLink
 from paradime.cli import console
 from paradime.client.api_exception import ParadimeAPIException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
@@ -57,6 +58,8 @@ def show(value: Optional[Any]) -> str:
         return "yes" if value else "no"
     if isinstance(value, list):
         return ", ".join(str(item) for item in value)
+    if isinstance(value, (EnvironmentLink, BoltScheduleLink)):
+        return value.slug
     return str(getattr(value, "value", value))
 
 

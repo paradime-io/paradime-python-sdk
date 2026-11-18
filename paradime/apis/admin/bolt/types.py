@@ -93,3 +93,7 @@ class TriggerUrlKeyInput(AdminInputModel):
 
 class DeployBoltSchedulesInput(AdminInputModel):
     branch: Optional[str] = None
+
+
+class DeleteBoltScheduleDefinitionInput(AdminInputModel):
+    slug: str

@@ -5,7 +5,7 @@ import pytest
 from test_admin_clients import _admin, _connection
 from test_admin_transport import FakeResponse, _error, _transport
 
-from paradime.apis.admin.bolt.types import TRIGGER_URL_FIELDS
+from paradime.apis.admin.bolt.types import TRIGGER_URL_FIELDS, BoltScheduleDefinition
 from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.dinoai.types import (
     DINOAI_AGENT_DEFINITION_FIELDS,
@@ -32,6 +32,12 @@ from paradime.apis.admin.users.types import (
     UserAccountType,
     UserInviteStatus,
     UserStatus,
+)
+from paradime.apis.bolt.types import (
+    BoltCommandConfigInput,
+    BoltNotificationChannelInput,
+    BoltNotificationsInput,
+    BoltSelfHealingConfigInput,
 )
 from paradime.tools.pydantic import ValidationError
 
@@ -234,7 +240,7 @@ class TestBolt:
     def test_update_schedule_sends_the_whole_schedule(self) -> None:
         admin, transport = _admin(
             {
-                "updateBoltSchedule": {
+                "updateBoltScheduleDefinition": {
                     "schedule": {"slug": "nightly", "name": "Nightly", "isSuspended": True}
                 }
             }
@@ -262,6 +268,144 @@ class TestBolt:
             }
         }
         assert definition.slug == "nightly" and definition.is_suspended is True
+        assert "updateBoltScheduleDefinition(input: $input)" in transport.calls[0].query
+        assert "$input: UpdateBoltScheduleDefinitionInput!" in transport.calls[0].query
+
+    def test_create_schedule_sends_the_slug_only_when_given(self) -> None:
+        stored = {"slug": "nightly", "name": "Nightly", "schedule": "0 1 * * *"}
+        admin, transport = _admin(
+            {"createBoltScheduleDefinition": {"schedule": stored}},
+            {"createBoltScheduleDefinition": {"schedule": {**stored, "slug": "nightly-2"}}},
+        )
+
+        created = admin.bolt.create_schedule(
+            slug="nightly",
+            name="Nightly",
+            schedule="0 1 * * *",
+            environment="production",
+            command_configs=[BoltCommandConfigInput(command="dbt build", continue_on_error=True)],
+            notifications=BoltNotificationsInput(
+                slack_notifications=[
+                    BoltNotificationChannelInput(channel="#data", events=["FAILED"])
+                ]
+            ),
+            workspace_uid="w2",
+        )
+        minted = admin.bolt.create_schedule(
+            name="Nightly", schedule="OFF", environment="production", commands=["dbt run"]
+        )
+
+        assert "createBoltScheduleDefinition(input: $input)" in transport.calls[0].query
+        assert "environment {" in transport.calls[0].query
+        assert transport.calls[0].linked_fields == {"environment"}
+        assert transport.calls[0].variables == {
+            "input": {
+                "slug": "nightly",
+                "schedule": {
+                    "name": "Nightly",
+                    "schedule": "0 1 * * *",
+                    "environment": "production",
+                    "commandConfigs": [{"command": "dbt build", "continueOnError": True}],
+                    "notifications": {
+                        "slackNotifications": [{"channel": "#data", "events": ["FAILED"]}]
+                    },
+                },
+            }
+        }
+        assert transport.calls[0].workspace_uid == "w2"
+        assert transport.calls[1].variables == {
+            "input": {
+                "schedule": {
+                    "name": "Nightly",
+                    "schedule": "OFF",
+                    "environment": "production",
+                    "commands": ["dbt run"],
+                }
+            }
+        }
+        assert created.slug == "nightly" and minted.slug == "nightly-2"
+
+    def test_teams_channels_are_sent_with_their_team(self) -> None:
+        admin, transport = _admin(
+            {"createBoltScheduleDefinition": {"schedule": {"slug": "nightly", "name": "Nightly"}}}
+        )
+
+        admin.bolt.create_schedule(
+            name="Nightly",
+            schedule="OFF",
+            environment="production",
+            commands=["dbt run"],
+            notifications=BoltNotificationsInput(
+                teams_notifications=[
+                    BoltNotificationChannelInput(channel="alerts", events=["FAILED"], team="Data")
+                ]
+            ),
+            self_healing=BoltSelfHealingConfigInput(
+                enabled=True, ms_teams_team="Data", ms_teams_channel="healing"
+            ),
+        )
+
+        schedule = transport.calls[0].variables["input"]["schedule"]
+        assert schedule["notifications"] == {
+            "teamsNotifications": [{"channel": "alerts", "events": ["FAILED"], "team": "Data"}]
+        }
+        assert schedule["selfHealing"] == {
+            "enabled": True,
+            "msTeamsTeam": "Data",
+            "msTeamsChannel": "healing",
+        }
+
+    def test_delete_schedule_returns_the_deleted_slug(self) -> None:
+        admin, transport = _admin({"deleteBoltScheduleDefinition": {"deletedSlug": "nightly"}})
+
+        assert admin.bolt.delete_schedule("nightly", workspace_uid="w2") == "nightly"
+        assert "deleteBoltScheduleDefinition(input: $input)" in transport.calls[0].query
+        assert transport.calls[0].variables == {"input": {"slug": "nightly"}}
+        assert transport.calls[0].workspace_uid == "w2"
+
+    def test_list_schedules_reads_every_page(self) -> None:
+        admin, transport = _admin(
+            {
+                "workspace": {
+                    "boltSchedules": _connection(
+                        [{"slug": "nightly", "name": "Nightly", "isSuspended": False}],
+                        "c1",
+                        True,
+                    )
+                }
+            },
+            {
+                "workspace": {
+                    "boltSchedules": _connection(
+                        [{"slug": "hourly", "name": "Hourly", "isSuspended": True}], None, False
+                    )
+                }
+            },
+        )
+
+        listed = list(admin.bolt.list_schedules(workspace_uid="w2", page_size=1))
+
+        assert [schedule.slug for schedule in listed] == ["nightly", "hourly"]
+        assert isinstance(listed[0], BoltScheduleDefinition)
+        assert listed[1].is_suspended is True
+        assert "boltSchedules(first: $first, after: $after)" in transport.calls[0].query
+        assert "environment {" in transport.calls[0].query
+        assert [call.linked_fields for call in transport.calls] == [{"environment"}] * 2
+        assert transport.calls[0].variables == {"workspaceUid": "w2", "first": 1, "after": None}
+        assert transport.calls[1].variables["after"] == "c1"
+        assert transport.calls[0].workspace_uid == "w2"
+
+    def test_list_schedules_of_a_workspace_without_them_is_empty(self) -> None:
+        admin, _ = _admin({"workspace": {"boltSchedules": None}})
+
+        assert list(admin.bolt.list_schedules()) == []
+
+    def test_list_schedules_checks_the_page_size(self) -> None:
+        admin, transport = _admin()
+
+        with pytest.raises(ValueError):
+            admin.bolt.list_schedules(page_size=501)
+        assert transport.calls == []
 
     def test_trigger_url_secrets_are_returned_but_kept_out_of_repr(self) -> None:
         admin, transport = _admin(
@@ -355,7 +499,7 @@ class TestBolt:
                 }
             },
             {"pauseTriggerUrl": {"triggerUrl": TRIGGER_URL}},
-            {"updateBoltSchedule": {"schedule": schedule}},
+            {"updateBoltScheduleDefinition": {"schedule": schedule}},
         )
 
         linked, missing = admin.bolt.list_trigger_urls("nightly")
