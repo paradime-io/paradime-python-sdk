@@ -119,7 +119,7 @@ class AdminConnectionsClient:
         scope: ConnectionScope,
         environment_slug: Optional[str] = None,
         connection_id: Optional[str] = None,
-        connection_name: Optional[str] = None,
+        name: Optional[str] = None,
         target_name: Optional[str] = None,
         threads: Optional[int] = None,
         workspace_uid: Optional[str] = None,
@@ -137,7 +137,7 @@ class AdminConnectionsClient:
                 `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
             connection_id (str, optional): The connection's id within its environment;
                 `default` when left out.
-            connection_name (str, optional): A name for the connection.
+            name (str, optional): A name for the connection.
             target_name (str, optional): The dbt target name runs see.
             threads (int, optional): How many threads dbt runs with.
             workspace_uid (str, optional): The workspace to use, for a company API key.
@@ -163,7 +163,7 @@ class AdminConnectionsClient:
             scope=scope,
             environment_slug=environment_slug,
             connection_id=connection_id,
-            connection_name=connection_name,
+            name=name,
             target_name=target_name,
             threads=threads,
         )
@@ -177,7 +177,7 @@ class AdminConnectionsClient:
         scope: ConnectionScope,
         environment_slug: Optional[str] = None,
         connection_id: Optional[str] = None,
-        connection_name: Optional[str] = None,
+        name: Optional[str] = None,
         target_name: Optional[str] = None,
         threads: Optional[int] = None,
         workspace_uid: Optional[str] = None,
@@ -192,7 +192,7 @@ class AdminConnectionsClient:
             environment_slug (str, optional): The environment's slug, for `SCHEDULER` and
                 `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
             connection_id (str, optional): The connection's id; `default` when left out.
-            connection_name (str, optional): A name; required for a new connection.
+            name (str, optional): A name; required for a new connection.
             target_name (str, optional): The dbt target name; required for a new connection.
             threads (int, optional): dbt threads; required for a new connection.
             workspace_uid (str, optional): The workspace to change, for a company API key.
@@ -219,7 +219,7 @@ class AdminConnectionsClient:
             scope=scope,
             environment_slug=environment_slug,
             connection_id=connection_id,
-            connection_name=connection_name,
+            name=name,
             target_name=target_name,
             threads=threads,
         )

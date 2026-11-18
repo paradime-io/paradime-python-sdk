@@ -534,7 +534,7 @@ def test_the_development_connection_sends_only_workspace_level_fields(
     assert sent == [
         {
             "scope": "DEVELOPMENT_SHARED",
-            "connectionName": "Snowflake development",
+            "name": "Snowflake development",
             "targetName": "dev",
             "adapter": {"snowflake": {"account": "acme-xy12345", "useKeyPairAuth": True}},
         }

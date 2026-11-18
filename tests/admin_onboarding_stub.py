@@ -202,7 +202,7 @@ class StubAdminApi:
             "connectionId": "default",
             "type": "SNOWFLAKE",
             "isDefault": True,
-            "connectionName": connection_input.get("connectionName"),
+            "name": connection_input.get("name"),
             "targetName": connection_input.get("targetName"),
             "threads": connection_input.get("threads"),
             "updatedAt": NOW,

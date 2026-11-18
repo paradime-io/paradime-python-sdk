@@ -10,7 +10,7 @@ WAREHOUSE_CONNECTION_FIELDS = """
     connectionId
     type
     isDefault
-    connectionName
+    name
     targetName
     threads
     updatedAt
@@ -226,7 +226,7 @@ class WarehouseConnection(AdminModel):
     connection_id: str
     type: WarehouseType
     is_default: Optional[bool] = None
-    connection_name: Optional[str] = None
+    name: Optional[str] = None
     target_name: Optional[str] = None
     threads: Optional[int] = None
     updated_at: Optional[datetime] = None
@@ -360,7 +360,7 @@ class WarehouseConnectionInput(AdminInputModel):
     scope: ConnectionScope
     environment_slug: Optional[StrictStr] = None
     connection_id: Optional[StrictStr] = None
-    connection_name: Optional[StrictStr] = None
+    name: Optional[StrictStr] = None
     target_name: Optional[StrictStr] = None
     threads: Optional[int] = None
     adapter: WarehouseAdapterInput

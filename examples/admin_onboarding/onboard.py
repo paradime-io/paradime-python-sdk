@@ -698,11 +698,11 @@ class Onboarding:
         saved = self.target.admin.connections.set(
             adapter,
             scope=ConnectionScope.DEVELOPMENT_SHARED,
-            connection_name=development.get("connection_name"),
+            name=development.get("name"),
             target_name=development.get("target_name"),
             workspace_uid=self.target_uid,
         )
-        detail = f"{saved.type.value} {saved.connection_name or ''!r} saved"
+        detail = f"{saved.type.value} {saved.name or ''!r} saved"
         if left_out:
             detail += f"; left out per-user fields: {', '.join(left_out)}"
         return Outcome(detail)
@@ -731,7 +731,7 @@ class Onboarding:
             WarehouseAdapterInput.parse_obj(connection.get("adapter") or {}),
             scope=scope,
             environment_slug=slug,
-            connection_name=connection.get("connection_name"),
+            name=connection.get("name"),
             target_name=connection.get("target_name"),
             threads=connection.get("threads"),
         )

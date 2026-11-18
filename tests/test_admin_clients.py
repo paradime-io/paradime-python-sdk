@@ -538,7 +538,7 @@ CONNECTION = {
     "connectionId": "default",
     "type": "SNOWFLAKE",
     "isDefault": True,
-    "connectionName": "Snowflake",
+    "name": "Snowflake",
     "targetName": "prod",
     "threads": 8,
     "updatedAt": "2026-11-05T10:00:00Z",
