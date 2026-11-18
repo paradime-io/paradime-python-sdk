@@ -598,6 +598,25 @@ def test_notifications_route_alerts_to_email_and_read_slack(stub: Tuple[StubAdmi
 
 
 @pytest.mark.parametrize(
+    "warehouse_type",
+    ["      warehouseType: trino\n", "      warehouseType: TRINOO\n", ""],
+)
+def test_a_profile_connection_without_a_known_warehouse_type_is_a_config_error(
+    tmp_path: Path, warehouse_type: str
+) -> None:
+    profile = f"profileConnection:\n{warehouse_type}      profile: 'trino: {{}}'\n\n"
+    config_path = _config_file(
+        tmp_path, "snowflake:\n      account: acme-xy12345\n      useKeyPairAuth: true\n\n", profile
+    )
+
+    with pytest.raises(
+        onboard.ConfigError,
+        match=r"development\.adapter\.profileConnection\.warehouseType must name the warehouse",
+    ):
+        onboard.ConfigLoader(config_path, ENVIRON).load()
+
+
+@pytest.mark.parametrize(
     "teams",
     [
         "  ms_teams_webhook:\n    name: data-alerts\n    url: https://example.test/hook\n",

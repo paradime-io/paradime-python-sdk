@@ -30,7 +30,11 @@ from ruamel.yaml import YAML
 from ruamel.yaml.error import YAMLError
 
 from paradime import Paradime
-from paradime.apis.admin.connections.types import ConnectionScope, WarehouseAdapterInput
+from paradime.apis.admin.connections.types import (
+    ConnectionScope,
+    WarehouseAdapterInput,
+    WarehouseType,
+)
 from paradime.apis.admin.environments.types import EnvironmentType
 from paradime.apis.admin.exception import AdminApiException
 from paradime.apis.admin.git.types import (
@@ -402,11 +406,20 @@ class ConfigLoader:
         return variables
 
     def adapter(self, connection: Mapping[str, Any], where: str) -> WarehouseAdapterInput:
+        block = connection.get("adapter") or {}
         try:
-            return WarehouseAdapterInput.parse_obj(connection.get("adapter") or {})
+            adapter = WarehouseAdapterInput.parse_obj(block)
         except ValidationError as error:
             fields = ", ".join(".".join(str(p) for p in e["loc"]) for e in error.errors())
             raise ConfigError(f"{where}.adapter has settings the API does not take: {fields}")
+        profile = adapter.profile_connection
+        if profile is not None and profile.warehouse_type in (None, WarehouseType.UNKNOWN):
+            written = (block.get("profileConnection") or {}).get("warehouseType")
+            raise ConfigError(
+                f"{where}.adapter.profileConnection.warehouseType must name the warehouse "
+                f"(e.g. TRINO or SQL_SERVER), not {written!r}."
+            )
+        return adapter
 
 
 class GitHubDeployKeys:
