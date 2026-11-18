@@ -118,12 +118,14 @@ paradime admin connections set --scope SCHEDULER --environment production --conf
 `paradime.admin.users` invites people with a role (`create`, which sends the invitation email
 and returns the invitee as `INVITED`), changes a member's role (`update`), and deactivates and
 reactivates members (`deactivate`, `reactivate`); each returns the user. Inviting an email that
-already belongs to a user or to a pending invitation raises `AdminConflictException`, and a uid
-the workspace does not know raises `AdminNotFoundException`:
+already belongs to a user or to a pending invitation raises `AdminConflictException`, a role the
+API key can't give raises `AdminValidationFailedException` with `field` set to
+``["input", "accountType"]``, and a uid the workspace does not know raises
+`AdminNotFoundException`:
 
 ```bash
 paradime admin users create data-lead@example.com --account-type ADMIN
-paradime admin users update USER_UID --account-type ANALYST --json
+paradime admin users update USER_UID --account-type BUSINESS --json
 paradime admin users deactivate USER_UID --yes
 ```
 

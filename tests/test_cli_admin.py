@@ -602,8 +602,13 @@ def test_users_create_json_prints_the_invitee(fake_admin: FakeAdmin) -> None:
     assert '"status": "INVITED"' in result.output
 
 
-def test_users_create_needs_a_known_account_type(fake_admin: FakeAdmin) -> None:
-    result = _run("users", "create", "new@example.com", "--account-type", "UNKNOWN")
+@pytest.mark.parametrize("command", ["create", "update"])
+@pytest.mark.parametrize("account_type", ["UNKNOWN", "SANDBOX_USER", "sandbox_user"])
+def test_users_refuse_a_role_the_api_never_gives(
+    fake_admin: FakeAdmin, command: str, account_type: str
+) -> None:
+    target = "new@example.com" if command == "create" else "u1"
+    result = _run("users", command, target, "--account-type", account_type)
 
     assert result.exit_code == 2
     assert fake_admin.users.calls == []

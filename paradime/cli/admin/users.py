@@ -7,7 +7,11 @@ from paradime.cli import console
 from paradime.cli.admin import common
 
 ACCOUNT_TYPE_CHOICE = click.Choice(
-    [account_type.value for account_type in UserAccountType if account_type.value != "UNKNOWN"],
+    [
+        account_type.value
+        for account_type in UserAccountType
+        if account_type not in (UserAccountType.UNKNOWN, UserAccountType.SANDBOX_USER)
+    ],
     case_sensitive=False,
 )
 
