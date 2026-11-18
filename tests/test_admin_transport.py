@@ -431,3 +431,73 @@ def test_a_response_without_data_keeps_the_company_token_out(
     assert FAKE_TOKEN not in str(raised) and FAKE_TOKEN not in repr(raised.args)
     assert raised.response_text == "<html>Gateway page for /api/v1/***/graphql</html>"
     assert raised.status_code == 200
+
+
+def _link_error(code: str, path: List[Any]) -> Dict[str, Any]:
+    return {"message": "missing access", "path": path, "extensions": {"code": code}}
+
+
+def _environments(defer_schedule: Any) -> Dict[str, Any]:
+    node = {"slug": "agent", "deferSchedule": defer_schedule}
+    return {"workspace": {"environments": {"edges": [{"node": node}]}}}
+
+
+LINK_PATH = ["workspace", "environments", "edges", 0, "node", "deferSchedule"]
+
+
+@pytest.mark.parametrize("code", ["MISSING_CAPABILITY", "PLAN_UPGRADE_REQUIRED"])
+def test_a_linked_field_the_key_cannot_read_reads_none(
+    monkeypatch: pytest.MonkeyPatch, sleeps: List[float], code: str
+) -> None:
+    body = {"data": _environments(None), "errors": [_link_error(code, LINK_PATH)]}
+    transport, _ = _transport(monkeypatch, sleeps, FakeResponse(body))
+
+    data = transport.execute("query q { x }", linked_fields={"deferSchedule"})
+
+    assert data == _environments(None)
+
+
+def test_a_linked_field_error_raises_when_the_field_is_not_named_as_a_link(
+    monkeypatch: pytest.MonkeyPatch, sleeps: List[float]
+) -> None:
+    body = {"data": _environments(None), "errors": [_link_error("MISSING_CAPABILITY", LINK_PATH)]}
+    transport, _ = _transport(monkeypatch, sleeps, FakeResponse(body), FakeResponse(body))
+
+    with pytest.raises(AdminMissingCapabilityException):
+        transport.execute("query q { x }")
+    with pytest.raises(AdminMissingCapabilityException):
+        transport.execute("query q { x }", linked_fields={"deferEnvironment"})
+
+
+@pytest.mark.parametrize(
+    "data, path",
+    [
+        ({"workspace": None}, LINK_PATH),
+        (_environments({"slug": "nightly"}), LINK_PATH),
+        ({"deferSchedule": None}, ["deferSchedule"]),
+    ],
+)
+def test_a_linked_field_error_raises_unless_its_parent_was_read_and_it_is_null(
+    monkeypatch: pytest.MonkeyPatch, sleeps: List[float], data: Dict[str, Any], path: List[Any]
+) -> None:
+    body = {"data": data, "errors": [_link_error("MISSING_CAPABILITY", path)]}
+    transport, _ = _transport(monkeypatch, sleeps, FakeResponse(body))
+
+    with pytest.raises(AdminMissingCapabilityException):
+        transport.execute("query q { x }", linked_fields={"deferSchedule"})
+
+
+def test_other_errors_still_raise_next_to_an_unreadable_link(
+    monkeypatch: pytest.MonkeyPatch, sleeps: List[float]
+) -> None:
+    errors = [
+        _link_error("MISSING_CAPABILITY", LINK_PATH),
+        _link_error("INTERNAL", ["workspace", "environments", "edges", 0, "node", "branch"]),
+    ]
+    body = {"data": _environments(None), "errors": errors}
+    transport, _ = _transport(monkeypatch, sleeps, FakeResponse(body))
+
+    with pytest.raises(AdminInternalException) as exc_info:
+        transport.execute("query q { x }", linked_fields={"deferSchedule"})
+
+    assert exc_info.value.errors == errors[1:]
