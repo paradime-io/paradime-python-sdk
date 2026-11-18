@@ -7,9 +7,12 @@ from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.connections.types import (
     BigQueryConnectionSettings,
     ConnectionScope,
+    DatabricksConnectionSettings,
     DuckDbConnectionSettings,
+    FireboltConnectionSettings,
     ProfileConnectionInput,
     ProfileConnectionSettings,
+    RedshiftConnectionSettings,
     SnowflakeConnectionInput,
     SnowflakeConnectionSettings,
     WarehouseAdapterInput,
@@ -20,9 +23,17 @@ from paradime.apis.admin.git.types import (
     DeployKeyConnectionInput,
     GitHubAppConnectionInput,
     GitProvider,
+    GitRepository,
     GitRepositoryState,
 )
+from paradime.apis.admin.integrations.types import (
+    AzureKeyVaultSettings,
+    DatadogSettings,
+    FivetranSettings,
+    GcpSecretManagerSettings,
+)
 from paradime.apis.admin.jobs.types import AdminJobStatus
+from paradime.apis.admin.notifications.types import SlackInstallation
 from paradime.apis.admin.types import UNSET
 
 
@@ -701,3 +712,42 @@ class TestDevelopmentAndCostConnections:
         assert saved.settings.use_sso is True and saved.scope == ConnectionScope.DEVELOPMENT_SHARED
         assert "... on BigQueryConnectionSettings" in transport.calls[0].query
         assert "costProjectIds" in transport.calls[0].query and "useSso" in transport.calls[0].query
+
+
+@pytest.mark.parametrize(
+    "model, data, attributes",
+    [
+        (DatabricksConnectionSettings, {"hasToken": True}, ["has_token"]),
+        (DatabricksConnectionSettings, {"hasProfile": True}, ["has_profile"]),
+        (RedshiftConnectionSettings, {"hasPassword": True}, ["has_password"]),
+        (RedshiftConnectionSettings, {"hasProfile": True}, ["has_profile"]),
+        (DuckDbConnectionSettings, {"hasProfile": True}, ["has_profile"]),
+        (FireboltConnectionSettings, {"hasPassword": True}, ["has_password"]),
+        (FireboltConnectionSettings, {"hasProfile": True}, ["has_profile"]),
+        (FivetranSettings, {"hasApiSecret": True}, ["has_api_secret"]),
+        (
+            DatadogSettings,
+            {"hasApiKey": True, "hasApplicationKey": True},
+            ["has_api_key", "has_application_key"],
+        ),
+        (AzureKeyVaultSettings, {"hasClientSecret": True}, ["has_client_secret"]),
+        (GcpSecretManagerSettings, {"hasServiceAccountJson": True}, ["has_service_account_json"]),
+        (
+            SlackInstallation,
+            {"status": "CONNECTED", "isReconnectRequired": True},
+            ["is_reconnect_required"],
+        ),
+        (
+            GitRepository,
+            {"mode": "SSH_DEPLOY_KEY", "state": "CONNECTED", "isVerified": True},
+            ["is_verified"],
+        ),
+    ],
+)
+def test_has_and_is_fields_parse_from_their_api_keys(
+    model: Any, data: Dict[str, Any], attributes: List[str]
+) -> None:
+    parsed = model.parse_obj(data)
+
+    for attribute in attributes:
+        assert getattr(parsed, attribute) is True
