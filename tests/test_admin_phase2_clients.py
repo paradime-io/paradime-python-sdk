@@ -1,11 +1,16 @@
+from typing import List
+
 import pytest
 from test_admin_clients import _admin, _connection
+from test_admin_transport import FakeResponse, _error, _transport
 
+from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.dinoai.types import (
     DinoAiAgentModel,
     DinoAiAgentSpecInput,
     DinoAiAgentToolGateInput,
 )
+from paradime.apis.admin.exception import AdminConflictException, AdminNotFoundException, ErrorCode
 from paradime.apis.admin.integrations.types import (
     AwsSecretsManagerConfigInput,
     AwsSecretsManagerSettings,
@@ -17,7 +22,13 @@ from paradime.apis.admin.integrations.types import (
     LookerSettings,
 )
 from paradime.apis.admin.notifications.types import AlertCategory, SetAlertNotificationsInput
-from paradime.apis.admin.users.types import UserStatus
+from paradime.apis.admin.users.types import (
+    USER_FIELDS,
+    AdminUser,
+    UserAccountType,
+    UserInviteStatus,
+    UserStatus,
+)
 from paradime.tools.pydantic import ValidationError
 
 
@@ -47,9 +58,118 @@ class TestUsers:
 
         assert admin.users.reactivate("u1", workspace_uid="w2").status == UserStatus.ACTIVE
         assert admin.users.set_auto_join_domains(["example.com"]) == ["example.com"]
+        query = transport.calls[0].query
+        assert "mutation adminReactivateUser($input: ReactivateUserInput!)" in query
+        assert "reactivateUser(input: $input)" in query
         assert transport.calls[0].variables == {"input": {"uid": "u1"}}
         assert transport.calls[0].workspace_uid == "w2"
         assert transport.calls[1].variables == {"input": {"domains": ["example.com"]}}
+
+    def test_create_invites_with_a_role_and_returns_the_invitee(self) -> None:
+        invitee = {
+            "email": "new@example.com",
+            "uid": None,
+            "accountType": "DEVELOPER",
+            "status": "INVITED",
+            "inviteStatus": "PENDING",
+            "invitedAt": "2026-11-18T10:00:00Z",
+        }
+        admin, transport = _admin({"createUser": {"user": invitee}})
+
+        user = admin.users.create("new@example.com", UserAccountType.DEVELOPER, workspace_uid="w2")
+
+        assert " ".join(transport.calls[0].query.split()) == " ".join(
+            f"""
+            mutation adminCreateUser($input: CreateUserInput!) {{
+                createUser(input: $input) {{
+                    user {{
+                        {USER_FIELDS}
+                    }}
+                }}
+            }}
+            """.split()
+        )
+        assert transport.calls[0].variables == {
+            "input": {"email": "new@example.com", "accountType": "DEVELOPER"}
+        }
+        assert transport.calls[0].workspace_uid == "w2"
+        assert user.uid is None
+        assert user.account_type == UserAccountType.DEVELOPER
+        assert user.status == UserStatus.INVITED
+        assert user.invite_status == UserInviteStatus.PENDING
+
+    def test_update_sends_the_uid_and_the_new_role(self) -> None:
+        admin, transport = _admin(
+            {"updateUser": {"user": {"uid": "u1", "accountType": "ADMIN", "status": "ACTIVE"}}}
+        )
+
+        user = admin.users.update("u1", account_type=UserAccountType.ADMIN)
+
+        assert "mutation adminUpdateUser($input: UpdateUserInput!)" in transport.calls[0].query
+        assert "updateUser(input: $input)" in transport.calls[0].query
+        assert transport.calls[0].variables == {"input": {"uid": "u1", "accountType": "ADMIN"}}
+        assert transport.calls[0].workspace_uid is None
+        assert user.account_type == UserAccountType.ADMIN
+
+    def test_deactivate_sends_the_uid_and_returns_the_former_member(self) -> None:
+        admin, transport = _admin(
+            {
+                "deactivateUser": {
+                    "user": {"uid": "u1", "accountType": "ANALYST", "status": "DEACTIVATED"}
+                }
+            }
+        )
+
+        user = admin.users.deactivate("u1", workspace_uid="w2")
+
+        query = transport.calls[0].query
+        assert "mutation adminDeactivateUser($input: DeactivateUserInput!)" in query
+        assert "deactivateUser(input: $input)" in query
+        assert transport.calls[0].variables == {"input": {"uid": "u1"}}
+        assert transport.calls[0].workspace_uid == "w2"
+        assert user.status == UserStatus.DEACTIVATED
+        assert user.account_type == UserAccountType.ANALYST
+
+    def test_a_role_the_sdk_does_not_know_reads_as_unknown(self) -> None:
+        user = AdminUser.parse_obj({"uid": "u1", "accountType": "NEW_ROLE", "status": "ACTIVE"})
+
+        assert user.account_type == UserAccountType.UNKNOWN
+
+    def test_create_with_an_email_already_taken_raises_conflict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sleeps: List[float] = []
+        transport, _ = _transport(
+            monkeypatch,
+            sleeps,
+            FakeResponse(_error("CONFLICT", "new@example.com is already invited.", field="email")),
+        )
+        admin = AdminClient(client=None, transport=transport)
+
+        with pytest.raises(AdminConflictException) as exc_info:
+            admin.users.create("new@example.com", UserAccountType.DEVELOPER)
+
+        assert exc_info.value.code == ErrorCode.CONFLICT
+        assert exc_info.value.field == ["email"]
+        assert sleeps == []
+
+    @pytest.mark.parametrize("method", ["update", "deactivate"])
+    def test_an_unknown_uid_raises_not_found(
+        self, monkeypatch: pytest.MonkeyPatch, method: str
+    ) -> None:
+        transport, _ = _transport(
+            monkeypatch, [], FakeResponse(_error("NOT_FOUND", "No user u-missing."))
+        )
+        admin = AdminClient(client=None, transport=transport)
+
+        with pytest.raises(AdminNotFoundException) as exc_info:
+            if method == "update":
+                admin.users.update("u-missing", account_type=UserAccountType.ADMIN)
+            else:
+                admin.users.deactivate("u-missing")
+
+        assert exc_info.value.code == ErrorCode.NOT_FOUND
+        assert exc_info.value.message == "No user u-missing."
 
 
 class TestNotifications:

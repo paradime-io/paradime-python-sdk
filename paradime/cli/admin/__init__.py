@@ -7,6 +7,7 @@ from paradime.cli.admin.git import git
 from paradime.cli.admin.jobs import jobs
 from paradime.cli.admin.setup_status import setup_status
 from paradime.cli.admin.usage import usage
+from paradime.cli.admin.users import users
 from paradime.cli.admin.workspaces import workspaces
 
 
@@ -28,3 +29,4 @@ admin.add_command(env_vars)
 admin.add_command(jobs)
 admin.add_command(usage)
 admin.add_command(setup_status)
+admin.add_command(users)

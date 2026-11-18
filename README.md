@@ -89,6 +89,7 @@ server asks for.
 from paradime import Paradime
 from paradime.apis.admin.environments.types import EnvironmentType
 from paradime.apis.admin.git.types import DeployKeyConnectionInput, GitProvider
+from paradime.apis.admin.users.types import UserAccountType
 
 paradime = Paradime(api_endpoint="API_ENDPOINT", api_secret="prdm_cmp_...", workspace_uid="WORKSPACE_UID")
 
@@ -101,6 +102,7 @@ if result.job:
     paradime.admin.jobs.wait(result.job.id, workspace_uid=workspace.uid)
 paradime.admin.environments.create(EnvironmentType.SCHEDULER, "Production", slug="production", workspace_uid=workspace.uid)
 paradime.admin.environment_variables.set({"DBT_TARGET": "prod"}, environment_slug="production", workspace_uid=workspace.uid)
+paradime.admin.users.create("data-lead@example.com", UserAccountType.ADMIN, workspace_uid=workspace.uid)
 ```
 
 Async operations return an `AdminJob`. `admin.jobs.wait` polls it until it finishes and returns
@@ -117,6 +119,20 @@ the command line:
 ```bash
 printf '%s' "$DBT_TOKEN" | paradime admin env-vars set DBT_TOKEN --environment production
 paradime admin connections set --scope SCHEDULER --environment production --config snowflake.yml
+```
+
+`paradime.admin.users` invites people with a role (`create`, which sends the invitation email
+and returns the invitee as `INVITED`), changes a member's role (`update`), and deactivates and
+reactivates members (`deactivate`, `reactivate`); each returns the user. Inviting an email that
+already belongs to a user or to a pending invitation raises `AdminConflictException`, a role the
+API key can't give raises `AdminValidationFailedException` with `field` set to
+``["input", "accountType"]``, and a uid the workspace does not know raises
+`AdminNotFoundException`:
+
+```bash
+paradime admin users create data-lead@example.com --account-type ADMIN
+paradime admin users update USER_UID --account-type BUSINESS --json
+paradime admin users deactivate USER_UID --yes
 ```
 
 ## Examples

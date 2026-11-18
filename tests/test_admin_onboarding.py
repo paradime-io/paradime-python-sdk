@@ -426,7 +426,7 @@ def test_a_run_that_misses_the_exit_criterion_without_a_failure_exits_3(
 
     code, output = _run(onboarding)
 
-    assert "SKIP  12   inviteUser" in output
+    assert "SKIP  12   createUser" in output
     assert "FAIL" not in output
     assert code == 3
 
@@ -703,3 +703,110 @@ def test_the_schedule_to_run_is_found_on_the_second_page_of_deployed_schedules(
 
     assert "2 schedule(s): daily_run, nightly" in outcome.detail
     assert onboarding._schedule_to_run() == "nightly"
+
+
+def test_users_are_created_with_the_admin_api_in_the_new_workspace(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    onboarding = _onboarding(url)
+    onboarding.create_workspace()
+
+    outcome = onboarding.create_users()
+
+    sent = [v["input"] for operation, v in api.variables if operation == "adminCreateUser"]
+    assert sent == [{"email": "data-lead@example.com", "accountType": "ADMIN"}]
+    assert [w for o, w in api.calls if o == "adminCreateUser"] == [NEW_UID]
+    assert "inviteUser" not in _operations(api)
+    assert outcome.detail == "invited 1 user(s): data-lead@example.com INVITED (PENDING)"
+
+
+@pytest.mark.parametrize("account_type", ["OWNER", "UNKNOWN"])
+def test_an_unknown_account_type_is_a_config_error(tmp_path: Path, account_type: str) -> None:
+    config_path = _config_file(
+        tmp_path, "    account_type: ADMIN\n", f"    account_type: {account_type}\n"
+    )
+
+    with pytest.raises(onboard.ConfigError, match=f"unknown account_type '{account_type}'"):
+        onboard.ConfigLoader(config_path, ENVIRON).load()
+
+
+def test_a_sandbox_user_is_refused_before_any_request(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    config = _config_file(tmp_path, "    account_type: ADMIN\n", "    account_type: SANDBOX_USER\n")
+    environ = {
+        **ENVIRON,
+        "PARADIME_API_SECRET": API_SECRET,
+        "PARADIME_API_ENDPOINT": "http://127.0.0.1:1/graphql",
+        "PARADIME_WORKSPACE_UID": BOOTSTRAP_UID,
+        "PARADIME_ONBOARDING_CONFIG": str(config),
+    }
+
+    assert onboard.main([], environ) == 2
+    assert "never gives the SANDBOX_USER role (data-lead@example.com)" in capsys.readouterr().err
+
+
+def test_a_role_the_server_refuses_is_named_in_the_failure(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    api.create_user_errors["lead@example.com"] = (
+        "VALIDATION_FAILED",
+        "An API key can't give the WORKSPACE_ADMIN role in this workspace.",
+    )
+    onboarding = _onboarding(url)
+    onboarding.config.users = [{"email": "lead@example.com", "account_type": "WORKSPACE_ADMIN"}]
+    onboarding.create_workspace()
+
+    with pytest.raises(onboard.StepFailed) as exc_info:
+        onboarding.create_users()
+
+    assert str(exc_info.value) == (
+        "lead@example.com as WORKSPACE_ADMIN: VALIDATION_FAILED: An API key can't give the "
+        "WORKSPACE_ADMIN role in this workspace. (field: input.accountType)"
+    )
+
+
+def test_a_user_the_server_refuses_fails_step_12_and_exits_1(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    api.create_user_errors["data-lead@example.com"] = (
+        "CONFLICT",
+        "This email already has a pending invitation to this workspace.",
+    )
+
+    code, output = _run(_onboarding(url))
+
+    assert code == 1
+    line = next(line for line in output.splitlines() if line.startswith("FAIL  12"))
+    assert line.split()[:3] == ["FAIL", "12", "createUser"]
+    assert (
+        "data-lead@example.com as ADMIN: CONFLICT: This email already has a pending invitation "
+        "to this workspace." in line
+    )
+    assert "already invited" not in line
+    assert NEW_UID in api.deleted
+
+
+def test_a_failed_user_names_the_users_already_invited(stub: Tuple[StubAdminApi, str]) -> None:
+    api, url = stub
+    api.create_user_errors["second@example.com"] = (
+        "VALIDATION_FAILED",
+        "An API key can't give the WORKSPACE_ADMIN role in this workspace.",
+    )
+    onboarding = _onboarding(url)
+    onboarding.config.users = [
+        {"email": "first@example.com", "account_type": "DEVELOPER"},
+        {"email": "second@example.com", "account_type": "WORKSPACE_ADMIN"},
+    ]
+
+    code, output = _run(onboarding)
+
+    assert code == 1
+    line = next(line for line in output.splitlines() if line.startswith("FAIL  12"))
+    assert "second@example.com as WORKSPACE_ADMIN: VALIDATION_FAILED" in line
+    assert line.endswith("; already invited: first@example.com")
+    sent = [v["input"]["email"] for o, v in api.variables if o == "adminCreateUser"]
+    assert sent == ["first@example.com", "second@example.com"]

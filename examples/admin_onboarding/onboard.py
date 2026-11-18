@@ -47,8 +47,8 @@ from paradime.apis.admin.jobs.types import AdminJob, DeployBoltSchedulesResult, 
 from paradime.apis.admin.notifications.types import SlackInstallationStatus
 from paradime.apis.admin.setup_status.types import SetupStepStatus
 from paradime.apis.admin.types import SECRET_INPUT_FIELDS, UNSET, given
+from paradime.apis.admin.users.types import UserAccountType
 from paradime.apis.bolt.types import BoltRunState
-from paradime.apis.users.types import UserAccountType
 from paradime.client.api_client import COMPANY_API_TOKEN_PREFIX
 from paradime.tools.pydantic import ValidationError
 
@@ -63,6 +63,7 @@ GITHUB_HOST = "github.com"
 NAME_PREFIX_MARKER = "onboarding-"
 ENDPOINT_PATH_WORDS = frozenset({"api", "v1", "graphql"})
 NOTIFICATION_SETTINGS = frozenset({"email_enabled"})
+NOT_GRANTABLE_ACCOUNT_TYPES = frozenset({UserAccountType.SANDBOX_USER})
 PERSONAL_DEVELOPMENT_FIELDS: Dict[str, frozenset] = {
     "snowflake": frozenset(
         {
@@ -348,8 +349,14 @@ class ConfigLoader:
         if config.development:
             self.adapter(config.development, "development")
         for user in config.users:
-            if user.get("account_type", "DEVELOPER") not in UserAccountType.__members__:
+            account_type = UserAccountType(str(user.get("account_type", "DEVELOPER")))
+            if account_type == UserAccountType.UNKNOWN:
                 raise ConfigError(f"users: unknown account_type {user.get('account_type')!r}.")
+            if account_type in NOT_GRANTABLE_ACCOUNT_TYPES:
+                raise ConfigError(
+                    f"users: the Admin API never gives the {account_type.value} role "
+                    f"({user.get('email')})."
+                )
         config.secrets = self.secrets
         return config
 
@@ -570,7 +577,7 @@ class Onboarding:
             Step(9, "agentEnvironment", self.agent_environment, needs=(1,)),
             Step(10, "deployBoltSchedules", self.deploy_schedules, needs=(3,)),
             Step(11, "notifications", self.notifications, needs=(1,)),
-            Step(12, "inviteUser", self.invite_users, needs=(1,)),
+            Step(12, "createUser", self.create_users, needs=(1,)),
             Step(13, "triggerBoltRun", self.bolt_run, needs=(3, 7)),
             Step(14, "setupStatus", self.setup_status, needs=(1,)),
         ]
@@ -817,15 +824,31 @@ class Onboarding:
                 )
         return Outcome(", ".join(parts), notes)
 
-    def invite_users(self) -> Outcome:
+    def create_users(self) -> Outcome:
         if not self.config.users:
             raise SkipStep("no users in the config")
+        invited: List[Any] = []
         for user in self.config.users:
-            self.target.users.invite(
-                str(user["email"]), UserAccountType[str(user.get("account_type", "DEVELOPER"))]
-            )
+            email = str(user["email"])
+            account_type = UserAccountType(str(user.get("account_type", "DEVELOPER")))
+            try:
+                invited.append(self.target.admin.users.create(email, account_type))
+            except AdminApiException as error:
+                already = (
+                    f"; already invited: {', '.join(str(done.email) for done in invited)}"
+                    if invited
+                    else ""
+                )
+                raise StepFailed(
+                    f"{email} as {account_type.value}: {describe_error(error)}{already}"
+                ) from error
         return Outcome(
-            f"invited {len(self.config.users)} user(s) with the legacy paradime.users.invite"
+            f"invited {len(invited)} user(s): "
+            + ", ".join(
+                f"{user.email} {user.status.value}"
+                + (f" ({user.invite_status.value})" if user.invite_status else "")
+                for user in invited
+            )
         )
 
     def _schedule_to_run(self) -> str:
