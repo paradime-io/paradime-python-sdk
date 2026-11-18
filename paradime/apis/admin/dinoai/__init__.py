@@ -1,3 +1,3 @@
-from .client import AdminDinoaiClient
+from .client import AdminDinoAiClient
 
-__all__ = ["AdminDinoaiClient"]
+__all__ = ["AdminDinoAiClient"]

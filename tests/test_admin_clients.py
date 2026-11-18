@@ -558,7 +558,7 @@ class TestUsage:
                 "usage": {
                     "from": "2026-10-01T00:00:00Z",
                     "to": "2026-11-01T00:00:00Z",
-                    "dinoai": {"credits": 120, "backgroundAgentCredits": 20},
+                    "dinoAi": {"credits": 120, "backgroundAgentCredits": 20},
                     "bolt": {"billedSeconds": 3600},
                 }
             }
@@ -567,7 +567,7 @@ class TestUsage:
         usage = admin.usage.get(datetime(2026, 10, 1), datetime(2026, 11, 1), workspace_uid="w1")
 
         assert usage is not None
-        assert usage.dinoai.credits == 120 and usage.bolt.billed_seconds == 3600
+        assert usage.dino_ai.credits == 120 and usage.bolt.billed_seconds == 3600
         assert usage.period_from == datetime(2026, 10, 1, tzinfo=timezone.utc)
         assert transport.calls[0].variables == {
             "period": {"from": "2026-10-01T00:00:00", "to": "2026-11-01T00:00:00"},
@@ -577,7 +577,7 @@ class TestUsage:
     def test_list_workspaces_pages_the_nested_connection(self) -> None:
         row = {
             "workspace": {"uid": "w1", "name": "A"},
-            "dinoai": {"credits": 1, "backgroundAgentCredits": 0},
+            "dinoAi": {"credits": 1, "backgroundAgentCredits": 0},
             "bolt": {"billedSeconds": 60},
         }
         admin, transport = _admin(

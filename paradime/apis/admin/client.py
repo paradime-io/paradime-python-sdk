@@ -2,7 +2,7 @@ from typing import Optional
 
 from paradime.apis.admin.bolt.client import AdminBoltClient
 from paradime.apis.admin.connections.client import AdminConnectionsClient
-from paradime.apis.admin.dinoai.client import AdminDinoaiClient
+from paradime.apis.admin.dinoai.client import AdminDinoAiClient
 from paradime.apis.admin.environment_variables.client import AdminEnvironmentVariablesClient
 from paradime.apis.admin.environments.client import AdminEnvironmentsClient
 from paradime.apis.admin.git.client import AdminGitClient
@@ -40,7 +40,7 @@ class AdminClient:
         notifications (AdminNotificationsClient): Slack and email alerts.
         bolt (AdminBoltClient): Schedule updates and deploys, and Trigger URLs.
         integrations (AdminIntegrationsClient): Integrations and external secret managers.
-        dinoai (AdminDinoaiClient): DinoAI agent definitions and settings.
+        dinoai (AdminDinoAiClient): DinoAI agent definitions and settings.
         setup_status (AdminSetupStatusClient): A workspace's onboarding checklist.
     """
 
@@ -57,5 +57,5 @@ class AdminClient:
         self.notifications = AdminNotificationsClient(self.transport)
         self.bolt = AdminBoltClient(self.transport)
         self.integrations = AdminIntegrationsClient(self.transport)
-        self.dinoai = AdminDinoaiClient(self.transport)
+        self.dinoai = AdminDinoAiClient(self.transport)
         self.setup_status = AdminSetupStatusClient(self.transport)

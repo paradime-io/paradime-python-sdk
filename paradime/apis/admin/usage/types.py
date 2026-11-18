@@ -3,7 +3,7 @@ from datetime import datetime
 from paradime.apis.admin.types import AdminInputModel, AdminModel
 
 USAGE_TOTALS_FIELDS = """
-    dinoai {
+    dinoAi {
         credits
         backgroundAgentCredits
     }
@@ -25,7 +25,7 @@ class BoltUsage(AdminModel):
 class Usage(AdminModel):
     period_from: datetime
     period_to: datetime
-    dinoai: DinoAiUsage
+    dino_ai: DinoAiUsage
     bolt: BoltUsage
 
 
@@ -36,7 +36,7 @@ class UsageWorkspace(AdminModel):
 
 class WorkspaceUsage(AdminModel):
     workspace: UsageWorkspace
-    dinoai: DinoAiUsage
+    dino_ai: DinoAiUsage
     bolt: BoltUsage
 
 

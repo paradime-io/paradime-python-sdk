@@ -52,8 +52,8 @@ def usage(
                 [
                     row.workspace.name,
                     row.workspace.uid,
-                    str(row.dinoai.credits),
-                    str(row.dinoai.background_agent_credits),
+                    str(row.dino_ai.credits),
+                    str(row.dino_ai.background_agent_credits),
                     f"{row.bolt.billed_seconds / 60:.1f}",
                 ]
                 for row in rows

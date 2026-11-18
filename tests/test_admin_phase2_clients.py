@@ -2,9 +2,9 @@ import pytest
 from test_admin_clients import _admin, _connection
 
 from paradime.apis.admin.dinoai.types import (
-    DinoaiAgentModel,
-    DinoaiAgentSpecInput,
-    DinoaiAgentToolGateInput,
+    DinoAiAgentModel,
+    DinoAiAgentSpecInput,
+    DinoAiAgentToolGateInput,
 )
 from paradime.apis.admin.integrations.types import (
     AwsSecretsManagerConfigInput,
@@ -249,18 +249,18 @@ class TestIntegrations:
 AGENT = {"slug": "analyst", "name": "Analyst", "model": "SONNET", "source": "UI"}
 
 
-class TestDinoai:
+class TestDinoAi:
     def test_set_agent_sends_the_spec(self) -> None:
-        admin, transport = _admin({"setDinoaiAgentDefinition": {"dinoaiAgentDefinition": AGENT}})
+        admin, transport = _admin({"setDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
 
         agent = admin.dinoai.set_agent(
             "Analyst",
-            DinoaiAgentSpecInput(
+            DinoAiAgentSpecInput(
                 role="r",
                 goal="g",
                 backstory="b",
-                model=DinoaiAgentModel.SONNET,
-                tools=DinoaiAgentToolGateInput(mode="ALLOWLIST", names=["run_sql_query"]),
+                model=DinoAiAgentModel.SONNET,
+                tools=DinoAiAgentToolGateInput(mode="ALLOWLIST", names=["run_sql_query"]),
             ),
             slug="analyst",
         )
@@ -278,19 +278,19 @@ class TestDinoai:
                 "slug": "analyst",
             }
         }
-        assert agent.model == DinoaiAgentModel.SONNET
+        assert agent.model == DinoAiAgentModel.SONNET
 
     def test_graph_settings_and_sync(self) -> None:
-        job = {"id": "j1", "kind": "syncDinoaiAgentDefinitionsFromCode", "status": "RUNNING"}
+        job = {"id": "j1", "kind": "syncDinoAiAgentDefinitionsFromCode", "status": "RUNNING"}
         admin, transport = _admin(
-            {"setDinoaiAgentGraph": {"workspace": {"uid": "w1"}}},
+            {"setDinoAiAgentGraph": {"workspace": {"uid": "w1"}}},
             {
-                "setDinoaiWorkspaceSettings": {
-                    "workspace": {"dinoaiSettings": {"sqlQueryToolEnabled": False}}
+                "setDinoAiWorkspaceSettings": {
+                    "workspace": {"dinoAiSettings": {"sqlQueryToolEnabled": False}}
                 }
             },
-            {"syncDinoaiAgentDefinitionsFromCode": {"job": job}},
-            {"workspace": {"dinoaiAgentDefinition": None}},
+            {"syncDinoAiAgentDefinitionsFromCode": {"job": job}},
+            {"workspace": {"dinoAiAgentDefinition": None}},
         )
 
         admin.dinoai.set_agent_graph([("lead", "analyst")])
