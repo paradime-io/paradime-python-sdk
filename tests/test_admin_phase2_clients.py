@@ -23,6 +23,7 @@ from paradime.apis.bolt.types import (
     BoltCommandConfigInput,
     BoltNotificationChannelInput,
     BoltNotificationsInput,
+    BoltSelfHealingConfigInput,
 )
 from paradime.tools.pydantic import ValidationError
 
@@ -197,6 +198,36 @@ class TestBolt:
             }
         }
         assert created.slug == "nightly" and minted.slug == "nightly-2"
+
+    def test_teams_channels_are_sent_with_their_team(self) -> None:
+        admin, transport = _admin(
+            {"createBoltScheduleDefinition": {"schedule": {"slug": "nightly", "name": "Nightly"}}}
+        )
+
+        admin.bolt.create_schedule(
+            name="Nightly",
+            schedule="OFF",
+            environment="production",
+            commands=["dbt run"],
+            notifications=BoltNotificationsInput(
+                teams_notifications=[
+                    BoltNotificationChannelInput(channel="alerts", events=["FAILED"], team="Data")
+                ]
+            ),
+            self_healing=BoltSelfHealingConfigInput(
+                enabled=True, ms_teams_team="Data", ms_teams_channel="healing"
+            ),
+        )
+
+        schedule = transport.calls[0].variables["input"]["schedule"]
+        assert schedule["notifications"] == {
+            "teamsNotifications": [{"channel": "alerts", "events": ["FAILED"], "team": "Data"}]
+        }
+        assert schedule["selfHealing"] == {
+            "enabled": True,
+            "msTeamsTeam": "Data",
+            "msTeamsChannel": "healing",
+        }
 
     def test_delete_schedule_returns_the_deleted_slug(self) -> None:
         admin, transport = _admin({"deleteBoltScheduleDefinition": {"deletedSlug": "nightly"}})

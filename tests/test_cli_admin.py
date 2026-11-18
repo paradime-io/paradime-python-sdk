@@ -711,3 +711,72 @@ def test_bolt_schedules_delete_reports_the_deleted_slug(fake_bolt: FakeBolt, as_
     else:
         assert "Deleted schedule nightly." in result.output
     assert fake_bolt.calls == [{"method": "delete", "slug": "nightly", "workspace_uid": None}]
+
+
+def test_bolt_schedules_config_refuses_a_nested_setting_the_api_does_not_take(
+    fake_bolt: FakeBolt,
+) -> None:
+    config = """
+name: Nightly
+schedule: "OFF"
+environment: production
+commands: [dbt run]
+notifications:
+  teamsNotifications:
+    - channel: alerts
+      events: [FAILED]
+      teamName: Data
+self_healing:
+  enabled: true
+  msTeamsChanel: alerts
+"""
+
+    result = _run("bolt", "schedules", "create", "--config", "-", input=config)
+
+    assert result.exit_code == 2
+    output = " ".join(result.output.split())
+    assert "notifications.teamsNotifications[0].teamName" in output
+    assert "self_healing.msTeamsChanel" in output
+    assert fake_bolt.calls == []
+
+
+def test_bolt_schedules_config_sends_teams_settings_in_the_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from test_admin_clients import FakeTransport
+
+    from paradime.apis.admin.client import AdminClient
+
+    transport = FakeTransport(
+        {"createBoltScheduleDefinition": {"schedule": {"slug": "nightly", "name": "Nightly"}}}
+    )
+    admin_client = AdminClient(client=None, transport=transport)
+    monkeypatch.setattr(common, "get_admin", lambda: admin_client)
+    config = """
+name: Nightly
+schedule: "OFF"
+environment: production
+commands: [dbt run]
+notifications:
+  teamsNotifications:
+    - channel: alerts
+      events: [FAILED]
+      team: Data
+selfHealing:
+  enabled: true
+  msTeamsTeam: Data
+  msTeamsChannel: healing
+"""
+
+    result = _run("bolt", "schedules", "create", "--config", "-", input=config)
+
+    assert result.exit_code == 0, result.output
+    schedule = transport.calls[0].variables["input"]["schedule"]
+    assert schedule["notifications"] == {
+        "teamsNotifications": [{"channel": "alerts", "events": ["FAILED"], "team": "Data"}]
+    }
+    assert schedule["selfHealing"] == {
+        "enabled": True,
+        "msTeamsTeam": "Data",
+        "msTeamsChannel": "healing",
+    }

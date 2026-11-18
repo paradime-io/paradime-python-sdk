@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, TextIO, Tuple
+from typing import Any, Dict, List, Optional, TextIO, Tuple, Type
 
 import click
 from ruamel.yaml import YAML
@@ -16,7 +16,7 @@ from paradime.apis.bolt.types import (
 )
 from paradime.cli import console
 from paradime.cli.admin import common
-from paradime.tools.pydantic import StrictStr, ValidationError
+from paradime.tools.pydantic import BaseModel, StrictStr, ValidationError
 
 SCHEDULE_COLUMNS = ["Slug", "Name", "Schedule", "Environment", "Branch", "Suspended", "Updated"]
 SCHEDULE_FIELDS = [
@@ -148,11 +148,39 @@ def _config_settings(config: TextIO) -> Dict[str, Any]:
         raise click.UsageError(f"--config is not valid YAML or JSON: {e}")
     if not isinstance(data, dict):
         raise click.UsageError("--config must hold the schedule's settings, such as `name: ...`.")
+    unknown = _unknown_settings(ScheduleSettings, data, "")
+    if unknown:
+        raise click.UsageError(f"--config has settings the API does not take: {', '.join(unknown)}")
     try:
         settings = ScheduleSettings.parse_obj(data)
     except ValidationError as e:
         raise click.UsageError(f"--config has settings the API does not take:\n{e}")
     return {name: getattr(settings, name) for name in settings.__fields_set__}
+
+
+def _unknown_settings(model: Type[BaseModel], data: Any, path: str) -> List[str]:
+    if not isinstance(data, dict):
+        return []
+    fields: Dict[str, Any] = {}
+    for model_field in model.__fields__.values():
+        fields[model_field.name] = model_field
+        fields[model_field.alias] = model_field
+    unknown: List[str] = []
+    for key, value in data.items():
+        where = f"{path}.{key}" if path else str(key)
+        field = fields.get(key)
+        if field is None:
+            unknown.append(where)
+            continue
+        inner = field.type_
+        if not (isinstance(inner, type) and issubclass(inner, BaseModel)):
+            continue
+        if isinstance(value, list):
+            for index, item in enumerate(value):
+                unknown.extend(_unknown_settings(inner, item, f"{where}[{index}]"))
+        else:
+            unknown.extend(_unknown_settings(inner, value, where))
+    return unknown
 
 
 @click.group()
