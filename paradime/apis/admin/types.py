@@ -76,6 +76,14 @@ class OpenEnum(str, Enum):
         return cls.__members__.get("UNKNOWN")
 
 
+class GitProvider(OpenEnum):
+    GITHUB = "GITHUB"
+    GITLAB = "GITLAB"
+    BITBUCKET = "BITBUCKET"
+    AZURE_DEVOPS = "AZURE_DEVOPS"
+    UNKNOWN = "UNKNOWN"
+
+
 class _Unset:
     def __repr__(self) -> str:
         return "UNSET"

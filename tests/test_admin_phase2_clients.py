@@ -378,7 +378,7 @@ class TestBolt:
         assert "environment {" in transport.calls[2].query
 
     def test_deploy_returns_a_job(self) -> None:
-        job = {"id": "j1", "kind": "deployBoltSchedules", "status": "QUEUED"}
+        job = {"id": "j1", "kind": "DEPLOY_BOLT_SCHEDULES", "status": "QUEUED"}
         admin, transport = _admin({"deployBoltSchedules": {"job": job}})
 
         assert admin.bolt.deploy_schedules(branch="main").id == "j1"
@@ -648,7 +648,7 @@ class TestDinoAi:
             assert call.linked_fields == {"environment"}
 
     def test_graph_settings_and_sync(self) -> None:
-        job = {"id": "j1", "kind": "syncDinoAiAgentDefinitionsFromCode", "status": "RUNNING"}
+        job = {"id": "j1", "kind": "SYNC_DINOAI_AGENT_DEFINITIONS_FROM_CODE", "status": "RUNNING"}
         admin, transport = _admin(
             {"setDinoAiAgentGraph": {"workspace": {"uid": "w1"}}},
             {

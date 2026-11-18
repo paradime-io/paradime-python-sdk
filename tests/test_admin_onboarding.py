@@ -709,6 +709,44 @@ def test_a_development_or_agent_block_that_is_not_a_mapping_is_a_config_error(
         onboard.ConfigLoader(config_path, ENVIRON).load()
 
 
+def _two_deployed_pages(api: StubAdminApi, failure: Optional[str] = None) -> None:
+    api.deployed_page_size = 1
+    api.deployed_schedules = [
+        {"slug": "daily_run", "source": "YAML", "failureReason": None},
+        {"slug": "nightly", "source": "UI", "failureReason": failure},
+    ]
+
+
+def test_a_failure_on_the_second_page_of_deployed_schedules_fails_the_deploy(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    _two_deployed_pages(api, failure="the cron expression is invalid")
+    onboarding = _onboarding(url)
+    onboarding.create_workspace()
+
+    with pytest.raises(onboard.StepFailed, match="nightly: the cron expression is invalid"):
+        onboarding.deploy_schedules()
+
+    pages = [v for operation, v in api.variables if operation == "adminJobDeployedSchedules"]
+    assert [page["after"] for page in pages] == [None, "0"]
+
+
+def test_the_schedule_to_run_is_found_on_the_second_page_of_deployed_schedules(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    _two_deployed_pages(api)
+    onboarding = _onboarding(url)
+    onboarding.config.bolt["run_schedule"] = "nightly"
+    onboarding.create_workspace()
+
+    outcome = onboarding.deploy_schedules()
+
+    assert "2 schedule(s): daily_run, nightly" in outcome.detail
+    assert onboarding._schedule_to_run() == "nightly"
+
+
 def test_users_are_created_with_the_admin_api_in_the_new_workspace(
     stub: Tuple[StubAdminApi, str],
 ) -> None:

@@ -35,7 +35,7 @@ from paradime.apis.admin.integrations.types import (
     FivetranSettings,
     GcpSecretManagerSettings,
 )
-from paradime.apis.admin.jobs.types import AdminJobStatus
+from paradime.apis.admin.jobs.types import AdminJobKind, AdminJobStatus
 from paradime.apis.admin.notifications.types import SlackInstallation
 from paradime.apis.admin.types import UNSET
 
@@ -322,7 +322,7 @@ class TestEnvironments:
 
 JOB = {
     "id": "job-1",
-    "kind": "connectGitRepository",
+    "kind": "CONNECT_GIT_REPOSITORY",
     "status": "QUEUED",
     "failure": None,
     "result": None,
@@ -380,12 +380,12 @@ class TestGit:
 
     def test_check_and_rotate(self) -> None:
         admin, transport = _admin(
-            {"checkGitRepository": {"job": {**JOB, "kind": "checkGitRepository"}}},
+            {"checkGitRepository": {"job": {**JOB, "kind": "CHECK_GIT_REPOSITORY"}}},
             {"rotateGitDeployKey": {"deployKey": {"publicKey": "ssh-ed25519 BBBB"}}},
             {"rotateGitDeployKey": {"deployKey": {"publicKey": "ssh-ed25519 CCCC"}}},
         )
 
-        assert admin.git.check_repository("git@x:y.git").kind == "checkGitRepository"
+        assert admin.git.check_repository("git@x:y.git").kind == AdminJobKind.CHECK_GIT_REPOSITORY
         admin.git.rotate_deploy_key()
         assert admin.git.rotate_deploy_key(force=True).public_key == "ssh-ed25519 CCCC"
         assert transport.calls[1].variables == {"input": {}}
