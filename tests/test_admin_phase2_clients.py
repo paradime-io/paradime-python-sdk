@@ -143,7 +143,9 @@ class TestBolt:
         assert definition.slug == "nightly" and definition.is_suspended is True
 
     def test_trigger_url_secrets_are_returned_but_kept_out_of_repr(self) -> None:
-        admin, _ = _admin({"createTriggerUrl": {"triggerUrl": TRIGGER_URL, "secret": "tok-123"}})
+        admin, transport = _admin(
+            {"createTriggerUrl": {"triggerUrl": TRIGGER_URL, "secret": "tok-123"}}
+        )
 
         created = admin.bolt.create_trigger_url("nightly", "ci")
 
@@ -151,6 +153,21 @@ class TestBolt:
         assert created.trigger_url.is_enabled is True and created.trigger_url.has_secret is True
         assert "tok-123" not in repr(created)
         assert "https://hooks/p1" in repr(created)
+        assert transport.calls[0].linked_fields == {"schedule"}
+
+    def test_rotate_trigger_url_secret_returns_the_new_secret(self) -> None:
+        admin, transport = _admin(
+            {"rotateTriggerUrlSecret": {"triggerUrl": TRIGGER_URL, "secret": "tok-456"}}
+        )
+
+        rotated = admin.bolt.rotate_trigger_url_secret("p1")
+
+        assert rotated.secret == "tok-456"
+        assert rotated.trigger_url.schedule is not None
+        assert rotated.trigger_url.schedule.slug == "nightly"
+        assert transport.calls[0].variables == {"input": {"publicId": "p1"}}
+        assert "schedule {" in transport.calls[0].query
+        assert transport.calls[0].linked_fields == {"schedule"}
 
     def test_linked_schedules_and_environments_read_as_objects(self) -> None:
         schedule = {
@@ -333,6 +350,7 @@ class TestDinoAi:
             }
         }
         assert agent.model == DinoAiAgentModel.SONNET
+        assert transport.calls[0].linked_fields == {"environment"}
 
     def test_the_environment_and_squad_read_from_their_links(self) -> None:
         lead = {
