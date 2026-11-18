@@ -10,7 +10,12 @@ from paradime.apis.admin.connections.types import (
     WarehouseType,
 )
 from paradime.apis.admin.environment_variables.types import SetEnvironmentVariablesResult
-from paradime.apis.admin.exception import AdminValidationFailedException
+from paradime.apis.admin.exception import (
+    AdminConflictException,
+    AdminNotFoundException,
+    AdminValidationFailedException,
+)
+from paradime.apis.admin.users.types import AdminUser, UserAccountType
 from paradime.cli.admin import admin, common
 
 
@@ -47,10 +52,50 @@ class FakeConnections:
         )
 
 
+class FakeUsers:
+    def __init__(self) -> None:
+        self.error: Optional[Exception] = None
+        self.calls: List[Dict[str, Any]] = []
+
+    def _answer(self, method: str, user: Dict[str, Any], **kwargs: Any) -> AdminUser:
+        self.calls.append({"method": method, **kwargs})
+        if self.error:
+            raise self.error
+        return AdminUser.parse_obj(user)
+
+    def create(self, email: str, account_type: Any, **kwargs: Any) -> AdminUser:
+        invitee = {
+            "email": email,
+            "accountType": account_type.value,
+            "status": "INVITED",
+            "inviteStatus": "PENDING",
+        }
+        return self._answer("create", invitee, email=email, account_type=account_type, **kwargs)
+
+    def update(self, uid: str, **kwargs: Any) -> AdminUser:
+        member = {
+            "email": "member@example.com",
+            "uid": uid,
+            "accountType": kwargs["account_type"].value,
+            "status": "ACTIVE",
+        }
+        return self._answer("update", member, uid=uid, **kwargs)
+
+    def deactivate(self, uid: str, **kwargs: Any) -> AdminUser:
+        former = {
+            "email": "member@example.com",
+            "uid": uid,
+            "accountType": "DEVELOPER",
+            "status": "DEACTIVATED",
+        }
+        return self._answer("deactivate", former, uid=uid, **kwargs)
+
+
 class FakeAdmin:
     def __init__(self, error: Optional[Exception] = None) -> None:
         self.environment_variables = FakeEnvironmentVariables(error)
         self.connections = FakeConnections()
+        self.users = FakeUsers()
 
 
 @pytest.fixture
@@ -529,3 +574,115 @@ def test_connection_name_option_is_sent_as_name(fake_admin: FakeAdmin, command: 
     calls = getattr(fake_admin.connections, f"{command}_calls")
     assert len(calls) == 1 and calls[0]["name"] == "Dev"
     assert "connection_name" not in calls[0]
+
+
+def test_users_create_invites_the_email_with_the_role(fake_admin: FakeAdmin) -> None:
+    result = _run(
+        "users", "create", "new@example.com", "--account-type", "developer", "--workspace", "w2"
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_admin.users.calls == [
+        {
+            "method": "create",
+            "email": "new@example.com",
+            "account_type": UserAccountType.DEVELOPER,
+            "workspace_uid": "w2",
+        }
+    ]
+    assert "INVITED" in result.output and "PENDING" in result.output
+
+
+def test_users_create_json_prints_the_invitee(fake_admin: FakeAdmin) -> None:
+    result = _run("users", "create", "new@example.com", "--account-type", "ADMIN", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert '"email": "new@example.com"' in result.output
+    assert '"accountType": "ADMIN"' in result.output
+    assert '"status": "INVITED"' in result.output
+
+
+@pytest.mark.parametrize("command", ["create", "update"])
+@pytest.mark.parametrize("account_type", ["UNKNOWN", "SANDBOX_USER", "sandbox_user"])
+def test_users_refuse_a_role_the_api_never_gives(
+    fake_admin: FakeAdmin, command: str, account_type: str
+) -> None:
+    target = "new@example.com" if command == "create" else "u1"
+    result = _run("users", command, target, "--account-type", account_type)
+
+    assert result.exit_code == 2
+    assert fake_admin.users.calls == []
+
+
+def test_users_update_sends_the_new_role(fake_admin: FakeAdmin) -> None:
+    result = _run("users", "update", "u1", "--account-type", "ANALYST", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert fake_admin.users.calls == [
+        {
+            "method": "update",
+            "uid": "u1",
+            "account_type": UserAccountType.ANALYST,
+            "workspace_uid": None,
+        }
+    ]
+    assert '"accountType": "ANALYST"' in result.output
+
+
+def test_users_deactivate_asks_first(fake_admin: FakeAdmin) -> None:
+    result = _run("users", "deactivate", "u1", input="n\n")
+
+    assert result.exit_code == 1
+    assert fake_admin.users.calls == []
+
+
+def test_users_deactivate_with_yes(fake_admin: FakeAdmin) -> None:
+    result = _run("users", "deactivate", "u1", "--yes", "--workspace", "w2")
+
+    assert result.exit_code == 0, result.output
+    assert fake_admin.users.calls == [{"method": "deactivate", "uid": "u1", "workspace_uid": "w2"}]
+    assert "Deactivated user member@example.com (u1)." in result.output
+
+
+def test_users_deactivate_json_prints_the_former_member(fake_admin: FakeAdmin) -> None:
+    result = _run("users", "deactivate", "u1", "--yes", "--json")
+
+    assert result.exit_code == 0, result.output
+    assert '"status": "DEACTIVATED"' in result.output
+
+
+@pytest.mark.parametrize(
+    "args, error, printed",
+    [
+        (
+            ["create", "new@example.com", "--account-type", "ADMIN"],
+            AdminConflictException("new@example.com is already invited."),
+            "CONFLICT: new@example.com is already invited.",
+        ),
+        (
+            ["update", "u-missing", "--account-type", "ADMIN"],
+            AdminNotFoundException("No user u-missing."),
+            "NOT_FOUND: No user u-missing.",
+        ),
+        (
+            ["deactivate", "u-missing", "--yes"],
+            AdminNotFoundException("No user u-missing."),
+            "NOT_FOUND: No user u-missing.",
+        ),
+    ],
+)
+def test_users_errors_exit_non_zero_with_their_code(
+    fake_admin: FakeAdmin,
+    monkeypatch: pytest.MonkeyPatch,
+    args: List[str],
+    error: Exception,
+    printed: str,
+) -> None:
+    fake_admin.users.error = error
+    messages: List[str] = []
+    monkeypatch.setattr(common.console, "error", lambda message, **_: messages.append(message))
+
+    result = _run("users", *args)
+
+    assert result.exit_code == 1
+    assert messages == [printed]

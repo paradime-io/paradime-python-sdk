@@ -36,7 +36,7 @@ class AdminClient:
         environment_variables (AdminEnvironmentVariablesClient): Environment variables.
         usage (AdminUsageClient): Bolt and DinoAI usage.
         jobs (AdminJobsClient): Async jobs, and waiting for them.
-        users (AdminUsersClient): Users and auto-join domains.
+        users (AdminUsersClient): Users, their invitations and roles, and auto-join domains.
         notifications (AdminNotificationsClient): Slack and email alerts.
         bolt (AdminBoltClient): Schedule updates and deploys, and Trigger URLs.
         integrations (AdminIntegrationsClient): Integrations and external secret managers.
