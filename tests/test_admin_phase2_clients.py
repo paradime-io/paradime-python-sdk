@@ -295,6 +295,8 @@ class TestBolt:
         )
 
         assert "createBoltScheduleDefinition(input: $input)" in transport.calls[0].query
+        assert "environment {" in transport.calls[0].query
+        assert transport.calls[0].linked_fields == {"environment"}
         assert transport.calls[0].variables == {
             "input": {
                 "slug": "nightly",
@@ -386,6 +388,8 @@ class TestBolt:
         assert isinstance(listed[0], BoltScheduleDefinition)
         assert listed[1].is_suspended is True
         assert "boltSchedules(first: $first, after: $after)" in transport.calls[0].query
+        assert "environment {" in transport.calls[0].query
+        assert [call.linked_fields for call in transport.calls] == [{"environment"}] * 2
         assert transport.calls[0].variables == {"workspaceUid": "w2", "first": 1, "after": None}
         assert transport.calls[1].variables["after"] == "c1"
         assert transport.calls[0].workspace_uid == "w2"

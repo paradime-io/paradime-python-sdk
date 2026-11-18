@@ -135,7 +135,10 @@ class AdminBoltClient:
         if slug is not None:
             create_input["slug"] = slug
         response = self.transport.execute(
-            query, {"input": create_input}, workspace_uid=workspace_uid
+            query,
+            {"input": create_input},
+            workspace_uid=workspace_uid,
+            linked_fields=BOLT_SCHEDULE_DEFINITION_LINKS,
         )
         return BoltScheduleDefinition.parse_obj(
             response["createBoltScheduleDefinition"]["schedule"]
@@ -293,6 +296,7 @@ class AdminBoltClient:
                 query,
                 {"workspaceUid": workspace_uid, "first": page_size, "after": after},
                 workspace_uid=workspace_uid,
+                linked_fields=BOLT_SCHEDULE_DEFINITION_LINKS,
             )
             workspace = response["workspace"] or {}
             return parse_page(workspace.get("boltSchedules"), BoltScheduleDefinition.parse_obj)

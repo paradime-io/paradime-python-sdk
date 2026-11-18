@@ -658,8 +658,17 @@ def test_bolt_schedules_list_prints_every_schedule(fake_bolt: FakeBolt) -> None:
     result = _run("bolt", "schedules", "list", "--workspace", "w2", "--json")
 
     assert result.exit_code == 0, result.output
-    assert [schedule["slug"] for schedule in json.loads(result.output)] == ["nightly", "hourly"]
+    listed = json.loads(result.output)
+    assert [schedule["slug"] for schedule in listed] == ["nightly", "hourly"]
+    assert listed[0]["environment"] == {"slug": "prod", "name": None}
     assert fake_bolt.calls == [{"method": "list", "workspace_uid": "w2"}]
+
+
+def test_bolt_schedules_list_shows_the_environment_slug(fake_bolt: FakeBolt) -> None:
+    result = _run("bolt", "schedules", "list")
+
+    assert result.exit_code == 0, result.output
+    assert "prod" in result.output and "slug=" not in result.output
 
 
 def test_bolt_schedules_create_merges_the_config_with_the_options(
