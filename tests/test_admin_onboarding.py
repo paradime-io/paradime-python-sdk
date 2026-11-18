@@ -691,3 +691,40 @@ def test_an_unknown_account_type_is_a_config_error(tmp_path: Path, account_type:
 
     with pytest.raises(onboard.ConfigError, match=f"unknown account_type '{account_type}'"):
         onboard.ConfigLoader(config_path, ENVIRON).load()
+
+
+def test_a_sandbox_user_is_refused_before_any_request(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    config = _config_file(tmp_path, "    account_type: ADMIN\n", "    account_type: SANDBOX_USER\n")
+    environ = {
+        **ENVIRON,
+        "PARADIME_API_SECRET": API_SECRET,
+        "PARADIME_API_ENDPOINT": "http://127.0.0.1:1/graphql",
+        "PARADIME_WORKSPACE_UID": BOOTSTRAP_UID,
+        "PARADIME_ONBOARDING_CONFIG": str(config),
+    }
+
+    assert onboard.main([], environ) == 2
+    assert "never gives the SANDBOX_USER role (data-lead@example.com)" in capsys.readouterr().err
+
+
+def test_a_role_the_server_refuses_is_named_in_the_failure(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    api.create_user_errors["lead@example.com"] = (
+        "VALIDATION_FAILED",
+        "An API key can't give the WORKSPACE_ADMIN role in this workspace.",
+    )
+    onboarding = _onboarding(url)
+    onboarding.config.users = [{"email": "lead@example.com", "account_type": "WORKSPACE_ADMIN"}]
+    onboarding.create_workspace()
+
+    with pytest.raises(onboard.StepFailed) as exc_info:
+        onboarding.create_users()
+
+    assert str(exc_info.value) == (
+        "lead@example.com as WORKSPACE_ADMIN: VALIDATION_FAILED: An API key can't give the "
+        "WORKSPACE_ADMIN role in this workspace. (field: input.accountType)"
+    )

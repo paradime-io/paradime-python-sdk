@@ -62,6 +62,7 @@ GITHUB_HOST = "github.com"
 NAME_PREFIX_MARKER = "onboarding-"
 ENDPOINT_PATH_WORDS = frozenset({"api", "v1", "graphql"})
 NOTIFICATION_SETTINGS = frozenset({"email_enabled"})
+NOT_GRANTABLE_ACCOUNT_TYPES = frozenset({UserAccountType.SANDBOX_USER})
 PERSONAL_DEVELOPMENT_FIELDS: Dict[str, frozenset] = {
     "snowflake": frozenset(
         {
@@ -347,11 +348,14 @@ class ConfigLoader:
         if config.development:
             self.adapter(config.development, "development")
         for user in config.users:
-            if (
-                UserAccountType(str(user.get("account_type", "DEVELOPER")))
-                == UserAccountType.UNKNOWN
-            ):
+            account_type = UserAccountType(str(user.get("account_type", "DEVELOPER")))
+            if account_type == UserAccountType.UNKNOWN:
                 raise ConfigError(f"users: unknown account_type {user.get('account_type')!r}.")
+            if account_type in NOT_GRANTABLE_ACCOUNT_TYPES:
+                raise ConfigError(
+                    f"users: the Admin API never gives the {account_type.value} role "
+                    f"({user.get('email')})."
+                )
         config.secrets = self.secrets
         return config
 
@@ -814,12 +818,16 @@ class Onboarding:
     def create_users(self) -> Outcome:
         if not self.config.users:
             raise SkipStep("no users in the config")
-        invited = [
-            self.target.admin.users.create(
-                str(user["email"]), UserAccountType(str(user.get("account_type", "DEVELOPER")))
-            )
-            for user in self.config.users
-        ]
+        invited: List[Any] = []
+        for user in self.config.users:
+            email = str(user["email"])
+            account_type = UserAccountType(str(user.get("account_type", "DEVELOPER")))
+            try:
+                invited.append(self.target.admin.users.create(email, account_type))
+            except AdminApiException as error:
+                raise StepFailed(
+                    f"{email} as {account_type.value}: {describe_error(error)}"
+                ) from error
         return Outcome(
             f"invited {len(invited)} user(s): "
             + ", ".join(

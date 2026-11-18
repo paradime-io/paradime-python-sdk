@@ -92,6 +92,7 @@ class StubAdminApi:
         self.rate_limited = False
         self.connected = False
         self.github_keys: Dict[int, str] = {41: "onboarding-e2e-20261104-020000"}
+        self.create_user_errors: Dict[str, Tuple[str, str]] = {}
         self.lock = threading.Lock()
 
     def handle(self, query: str, variables: Dict[str, Any], workspace: Optional[str]) -> Reply:
@@ -256,6 +257,9 @@ class StubAdminApi:
 
     def op_adminCreateUser(self, variables: Dict[str, Any], workspace: Optional[str]) -> Reply:
         user_input = variables["input"]
+        if user_input["email"] in self.create_user_errors:
+            code, message = self.create_user_errors[user_input["email"]]
+            return _error(code, message, field=["input", "accountType"])
         invitee = {
             "email": user_input["email"],
             "uid": None,
