@@ -7,6 +7,7 @@ from test_admin_transport import FakeResponse, _error, _transport
 
 from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.dinoai.types import (
+    DINOAI_AGENT_DEFINITION_FIELDS,
     DinoAiAgentDefinition,
     DinoAiAgentModel,
     DinoAiAgentSpecInput,
@@ -440,10 +441,10 @@ AGENT = {"slug": "analyst", "name": "Analyst", "model": "SONNET", "source": "UI"
 
 
 class TestDinoAi:
-    def test_set_agent_sends_the_spec(self) -> None:
-        admin, transport = _admin({"setDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
+    def test_create_agent_sends_the_spec(self) -> None:
+        admin, transport = _admin({"createDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
 
-        agent = admin.dinoai.set_agent(
+        agent = admin.dinoai.create_agent(
             "Analyst",
             DinoAiAgentSpecInput(
                 role="r",
@@ -453,8 +454,20 @@ class TestDinoAi:
                 tools=DinoAiAgentToolGateInput(mode="ALLOWLIST", names=["run_sql_query"]),
             ),
             slug="analyst",
+            workspace_uid="w2",
         )
 
+        assert " ".join(transport.calls[0].query.split()) == " ".join(
+            f"""
+            mutation adminCreateDinoAiAgentDefinition($input: CreateDinoAiAgentDefinitionInput!) {{
+                createDinoAiAgentDefinition(input: $input) {{
+                    dinoAiAgentDefinition {{
+                        {DINOAI_AGENT_DEFINITION_FIELDS}
+                    }}
+                }}
+            }}
+            """.split()
+        )
         assert transport.calls[0].variables == {
             "input": {
                 "name": "Analyst",
@@ -468,8 +481,94 @@ class TestDinoAi:
                 "slug": "analyst",
             }
         }
+        assert transport.calls[0].workspace_uid == "w2"
         assert agent.model == DinoAiAgentModel.SONNET
         assert transport.calls[0].linked_fields == {"environment"}
+
+    def test_create_agent_without_a_slug_leaves_it_out(self) -> None:
+        admin, transport = _admin({"createDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
+
+        admin.dinoai.create_agent(
+            "Analyst", DinoAiAgentSpecInput(role="r", goal="g", backstory="b")
+        )
+
+        assert transport.calls[0].variables == {
+            "input": {"name": "Analyst", "spec": {"role": "r", "goal": "g", "backstory": "b"}}
+        }
+
+    def test_update_agent_replaces_the_definition_by_slug(self) -> None:
+        admin, transport = _admin({"updateDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
+
+        agent = admin.dinoai.update_agent(
+            "analyst",
+            "Analyst",
+            DinoAiAgentSpecInput(role="r", goal="g", backstory="b"),
+            slack_bot_name="Analyst bot",
+        )
+
+        assert " ".join(transport.calls[0].query.split()) == " ".join(
+            f"""
+            mutation adminUpdateDinoAiAgentDefinition($input: UpdateDinoAiAgentDefinitionInput!) {{
+                updateDinoAiAgentDefinition(input: $input) {{
+                    dinoAiAgentDefinition {{
+                        {DINOAI_AGENT_DEFINITION_FIELDS}
+                    }}
+                }}
+            }}
+            """.split()
+        )
+        assert transport.calls[0].variables == {
+            "input": {
+                "slug": "analyst",
+                "name": "Analyst",
+                "spec": {"role": "r", "goal": "g", "backstory": "b"},
+                "slackBotName": "Analyst bot",
+            }
+        }
+        assert agent.slug == "analyst"
+        assert transport.calls[0].linked_fields == {"environment"}
+
+    def test_create_agent_over_other_settings_raises_conflict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        transport, _ = _transport(
+            monkeypatch,
+            [],
+            FakeResponse(
+                _error(
+                    "CONFLICT",
+                    "Agent analyst exists with other settings.",
+                    field=["input", "slug"],
+                )
+            ),
+        )
+        admin = AdminClient(client=None, transport=transport)
+
+        with pytest.raises(AdminConflictException) as exc_info:
+            admin.dinoai.create_agent(
+                "Other", DinoAiAgentSpecInput(role="r", goal="g", backstory="b"), slug="analyst"
+            )
+
+        assert exc_info.value.code == ErrorCode.CONFLICT
+        assert exc_info.value.field == ["input", "slug"]
+
+    def test_update_agent_of_an_unknown_slug_raises_not_found(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        transport, _ = _transport(
+            monkeypatch,
+            [],
+            FakeResponse(_error("NOT_FOUND", "No agent ghost.", field=["input", "slug"])),
+        )
+        admin = AdminClient(client=None, transport=transport)
+
+        with pytest.raises(AdminNotFoundException) as exc_info:
+            admin.dinoai.update_agent(
+                "ghost", "Ghost", DinoAiAgentSpecInput(role="r", goal="g", backstory="b")
+            )
+
+        assert exc_info.value.code == ErrorCode.NOT_FOUND
+        assert exc_info.value.field == ["input", "slug"]
 
     def test_the_environment_and_squad_read_from_their_links(self) -> None:
         lead = {

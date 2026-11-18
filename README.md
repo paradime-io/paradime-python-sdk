@@ -123,6 +123,11 @@ returns the stored one, and a connection that exists with other settings raises
 settings while secrets, name, target and threads left out keep their stored values; a
 connection that does not exist raises `AdminNotFoundException`.
 
+DinoAI agent definitions follow the same rule: `paradime.admin.dinoai.create_agent` with a
+`slug` returns the stored agent when sent again and raises `AdminConflictException` when an
+agent with other settings holds the slug, and `update_agent` replaces an agent's definition by
+slug, raising `AdminNotFoundException` when no agent holds it.
+
 `paradime.admin.users` invites people with a role (`create`, which sends the invitation email
 and returns the invitee as `INVITED`), changes a member's role (`update`), and deactivates and
 reactivates members (`deactivate`, `reactivate`); each returns the user. Inviting an email that

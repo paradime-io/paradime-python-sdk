@@ -1,14 +1,15 @@
-from typing import Iterator, List, Optional, Sequence, Tuple
+from typing import Iterator, List, Optional, Sequence, Tuple, Union
 
 from paradime.apis.admin.dinoai.types import (
     DINOAI_AGENT_DEFINITION_FIELDS,
     DINOAI_AGENT_DEFINITION_LINKS,
+    CreateDinoAiAgentDefinitionInput,
     DinoAiAgentDefinition,
     DinoAiAgentEdgeInput,
     DinoAiAgentSpecInput,
     DinoAiWorkspaceSettings,
-    SetDinoAiAgentDefinitionInput,
     SetDinoAiWorkspaceSettingsInput,
+    UpdateDinoAiAgentDefinitionInput,
 )
 from paradime.apis.admin.jobs.types import ADMIN_JOB_FIELDS, AdminJob
 from paradime.apis.admin.transport import AdminTransport
@@ -111,7 +112,7 @@ class AdminDinoAiClient:
         agent = (response["workspace"] or {}).get("dinoAiAgentDefinition")
         return DinoAiAgentDefinition.parse_obj(agent) if agent is not None else None
 
-    def set_agent(
+    def create_agent(
         self,
         name: str,
         spec: DinoAiAgentSpecInput,
@@ -122,12 +123,14 @@ class AdminDinoAiClient:
         workspace_uid: Optional[str] = None,
     ) -> DinoAiAgentDefinition:
         """
-        Creates or replaces a DinoAI agent definition. With a `slug`, sending the same input
-        again changes nothing. A spec field left out is unset on the agent.
+        Creates a DinoAI agent definition. With a `slug`, sending the same input again returns
+        the stored agent and changes nothing, and a slug an agent with other settings holds
+        raises `AdminConflictException`; without one, every call creates another agent.
 
         Args:
             name (str): The agent's name.
-            spec (DinoAiAgentSpecInput): What the agent is and may do.
+            spec (DinoAiAgentSpecInput): What the agent is and may do. A field left out is
+                unset on the agent.
             slug (str, optional): The agent's slug; minted when left out.
             slack_bot_name (str, optional): The name the agent posts under in Slack.
             slack_bot_icon_url (str, optional): The icon the agent posts with in Slack.
@@ -135,19 +138,12 @@ class AdminDinoAiClient:
 
         Returns:
             DinoAiAgentDefinition: The agent, as now stored.
+
+        Raises:
+            AdminConflictException: When an agent with other settings holds the slug.
         """
 
-        query = f"""
-            mutation adminSetDinoAiAgentDefinition($input: SetDinoAiAgentDefinitionInput!) {{
-                setDinoAiAgentDefinition(input: $input) {{
-                    dinoAiAgentDefinition {{
-                        {DINOAI_AGENT_DEFINITION_FIELDS}
-                    }}
-                }}
-            }}
-        """
-
-        agent_input = SetDinoAiAgentDefinitionInput(
+        agent_input = CreateDinoAiAgentDefinitionInput(
             name=name,
             spec=spec,
             **given(
@@ -156,15 +152,48 @@ class AdminDinoAiClient:
                 slack_bot_icon_url=slack_bot_icon_url or UNSET,
             ),
         )
-        response = self.transport.execute(
-            query,
-            {"input": serialize_input(agent_input)},
-            workspace_uid=workspace_uid,
-            linked_fields=DINOAI_AGENT_DEFINITION_LINKS,
+        return self._save_agent("createDinoAiAgentDefinition", agent_input, workspace_uid)
+
+    def update_agent(
+        self,
+        slug: str,
+        name: str,
+        spec: DinoAiAgentSpecInput,
+        *,
+        slack_bot_name: Optional[str] = None,
+        slack_bot_icon_url: Optional[str] = None,
+        workspace_uid: Optional[str] = None,
+    ) -> DinoAiAgentDefinition:
+        """
+        Replaces a DinoAI agent definition's name, spec and Slack bot fields, and keeps its
+        delegates. A spec field or Slack bot field left out is cleared. Sending the same input
+        again changes nothing.
+
+        Args:
+            slug (str): The slug of the agent to change.
+            name (str): The agent's name.
+            spec (DinoAiAgentSpecInput): What the agent is and may do.
+            slack_bot_name (str, optional): The name the agent posts under in Slack.
+            slack_bot_icon_url (str, optional): The icon the agent posts with in Slack.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
+
+        Returns:
+            DinoAiAgentDefinition: The agent, as now stored.
+
+        Raises:
+            AdminNotFoundException: When no agent holds the slug.
+        """
+
+        agent_input = UpdateDinoAiAgentDefinitionInput(
+            slug=slug,
+            name=name,
+            spec=spec,
+            **given(
+                slack_bot_name=slack_bot_name or UNSET,
+                slack_bot_icon_url=slack_bot_icon_url or UNSET,
+            ),
         )
-        return DinoAiAgentDefinition.parse_obj(
-            response["setDinoAiAgentDefinition"]["dinoAiAgentDefinition"]
-        )
+        return self._save_agent("updateDinoAiAgentDefinition", agent_input, workspace_uid)
 
     def delete_agent(self, slug: str, *, workspace_uid: Optional[str] = None) -> str:
         """
@@ -326,3 +355,28 @@ class AdminDinoAiClient:
             workspace_uid=workspace_uid,
         )
         return AdminJob.parse_obj(response["syncDinoAiAgentDefinitionsFromCode"]["job"])
+
+    def _save_agent(
+        self,
+        mutation: str,
+        agent_input: Union[CreateDinoAiAgentDefinitionInput, UpdateDinoAiAgentDefinitionInput],
+        workspace_uid: Optional[str],
+    ) -> DinoAiAgentDefinition:
+        input_type = mutation[0].upper() + mutation[1:] + "Input"
+        query = f"""
+            mutation admin{input_type[:-5]}($input: {input_type}!) {{
+                {mutation}(input: $input) {{
+                    dinoAiAgentDefinition {{
+                        {DINOAI_AGENT_DEFINITION_FIELDS}
+                    }}
+                }}
+            }}
+        """
+
+        response = self.transport.execute(
+            query,
+            {"input": serialize_input(agent_input)},
+            workspace_uid=workspace_uid,
+            linked_fields=DINOAI_AGENT_DEFINITION_LINKS,
+        )
+        return DinoAiAgentDefinition.parse_obj(response[mutation]["dinoAiAgentDefinition"])

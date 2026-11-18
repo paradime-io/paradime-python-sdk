@@ -222,8 +222,16 @@ class DinoAiAgentSpecInput(AdminInputModel):
     git_writes: Optional[DinoAiAgentGitWritesInput] = None
 
 
-class SetDinoAiAgentDefinitionInput(AdminInputModel):
+class CreateDinoAiAgentDefinitionInput(AdminInputModel):
     slug: Optional[str] = None
+    name: str
+    spec: DinoAiAgentSpecInput
+    slack_bot_name: Optional[str] = None
+    slack_bot_icon_url: Optional[str] = None
+
+
+class UpdateDinoAiAgentDefinitionInput(AdminInputModel):
+    slug: str
     name: str
     spec: DinoAiAgentSpecInput
     slack_bot_name: Optional[str] = None
