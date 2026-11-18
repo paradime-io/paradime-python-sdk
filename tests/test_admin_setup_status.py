@@ -115,3 +115,17 @@ def test_cli_prints_each_product_with_what_it_needs(
         ("Bolt", "MISSING; needs SCHEDULER_CONNECTION"),
         ("DinoAI agents", "DONE; better with AGENT_CONNECTION"),
     ]
+
+
+def test_cli_exits_with_an_error_when_there_is_no_setup_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    admin, _ = _admin({"workspaceSetupStatus": None})
+    monkeypatch.setattr(common, "get_admin", lambda: admin)
+    errors: List[str] = []
+    monkeypatch.setattr(common.console, "error", errors.append)
+
+    result = CliRunner().invoke(admin_cli, ["setup-status"])
+
+    assert result.exit_code == 1
+    assert errors == ["NOT_FOUND: No setup status for this workspace."]
