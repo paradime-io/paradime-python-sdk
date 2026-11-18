@@ -58,6 +58,9 @@ class TestUsers:
 
         assert admin.users.reactivate("u1", workspace_uid="w2").status == UserStatus.ACTIVE
         assert admin.users.set_auto_join_domains(["example.com"]) == ["example.com"]
+        query = transport.calls[0].query
+        assert "mutation adminReactivateUser($input: ReactivateUserInput!)" in query
+        assert "reactivateUser(input: $input)" in query
         assert transport.calls[0].variables == {"input": {"uid": "u1"}}
         assert transport.calls[0].workspace_uid == "w2"
         assert transport.calls[1].variables == {"input": {"domains": ["example.com"]}}
