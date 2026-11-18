@@ -2,6 +2,7 @@ from typing import Iterator, List, Optional, Sequence, Tuple
 
 from paradime.apis.admin.dinoai.types import (
     DINOAI_AGENT_DEFINITION_FIELDS,
+    DINOAI_AGENT_DEFINITION_LINKS,
     DinoAiAgentDefinition,
     DinoAiAgentEdgeInput,
     DinoAiAgentSpecInput,
@@ -72,6 +73,7 @@ class AdminDinoAiClient:
                 query,
                 {"workspaceUid": workspace_uid, "first": page_size, "after": after},
                 workspace_uid=workspace_uid,
+                linked_fields=DINOAI_AGENT_DEFINITION_LINKS,
             )
             workspace = response["workspace"] or {}
             return parse_page(
@@ -105,7 +107,10 @@ class AdminDinoAiClient:
         """
 
         response = self.transport.execute(
-            query, {"workspaceUid": workspace_uid, "slug": slug}, workspace_uid=workspace_uid
+            query,
+            {"workspaceUid": workspace_uid, "slug": slug},
+            workspace_uid=workspace_uid,
+            linked_fields=DINOAI_AGENT_DEFINITION_LINKS,
         )
         agent = (response["workspace"] or {}).get("dinoAiAgentDefinition")
         return DinoAiAgentDefinition.parse_obj(agent) if agent is not None else None
@@ -156,7 +161,10 @@ class AdminDinoAiClient:
             ),
         )
         response = self.transport.execute(
-            query, {"input": serialize_input(agent_input)}, workspace_uid=workspace_uid
+            query,
+            {"input": serialize_input(agent_input)},
+            workspace_uid=workspace_uid,
+            linked_fields=DINOAI_AGENT_DEFINITION_LINKS,
         )
         return DinoAiAgentDefinition.parse_obj(
             response["setDinoAiAgentDefinition"]["dinoAiAgentDefinition"]

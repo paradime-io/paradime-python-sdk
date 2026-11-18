@@ -1,3 +1,4 @@
+import json
 from typing import List
 
 import pytest
@@ -6,6 +7,7 @@ from test_admin_transport import FakeResponse, _error, _transport
 
 from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.dinoai.types import (
+    DinoAiAgentDefinition,
     DinoAiAgentModel,
     DinoAiAgentSpecInput,
     DinoAiAgentToolGateInput,
@@ -221,6 +223,7 @@ TRIGGER_URL = {
     "name": "ci",
     "isEnabled": True,
     "url": "https://hooks/p1",
+    "schedule": {"slug": "nightly", "name": "Nightly"},
     "hasSecret": True,
 }
 
@@ -259,7 +262,9 @@ class TestBolt:
         assert definition.slug == "nightly" and definition.is_suspended is True
 
     def test_trigger_url_secrets_are_returned_but_kept_out_of_repr(self) -> None:
-        admin, _ = _admin({"createTriggerUrl": {"triggerUrl": TRIGGER_URL, "secret": "tok-123"}})
+        admin, transport = _admin(
+            {"createTriggerUrl": {"triggerUrl": TRIGGER_URL, "secret": "tok-123"}}
+        )
 
         created = admin.bolt.create_trigger_url("nightly", "ci")
 
@@ -267,6 +272,60 @@ class TestBolt:
         assert created.trigger_url.is_enabled is True and created.trigger_url.has_secret is True
         assert "tok-123" not in repr(created)
         assert "https://hooks/p1" in repr(created)
+        assert transport.calls[0].linked_fields == {"schedule"}
+
+    def test_rotate_trigger_url_secret_returns_the_new_secret(self) -> None:
+        admin, transport = _admin(
+            {"rotateTriggerUrlSecret": {"triggerUrl": TRIGGER_URL, "secret": "tok-456"}}
+        )
+
+        rotated = admin.bolt.rotate_trigger_url_secret("p1")
+
+        assert rotated.secret == "tok-456"
+        assert rotated.trigger_url.schedule is not None
+        assert rotated.trigger_url.schedule.slug == "nightly"
+        assert transport.calls[0].variables == {"input": {"publicId": "p1"}}
+        assert "schedule {" in transport.calls[0].query
+        assert transport.calls[0].linked_fields == {"schedule"}
+
+    def test_linked_schedules_and_environments_read_as_objects(self) -> None:
+        schedule = {
+            "slug": "nightly",
+            "name": "Nightly",
+            "environment": {"slug": "production", "name": "Production"},
+        }
+        admin, transport = _admin(
+            {
+                "workspace": {
+                    "triggerUrls": _connection(
+                        [TRIGGER_URL, {**TRIGGER_URL, "publicId": "p2", "schedule": None}],
+                        None,
+                        False,
+                    )
+                }
+            },
+            {"setTriggerUrlEnabled": {"triggerUrl": TRIGGER_URL}},
+            {"updateBoltSchedule": {"schedule": schedule}},
+        )
+
+        linked, missing = admin.bolt.list_trigger_urls("nightly")
+        admin.bolt.set_trigger_url_enabled("p1", False)
+        definition = admin.bolt.update_schedule(
+            "nightly", name="Nightly", schedule="OFF", environment="production", commands=["dbt"]
+        )
+
+        assert linked.schedule is not None and linked.schedule.slug == "nightly"
+        assert missing.schedule is None
+        assert definition.environment is not None
+        assert definition.environment.slug == "production"
+        assert [call.linked_fields for call in transport.calls] == [
+            {"schedule"},
+            {"schedule"},
+            {"environment"},
+        ]
+        assert "scheduleFound" not in transport.calls[0].query
+        assert "schedule {" in transport.calls[0].query
+        assert "environment {" in transport.calls[2].query
 
     def test_deploy_returns_a_job(self) -> None:
         job = {"id": "j1", "kind": "DEPLOY_BOLT_SCHEDULES", "status": "QUEUED"}
@@ -410,6 +469,35 @@ class TestDinoAi:
             }
         }
         assert agent.model == DinoAiAgentModel.SONNET
+        assert transport.calls[0].linked_fields == {"environment"}
+
+    def test_the_environment_and_squad_read_from_their_links(self) -> None:
+        lead = {
+            **AGENT,
+            "slug": "lead",
+            "environment": {"slug": "agent", "name": "Agent"},
+            "agentsSquad": {
+                "totalCount": 2,
+                "edges": [{"node": {"slug": "analyst"}}, {"node": {"slug": "writer"}}],
+            },
+        }
+        admin, transport = _admin(
+            {"workspace": {"dinoAiAgentDefinitions": _connection([lead, AGENT], None, False)}},
+            {"workspace": {"dinoAiAgentDefinition": lead}},
+        )
+
+        listed, alone = admin.dinoai.list_agents()
+        read = admin.dinoai.get_agent("lead")
+
+        assert listed.environment is not None and listed.environment.slug == "agent"
+        assert listed.agents_squad == ["analyst", "writer"]
+        assert listed.agents_squad_count == 2
+        assert alone.environment is None and alone.agents_squad is None
+        assert read is not None and read.agents_squad == ["analyst", "writer"]
+        assert DinoAiAgentDefinition.parse_obj(json.loads(read.json(by_alias=True))) == read
+        for call in transport.calls:
+            assert "agentsSquad(first: 500) {" in call.query
+            assert call.linked_fields == {"environment"}
 
     def test_graph_settings_and_sync(self) -> None:
         job = {"id": "j1", "kind": "SYNC_DINOAI_AGENT_DEFINITIONS_FROM_CODE", "status": "RUNNING"}

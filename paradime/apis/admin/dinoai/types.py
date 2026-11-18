@@ -1,9 +1,17 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum
+from paradime.apis.admin.types import (
+    ENVIRONMENT_LINK_FIELDS,
+    MAX_PAGE_SIZE,
+    AdminInputModel,
+    AdminModel,
+    EnvironmentLink,
+    OpenEnum,
+)
+from paradime.tools.pydantic import root_validator
 
-DINOAI_AGENT_DEFINITION_FIELDS = """
+DINOAI_AGENT_DEFINITION_FIELDS = f"""
     slug
     name
     source
@@ -13,36 +21,45 @@ DINOAI_AGENT_DEFINITION_FIELDS = """
     backstory
     model
     modelFamily
-    environment
-    tools {
+    environment {{
+        {ENVIRONMENT_LINK_FIELDS}
+    }}
+    tools {{
         mode
         names
-    }
-    mcpTools {
+    }}
+    mcpTools {{
         mode
         names
-    }
-    slack {
+    }}
+    slack {{
         channel
         answerIn
         updates
-    }
-    msTeams {
+    }}
+    msTeams {{
         team
         channel
         answerIn
         updates
-    }
-    jira {
+    }}
+    jira {{
         defaultWatchers
-    }
-    gitWrites {
+    }}
+    gitWrites {{
         comment
         edit
         approve
         merge
-    }
-    agentsSquad
+    }}
+    agentsSquad(first: {MAX_PAGE_SIZE}) {{
+        totalCount
+        edges {{
+            node {{
+                slug
+            }}
+        }}
+    }}
     slackBotName
     slackBotIconUrl
     gitPath
@@ -51,6 +68,8 @@ DINOAI_AGENT_DEFINITION_FIELDS = """
     createdAt
     updatedAt
 """
+
+DINOAI_AGENT_DEFINITION_LINKS = frozenset({"environment"})
 
 
 class DinoAiAgentSource(OpenEnum):
@@ -123,7 +142,7 @@ class DinoAiAgentDefinition(AdminModel):
     backstory: Optional[str] = None
     model: Optional[DinoAiAgentModel] = None
     model_family: Optional[str] = None
-    environment: Optional[str] = None
+    environment: Optional[EnvironmentLink] = None
     tools: Optional[DinoAiAgentToolGate] = None
     mcp_tools: Optional[DinoAiAgentToolGate] = None
     slack: Optional[DinoAiAgentSlack] = None
@@ -131,6 +150,7 @@ class DinoAiAgentDefinition(AdminModel):
     jira: Optional[DinoAiAgentJira] = None
     git_writes: Optional[DinoAiAgentGitWrites] = None
     agents_squad: Optional[List[str]] = None
+    agents_squad_count: Optional[int] = None
     slack_bot_name: Optional[str] = None
     slack_bot_icon_url: Optional[str] = None
     git_path: Optional[str] = None
@@ -138,6 +158,19 @@ class DinoAiAgentDefinition(AdminModel):
     synced_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    @root_validator(pre=True)
+    def _parse_agents_squad(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+        for key in ("agentsSquad", "agents_squad"):
+            squad = values.get(key)
+            if isinstance(squad, dict):
+                edges = squad.get("edges") or []
+                return {
+                    **values,
+                    key: [edge["node"]["slug"] for edge in edges],
+                    "agentsSquadCount": squad.get("totalCount"),
+                }
+        return values
 
 
 class DinoAiWorkspaceSettings(AdminModel):

@@ -38,8 +38,10 @@ def _environment(slug: str, type_: str, name: str, **fields: Any) -> Dict[str, A
         "branch": fields.get("branch"),
         "dbtVersion": None,
         "createdAt": NOW,
-        "deferEnvironmentSlug": "production" if type_ == "AGENT" else None,
-        "deferScheduleSlug": None,
+        "deferEnvironment": (
+            {"slug": "production", "name": "Production"} if type_ == "AGENT" else None
+        ),
+        "deferSchedule": None,
         "hasWarehouseConnection": False,
         "variableNames": [],
     }
@@ -231,7 +233,7 @@ class StubAdminApi:
         connection_input = variables["input"]
         saved = {
             "scope": connection_input["scope"],
-            "environmentSlug": connection_input.get("environmentSlug"),
+            "environment": self._environment_link(connection_input.get("environmentSlug")),
             "connectionId": "default",
             "type": "SNOWFLAKE",
             "isDefault": True,
@@ -242,6 +244,10 @@ class StubAdminApi:
             "settings": None,
         }
         return self.ok({"setWarehouseConnection": {"warehouseConnection": saved}})
+
+    def _environment_link(self, slug: Optional[str]) -> Optional[Dict[str, Any]]:
+        environment = self.environments.get(slug or "")
+        return {"slug": slug, "name": environment["name"]} if environment else None
 
     def op_adminSetEnvironmentVariables(
         self, variables: Dict[str, Any], workspace: Optional[str]
