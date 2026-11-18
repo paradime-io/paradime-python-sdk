@@ -112,8 +112,16 @@ the command line:
 
 ```bash
 printf '%s' "$DBT_TOKEN" | paradime admin env-vars set DBT_TOKEN --environment production
-paradime admin connections set --scope SCHEDULER --environment production --config snowflake.yml
+paradime admin connections create --scope SCHEDULER --environment production --config snowflake.yml \
+  --name Snowflake --target prod --threads 8
+paradime admin connections update --scope SCHEDULER --environment production --config snowflake.yml
 ```
+
+`paradime.admin.connections.create` saves a new connection: sending the same settings again
+returns the stored one, and a connection that exists with other settings raises
+`AdminConflictException`. `update` changes an existing connection, replacing its warehouse
+settings while secrets, name, target and threads left out keep their stored values; a
+connection that does not exist raises `AdminNotFoundException`.
 
 `paradime.admin.users` invites people with a role (`create`, which sends the invitation email
 and returns the invitee as `INVITED`), changes a member's role (`update`), and deactivates and

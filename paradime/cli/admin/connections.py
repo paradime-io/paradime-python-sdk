@@ -169,12 +169,12 @@ def test(
     console.success(f"The {result.type.value} connection opened.")
 
 
-@connections.command(name="set")
+@connections.command()
 @connection_options
 @common.workspace_option
 @common.json_option
 @common.handle_admin_errors
-def set_connection(
+def create(
     scope: str,
     environment_slug: Optional[str],
     config: TextIO,
@@ -186,9 +186,45 @@ def set_connection(
     as_json: bool,
 ) -> None:
     """
-    Test, then save a connection. A new connection needs --name, --target and --threads.
+    Test, then save a new connection. Needs --name, --target and --threads, except for COST.
+    The same settings again change nothing; a connection that exists with other settings is
+    refused, so change it with `update`.
     """
-    connection = common.get_admin().connections.set(
+    connection = common.get_admin().connections.create(
+        _adapter(config),
+        scope=_scope(scope, environment_slug),
+        environment_slug=environment_slug,
+        connection_id=connection_id,
+        name=name,
+        target_name=target_name,
+        threads=threads,
+        workspace_uid=workspace_uid,
+    )
+    common.print_model(connection, as_json=as_json)
+
+
+@connections.command()
+@connection_options
+@common.workspace_option
+@common.json_option
+@common.handle_admin_errors
+def update(
+    scope: str,
+    environment_slug: Optional[str],
+    config: TextIO,
+    connection_id: Optional[str],
+    name: Optional[str],
+    target_name: Optional[str],
+    threads: Optional[int],
+    workspace_uid: Optional[str],
+    as_json: bool,
+) -> None:
+    """
+    Test, then save new settings for an existing connection. The --config file replaces the
+    warehouse settings; secrets, --name, --target and --threads left out keep their stored
+    values.
+    """
+    connection = common.get_admin().connections.update(
         _adapter(config),
         scope=_scope(scope, environment_slug),
         environment_slug=environment_slug,

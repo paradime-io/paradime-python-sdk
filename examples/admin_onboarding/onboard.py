@@ -702,14 +702,14 @@ class Onboarding:
         adapter, left_out = workspace_level_adapter(
             WarehouseAdapterInput.parse_obj(development.get("adapter") or {})
         )
-        saved = self.target.admin.connections.set(
+        saved = self.target.admin.connections.create(
             adapter,
             scope=ConnectionScope.DEVELOPMENT_SHARED,
             name=development.get("name"),
             target_name=development.get("target_name"),
             workspace_uid=self.target_uid,
         )
-        detail = f"{saved.type.value} {saved.name or ''!r} saved"
+        detail = f"{saved.type.value} {saved.name or ''!r} created"
         if left_out:
             detail += f"; left out per-user fields: {', '.join(left_out)}"
         return Outcome(detail)
@@ -731,10 +731,10 @@ class Onboarding:
             raise StepFailed(f"missing after create: {', '.join(missing)}")
         return Outcome(f"Bolt environments: {', '.join(sorted(slugs))}")
 
-    def _set_connection(
+    def _create_connection(
         self, scope: ConnectionScope, slug: str, connection: Mapping[str, Any]
     ) -> str:
-        saved = self.target.admin.connections.set(
+        saved = self.target.admin.connections.create(
             WarehouseAdapterInput.parse_obj(connection.get("adapter") or {}),
             scope=scope,
             environment_slug=slug,
@@ -746,7 +746,7 @@ class Onboarding:
 
     def scheduler_connections(self) -> Outcome:
         saved = [
-            self._set_connection(ConnectionScope.SCHEDULER, slug, connection)
+            self._create_connection(ConnectionScope.SCHEDULER, slug, connection)
             for slug, connection in self.config.scheduler_connections.items()
         ]
         return Outcome(", ".join(saved))
@@ -773,7 +773,7 @@ class Onboarding:
         environment = self.target.admin.environments.create(
             EnvironmentType.AGENT, str(agent.get("name") or "Agent"), slug=slug
         )
-        saved = self._set_connection(ConnectionScope.AGENT, slug, agent.get("connection") or {})
+        saved = self._create_connection(ConnectionScope.AGENT, slug, agent.get("connection") or {})
         defer = environment.defer_environment_slug or environment.defer_schedule_slug or "nothing"
         return Outcome(f"{environment.slug} defers to {defer}, connection {saved}")
 

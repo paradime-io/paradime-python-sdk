@@ -226,7 +226,7 @@ def test_workspace_level_calls_target_the_new_workspace(stub: Tuple[StubAdminApi
 
 
 def test_a_failed_step_still_deletes_the_workspace_and_exits_non_zero() -> None:
-    api = StubAdminApi(fail_operation="adminSetWarehouseConnection")
+    api = StubAdminApi(fail_operation="adminCreateWarehouseConnection")
     server, url = start_stub(api)
     try:
         code, output = _run(_onboarding(url))
@@ -529,7 +529,9 @@ def test_the_development_connection_sends_only_workspace_level_fields(
     outcome = onboarding.development_connection()
 
     sent = [
-        v["input"] for operation, v in api.variables if operation == "adminSetWarehouseConnection"
+        v["input"]
+        for operation, v in api.variables
+        if operation == "adminCreateWarehouseConnection"
     ]
     assert sent == [
         {
@@ -540,7 +542,47 @@ def test_the_development_connection_sends_only_workspace_level_fields(
         }
     ]
     assert "left out per-user fields: privateKey, role, username, warehouse" in outcome.detail
-    assert [w for o, w in api.calls if o == "adminSetWarehouseConnection"] == [NEW_UID]
+    assert [w for o, w in api.calls if o == "adminCreateWarehouseConnection"] == [NEW_UID]
+
+
+def test_the_connection_steps_rerun_into_the_same_workspace(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    onboarding = _onboarding(url)
+    onboarding.create_workspace()
+    onboarding.create_environments()
+    steps = (
+        onboarding.development_connection,
+        onboarding.scheduler_connections,
+        onboarding.agent_environment,
+    )
+
+    first = [step().detail for step in steps]
+    again = [step().detail for step in steps]
+
+    assert again == first
+    creates = [o for o in _operations(api) if o == "adminCreateWarehouseConnection"]
+    assert len(api.connections) == 2 + len(onboarding.config.scheduler_connections)
+    assert len(creates) == 2 * len(api.connections)
+
+
+def test_a_connection_created_again_with_other_settings_fails_with_conflict(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    onboarding = _onboarding(url)
+    onboarding.create_workspace()
+    onboarding.create_environments()
+    onboarding.scheduler_connections()
+    for connection in onboarding.config.scheduler_connections.values():
+        connection["threads"] = 99
+
+    with pytest.raises(onboard.AdminApiException) as exc_info:
+        onboarding.scheduler_connections()
+
+    assert exc_info.value.code.value == "CONFLICT"
+    assert exc_info.value.field == ["input", "connectionId"]
 
 
 def test_setup_status_is_read_with_the_sdk_and_reports_each_product(
@@ -577,7 +619,7 @@ def test_a_profile_development_connection_keeps_its_warehouse_type(
     sent = [
         v["input"]["adapter"]
         for operation, v in api.variables
-        if operation == "adminSetWarehouseConnection"
+        if operation == "adminCreateWarehouseConnection"
     ]
     assert sent == [{"profileConnection": {"warehouseType": "TRINO", "profile": "trino: {}"}}]
     assert "left out per-user fields: schema" in outcome.detail
