@@ -34,7 +34,7 @@ class GitProvider(OpenEnum):
     UNKNOWN = "UNKNOWN"
 
 
-class GitRepositoryMode(OpenEnum):
+class GitConnectionMode(OpenEnum):
     SSH_DEPLOY_KEY = "SSH_DEPLOY_KEY"
     GITHUB_APP = "GITHUB_APP"
     GITLAB_APP = "GITLAB_APP"
@@ -67,7 +67,7 @@ class GitLabAppRepository(AdminModel):
 
 
 class GitRepository(AdminModel):
-    mode: GitRepositoryMode
+    mode: GitConnectionMode
     state: GitRepositoryState
     provider: Optional[GitProvider] = None
     uri: Optional[str] = None
