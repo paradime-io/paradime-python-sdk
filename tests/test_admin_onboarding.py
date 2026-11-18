@@ -426,7 +426,7 @@ def test_a_run_that_misses_the_exit_criterion_without_a_failure_exits_3(
 
     code, output = _run(onboarding)
 
-    assert "SKIP  12   inviteUser" in output
+    assert "SKIP  12   createUser" in output
     assert "FAIL" not in output
     assert code == 3
 
@@ -664,4 +664,30 @@ def test_a_development_or_agent_block_that_is_not_a_mapping_is_a_config_error(
     config_path.write_text(f"{text[:start]}{block}: {value}\n{text[end:]}")
 
     with pytest.raises(onboard.ConfigError, match=f"{block} must be a mapping."):
+        onboard.ConfigLoader(config_path, ENVIRON).load()
+
+
+def test_users_are_created_with_the_admin_api_in_the_new_workspace(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    onboarding = _onboarding(url)
+    onboarding.create_workspace()
+
+    outcome = onboarding.create_users()
+
+    sent = [v["input"] for operation, v in api.variables if operation == "adminCreateUser"]
+    assert sent == [{"email": "data-lead@example.com", "accountType": "ADMIN"}]
+    assert [w for o, w in api.calls if o == "adminCreateUser"] == [NEW_UID]
+    assert "inviteUser" not in _operations(api)
+    assert outcome.detail == "invited 1 user(s): data-lead@example.com INVITED (PENDING)"
+
+
+@pytest.mark.parametrize("account_type", ["OWNER", "UNKNOWN"])
+def test_an_unknown_account_type_is_a_config_error(tmp_path: Path, account_type: str) -> None:
+    config_path = _config_file(
+        tmp_path, "    account_type: ADMIN\n", f"    account_type: {account_type}\n"
+    )
+
+    with pytest.raises(onboard.ConfigError, match=f"unknown account_type '{account_type}'"):
         onboard.ConfigLoader(config_path, ENVIRON).load()

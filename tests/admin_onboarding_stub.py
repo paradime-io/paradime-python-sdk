@@ -254,8 +254,19 @@ class StubAdminApi:
         }
         return self.ok({"slack": slack})
 
-    def op_inviteUser(self, variables: Dict[str, Any], workspace: Optional[str]) -> Reply:
-        return self.ok({"inviteUser": {"ok": True}})
+    def op_adminCreateUser(self, variables: Dict[str, Any], workspace: Optional[str]) -> Reply:
+        user_input = variables["input"]
+        invitee = {
+            "email": user_input["email"],
+            "uid": None,
+            "fullName": None,
+            "accountType": user_input["accountType"],
+            "status": "INVITED",
+            "inviteStatus": "PENDING",
+            "invitedAt": NOW,
+            "lastLoginAt": None,
+        }
+        return self.ok({"createUser": {"user": invitee}})
 
     def op_CreateBoltSchedule(self, variables: Dict[str, Any], workspace: Optional[str]) -> Reply:
         return self.ok({"createBoltSchedule": {"slug": "onboarding-acceptance-run"}})
