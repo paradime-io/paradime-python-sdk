@@ -98,3 +98,20 @@ def test_cli_json_prints_the_checklist(setup_admin: Any) -> None:
     payload = json.loads(result.output)
     assert payload["isComplete"] is False
     assert payload["steps"][1]["installUrl"] == "https://app.example.test/install-github"
+
+
+def test_cli_prints_each_product_with_what_it_needs(
+    setup_admin: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    lines: List[Any] = []
+    monkeypatch.setattr(common.console, "table", lambda *args, **kwargs: None)
+    monkeypatch.setattr(common.console, "kv", lambda label, value: lines.append((label, value)))
+
+    result = CliRunner().invoke(admin_cli, ["setup-status"])
+
+    assert result.exit_code == 0, result.output
+    assert lines == [
+        ("Code IDE", "DONE; better with AGENT_CONNECTION"),
+        ("Bolt", "MISSING; needs SCHEDULER_CONNECTION"),
+        ("DinoAI agents", "DONE; better with AGENT_CONNECTION"),
+    ]
