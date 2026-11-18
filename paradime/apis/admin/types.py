@@ -97,6 +97,37 @@ def serialize_input(model: BaseModel) -> Dict[str, Any]:
     return json.loads(model.json(by_alias=True, exclude_unset=True))
 
 
+ENVIRONMENT_LINK_FIELDS = """
+    slug
+    name
+"""
+
+BOLT_SCHEDULE_LINK_FIELDS = """
+    slug
+    name
+"""
+
+
+class EnvironmentLink(AdminModel):
+    """
+    An environment another object names. Reading it needs `environments:read`; a key without
+    it reads None in its place.
+    """
+
+    slug: str
+    name: Optional[str] = None
+
+
+class BoltScheduleLink(AdminModel):
+    """
+    A Bolt schedule another object names. Reading it needs `bolt:schedules:list`; a key
+    without it reads None in its place.
+    """
+
+    slug: str
+    name: Optional[str] = None
+
+
 @dataclass
 class Page(Generic[T]):
     nodes: List[T]

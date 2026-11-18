@@ -4,6 +4,7 @@ import pytest
 import requests
 
 from paradime.apis.admin import transport as transport_module
+from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.exception import (
     AdminApiException,
     AdminConflictException,
@@ -501,3 +502,29 @@ def test_other_errors_still_raise_next_to_an_unreadable_link(
         transport.execute("query q { x }", linked_fields={"deferSchedule"})
 
     assert exc_info.value.errors == errors[1:]
+
+
+def test_a_list_keeps_its_nodes_when_their_environment_is_unreadable(
+    monkeypatch: pytest.MonkeyPatch, sleeps: List[float]
+) -> None:
+    node = {
+        "scope": "SCHEDULER",
+        "environment": None,
+        "connectionId": "default",
+        "type": "BIGQUERY",
+    }
+    connections = {
+        "edges": [{"node": node}],
+        "totalCount": 1,
+        "pageInfo": {"endCursor": None, "hasNextPage": False},
+    }
+    path = ["workspace", "warehouseConnections", "edges", 0, "node", "environment"]
+    body = {
+        "data": {"workspace": {"warehouseConnections": connections}},
+        "errors": [_link_error("MISSING_CAPABILITY", path)],
+    }
+    transport, _ = _transport(monkeypatch, sleeps, FakeResponse(body))
+
+    [connection] = AdminClient(transport.client, transport=transport).connections.list()
+
+    assert connection.connection_id == "default" and connection.environment_slug is None

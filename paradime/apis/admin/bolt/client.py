@@ -2,7 +2,9 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 from paradime.apis.admin.bolt.types import (
     BOLT_SCHEDULE_DEFINITION_FIELDS,
+    BOLT_SCHEDULE_DEFINITION_LINKS,
     TRIGGER_URL_FIELDS,
+    TRIGGER_URL_LINKS,
     BoltScheduleDefinition,
     CreateTriggerUrlInput,
     DeployBoltSchedulesInput,
@@ -122,6 +124,7 @@ class AdminBoltClient:
             query,
             {"input": {"slug": slug, "schedule": schedule_input}},
             workspace_uid=workspace_uid,
+            linked_fields=BOLT_SCHEDULE_DEFINITION_LINKS,
         )
         return BoltScheduleDefinition.parse_obj(response["updateBoltSchedule"]["schedule"])
 
@@ -210,6 +213,7 @@ class AdminBoltClient:
                     "after": after,
                 },
                 workspace_uid=workspace_uid,
+                linked_fields=TRIGGER_URL_LINKS,
             )
             workspace = response["workspace"] or {}
             return parse_page(workspace.get("triggerUrls"), TriggerUrl.parse_obj)
@@ -245,7 +249,10 @@ class AdminBoltClient:
 
         create_input = CreateTriggerUrlInput(schedule_slug=schedule_slug, name=name)
         response = self.transport.execute(
-            query, {"input": serialize_input(create_input)}, workspace_uid=workspace_uid
+            query,
+            {"input": serialize_input(create_input)},
+            workspace_uid=workspace_uid,
+            linked_fields=TRIGGER_URL_LINKS,
         )
         return TriggerUrlWithSecret.parse_obj(response["createTriggerUrl"])
 
@@ -279,6 +286,7 @@ class AdminBoltClient:
             query,
             {"input": serialize_input(TriggerUrlKeyInput(public_id=public_id))},
             workspace_uid=workspace_uid,
+            linked_fields=TRIGGER_URL_LINKS,
         )
         return TriggerUrlWithSecret.parse_obj(response["rotateTriggerUrlSecret"])
 
@@ -309,7 +317,10 @@ class AdminBoltClient:
 
         enabled_input = SetTriggerUrlEnabledInput(public_id=public_id, enabled=enabled)
         response = self.transport.execute(
-            query, {"input": serialize_input(enabled_input)}, workspace_uid=workspace_uid
+            query,
+            {"input": serialize_input(enabled_input)},
+            workspace_uid=workspace_uid,
+            linked_fields=TRIGGER_URL_LINKS,
         )
         return TriggerUrl.parse_obj(response["setTriggerUrlEnabled"]["triggerUrl"])
 

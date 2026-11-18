@@ -1,3 +1,4 @@
+import json
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -43,8 +44,17 @@ class FakeConnections:
     def set(self, adapter: Any, **kwargs: Any) -> WarehouseConnection:
         self.set_calls.append({"adapter": adapter, **kwargs})
         return WarehouseConnection(
-            scope="SCHEDULER", connection_id="default", type="SNOWFLAKE", environment_slug="prod"
+            scope="SCHEDULER",
+            connection_id="default",
+            type="SNOWFLAKE",
+            environment={"slug": "prod", "name": "Production"},
         )
+
+    def list(self, **kwargs: Any) -> List[WarehouseConnection]:
+        return [
+            self.set(None),
+            WarehouseConnection(scope="COST", connection_id="cost", type="BIGQUERY"),
+        ]
 
 
 class FakeAdmin:
@@ -529,3 +539,15 @@ def test_connection_name_option_is_sent_as_name(fake_admin: FakeAdmin, command: 
     calls = getattr(fake_admin.connections, f"{command}_calls")
     assert len(calls) == 1 and calls[0]["name"] == "Dev"
     assert "connection_name" not in calls[0]
+
+
+def test_connections_list_shows_the_environment_slug(fake_admin: FakeAdmin) -> None:
+    table = _run("connections", "list")
+    as_json = _run("connections", "list", "--json")
+
+    assert table.exit_code == 0, table.output
+    assert "prod" in table.output and "Production" not in table.output
+    assert as_json.exit_code == 0, as_json.output
+    rows = json.loads(as_json.output)
+    assert rows[0]["environment"] == {"slug": "prod", "name": "Production"}
+    assert rows[1]["environment"] is None
