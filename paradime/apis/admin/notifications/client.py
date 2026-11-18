@@ -99,7 +99,7 @@ class AdminNotificationsClient:
 
         query = f"""
             query adminAlertNotifications($workspaceUid: String, $category: AlertCategory!) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     alertNotifications(category: $category) {{
                         {ALERT_NOTIFICATIONS_FIELDS}
                     }}

@@ -288,9 +288,9 @@ def test_cleanup_finds_the_workspace_by_name_when_its_uid_is_unknown(
 class MissingStepApi(StubAdminApi):
     def op_adminWorkspaceSetupStatus(self, variables: Dict[str, Any], workspace: Any) -> Any:
         status, reply = super().op_adminWorkspaceSetupStatus(variables, workspace)
-        steps = reply["data"]["workspaceSetupStatus"]["steps"]
+        steps = reply["data"]["workspace"]["setupStatus"]["steps"]
         steps[-1].update(status="MISSING", detail="No Bolt run has finished yet.")
-        reply["data"]["workspaceSetupStatus"]["isComplete"] = False
+        reply["data"]["workspace"]["setupStatus"]["isComplete"] = False
         return status, reply
 
 
@@ -303,7 +303,7 @@ def test_setup_status_fails_on_a_missing_required_row_not_on_pending_ones() -> N
         server.shutdown()
 
     assert code == 1
-    assert "FAIL  14   workspaceSetupStatus" in output
+    assert "FAIL  14   setupStatus" in output
     assert "required steps missing: FIRST_BOLT_RUN" in output
     assert "PENDING_USER_ACTION GITHUB_APP (optional)" in output
     assert "MISSING             FIRST_BOLT_RUN: No Bolt run has finished yet." in output

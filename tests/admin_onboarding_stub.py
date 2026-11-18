@@ -306,7 +306,11 @@ class StubAdminApi:
             "agent": dict(ready, missingSuggested=["GITHUB_APP"]),
         }
         return self.ok(
-            {"workspaceSetupStatus": {"isComplete": True, "steps": steps, "products": products}}
+            {
+                "workspace": {
+                    "setupStatus": {"isComplete": True, "steps": steps, "products": products}
+                }
+            }
         )
 
     def github(self, method: str, path: str, body: Dict[str, Any]) -> Reply:

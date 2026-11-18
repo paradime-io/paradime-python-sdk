@@ -187,7 +187,7 @@ class AdminBoltClient:
                 $first: Int
                 $after: String
             ) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     triggerUrls(scheduleSlug: $scheduleSlug, first: $first, after: $after) {{
                         edges {{
                             node {{

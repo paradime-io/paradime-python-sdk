@@ -50,7 +50,7 @@ class AdminDinoaiClient:
         check_page_size(page_size)
         query = f"""
             query adminDinoaiAgentDefinitions($workspaceUid: String, $first: Int, $after: String) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     dinoaiAgentDefinitions(first: $first, after: $after) {{
                         edges {{
                             node {{
@@ -92,7 +92,7 @@ class AdminDinoaiClient:
 
         query = f"""
             query adminDinoaiAgentDefinition($workspaceUid: String, $slug: String!) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     dinoaiAgentDefinition(slug: $slug) {{
                         {DINOAI_AGENT_DEFINITION_FIELDS}
                     }}
@@ -230,7 +230,7 @@ class AdminDinoaiClient:
 
         query = """
             query adminDinoaiSettings($workspaceUid: String) {
-                workspace(uid: $workspaceUid) {
+                workspace(workspaceUid: $workspaceUid) {
                     dinoaiSettings {
                         sqlQueryToolEnabled
                     }

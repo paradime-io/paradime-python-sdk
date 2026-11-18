@@ -139,7 +139,7 @@ class TestWorkspaces:
         workspace = admin.workspaces.get()
         assert workspace is not None and workspace.uid == "w1"
         assert admin.workspaces.delete("w1").dbt_version is None
-        assert transport.calls[0].variables == {"uid": None}
+        assert transport.calls[0].variables == {"workspaceUid": None}
         assert transport.calls[1].variables == {"input": {"workspaceUid": "w1"}}
 
 

@@ -39,14 +39,14 @@ class AdminWorkspacesClient:
         """
 
         query = f"""
-            query adminWorkspace($uid: String) {{
-                workspace(uid: $uid) {{
+            query adminWorkspace($workspaceUid: String) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     {WORKSPACE_FIELDS}
                 }}
             }}
         """
 
-        response = self.transport.execute(query, {"uid": uid})
+        response = self.transport.execute(query, {"workspaceUid": uid})
         workspace = response["workspace"]
         return AdminWorkspace.parse_obj(workspace) if workspace is not None else None
 

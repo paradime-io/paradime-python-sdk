@@ -571,7 +571,7 @@ class Onboarding:
             Step(11, "notifications", self.notifications, needs=(1,)),
             Step(12, "inviteUser", self.invite_users, needs=(1,)),
             Step(13, "triggerBoltRun", self.bolt_run, needs=(3, 7)),
-            Step(14, "workspaceSetupStatus", self.setup_status, needs=(1,)),
+            Step(14, "setupStatus", self.setup_status, needs=(1,)),
         ]
 
     def leftovers_step(self) -> Step:
@@ -860,7 +860,7 @@ class Onboarding:
     def setup_status(self) -> Outcome:
         status = self.target.admin.setup_status.get(workspace_uid=self.target_uid)
         if status is None:
-            raise StepFailed("workspaceSetupStatus returned nothing")
+            raise StepFailed("setupStatus returned nothing")
         notes = []
         counts: Dict[str, int] = {}
         missing_required = []

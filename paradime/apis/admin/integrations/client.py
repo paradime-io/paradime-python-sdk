@@ -92,7 +92,7 @@ class AdminIntegrationsClient:
         check_page_size(page_size)
         query = f"""
             query adminIntegrations($workspaceUid: String, $first: Int, $after: String) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     integrations(first: $first, after: $after) {{
                         edges {{
                             node {{
@@ -229,7 +229,7 @@ class AdminIntegrationsClient:
                 $first: Int
                 $after: String
             ) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     externalSecretsProviders(first: $first, after: $after) {{
                         edges {{
                             node {{

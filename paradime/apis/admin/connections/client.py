@@ -77,7 +77,7 @@ class AdminConnectionsClient:
                 $first: Int
                 $after: String
             ) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     warehouseConnections(
                         scope: $scope
                         environmentSlug: $environmentSlug

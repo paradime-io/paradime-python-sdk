@@ -49,7 +49,7 @@ class AdminGitClient:
 
         query = f"""
             query adminGitRepository($workspaceUid: String) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     gitRepository {{
                         {GIT_REPOSITORY_FIELDS}
                     }}

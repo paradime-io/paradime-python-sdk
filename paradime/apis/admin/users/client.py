@@ -115,7 +115,7 @@ class AdminUsersClient:
 
         query = """
             query adminAutoJoinDomains($workspaceUid: String) {
-                workspace(uid: $workspaceUid) {
+                workspace(workspaceUid: $workspaceUid) {
                     autoJoinDomains
                 }
             }

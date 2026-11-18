@@ -62,7 +62,7 @@ class AdminEnvironmentsClient:
                 $first: Int
                 $after: String
             ) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     environments(type: $type, first: $first, after: $after) {{
                         edges {{
                             node {{

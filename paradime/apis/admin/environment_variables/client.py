@@ -85,7 +85,7 @@ class AdminEnvironmentVariablesClient:
                 $first: Int
                 $after: String
             ) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     environmentVariables(
                         scope: $scope
                         environmentSlug: $environmentSlug
