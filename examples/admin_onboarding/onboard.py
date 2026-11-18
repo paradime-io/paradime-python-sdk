@@ -825,8 +825,13 @@ class Onboarding:
             try:
                 invited.append(self.target.admin.users.create(email, account_type))
             except AdminApiException as error:
+                already = (
+                    f"; already invited: {', '.join(str(done.email) for done in invited)}"
+                    if invited
+                    else ""
+                )
                 raise StepFailed(
-                    f"{email} as {account_type.value}: {describe_error(error)}"
+                    f"{email} as {account_type.value}: {describe_error(error)}{already}"
                 ) from error
         return Outcome(
             f"invited {len(invited)} user(s): "

@@ -728,3 +728,47 @@ def test_a_role_the_server_refuses_is_named_in_the_failure(
         "lead@example.com as WORKSPACE_ADMIN: VALIDATION_FAILED: An API key can't give the "
         "WORKSPACE_ADMIN role in this workspace. (field: input.accountType)"
     )
+
+
+def test_a_user_the_server_refuses_fails_step_12_and_exits_1(
+    stub: Tuple[StubAdminApi, str],
+) -> None:
+    api, url = stub
+    api.create_user_errors["data-lead@example.com"] = (
+        "CONFLICT",
+        "This email already has a pending invitation to this workspace.",
+    )
+
+    code, output = _run(_onboarding(url))
+
+    assert code == 1
+    line = next(line for line in output.splitlines() if line.startswith("FAIL  12"))
+    assert line.split()[:3] == ["FAIL", "12", "createUser"]
+    assert (
+        "data-lead@example.com as ADMIN: CONFLICT: This email already has a pending invitation "
+        "to this workspace." in line
+    )
+    assert "already invited" not in line
+    assert NEW_UID in api.deleted
+
+
+def test_a_failed_user_names_the_users_already_invited(stub: Tuple[StubAdminApi, str]) -> None:
+    api, url = stub
+    api.create_user_errors["second@example.com"] = (
+        "VALIDATION_FAILED",
+        "An API key can't give the WORKSPACE_ADMIN role in this workspace.",
+    )
+    onboarding = _onboarding(url)
+    onboarding.config.users = [
+        {"email": "first@example.com", "account_type": "DEVELOPER"},
+        {"email": "second@example.com", "account_type": "WORKSPACE_ADMIN"},
+    ]
+
+    code, output = _run(onboarding)
+
+    assert code == 1
+    line = next(line for line in output.splitlines() if line.startswith("FAIL  12"))
+    assert "second@example.com as WORKSPACE_ADMIN: VALIDATION_FAILED" in line
+    assert line.endswith("; already invited: first@example.com")
+    sent = [v["input"]["email"] for o, v in api.variables if o == "adminCreateUser"]
+    assert sent == ["first@example.com", "second@example.com"]
