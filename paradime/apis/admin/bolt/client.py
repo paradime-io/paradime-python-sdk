@@ -2,7 +2,9 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 
 from paradime.apis.admin.bolt.types import (
     BOLT_SCHEDULE_DEFINITION_FIELDS,
+    BOLT_SCHEDULE_DEFINITION_LINKS,
     TRIGGER_URL_FIELDS,
+    TRIGGER_URL_LINKS,
     BoltScheduleDefinition,
     CreateTriggerUrlInput,
     DeleteBoltScheduleDefinitionInput,
@@ -12,7 +14,11 @@ from paradime.apis.admin.bolt.types import (
     TriggerUrlKeyInput,
     TriggerUrlWithSecret,
 )
-from paradime.apis.admin.jobs.types import ADMIN_JOB_FIELDS, AdminJob
+from paradime.apis.admin.jobs.types import (
+    DEPLOY_BOLT_SCHEDULES_RESULT_FIELDS,
+    AdminJob,
+    admin_job_fields,
+)
 from paradime.apis.admin.transport import AdminTransport
 from paradime.apis.admin.types import (
     CONNECTION_FIELDS,
@@ -213,6 +219,7 @@ class AdminBoltClient:
             query,
             {"input": {"slug": slug, "schedule": schedule_input}},
             workspace_uid=workspace_uid,
+            linked_fields=BOLT_SCHEDULE_DEFINITION_LINKS,
         )
         return BoltScheduleDefinition.parse_obj(
             response["updateBoltScheduleDefinition"]["schedule"]
@@ -305,15 +312,17 @@ class AdminBoltClient:
             workspace_uid (str, optional): The workspace to deploy, for a company API key.
 
         Returns:
-            AdminJob: The job; wait for it with `admin.jobs.wait`. Its result lists each
-                schedule with its source and, when it was not deployed, why.
+            AdminJob: The job; wait for it with `admin.jobs.wait`. Its result is a
+                `DeployBoltSchedulesResult` that holds the first page of the schedules it read,
+                each with its source and, when it was not deployed, why. Read them all with
+                `admin.jobs.deployed_schedules`.
         """
 
         query = f"""
             mutation adminDeployBoltSchedules($input: DeployBoltSchedulesInput!) {{
                 deployBoltSchedules(input: $input) {{
                     job {{
-                        {ADMIN_JOB_FIELDS}
+                        {admin_job_fields(DEPLOY_BOLT_SCHEDULES_RESULT_FIELDS)}
                     }}
                 }}
             }}
@@ -377,6 +386,7 @@ class AdminBoltClient:
                     "after": after,
                 },
                 workspace_uid=workspace_uid,
+                linked_fields=TRIGGER_URL_LINKS,
             )
             workspace = response["workspace"] or {}
             return parse_page(workspace.get("triggerUrls"), TriggerUrl.parse_obj)
@@ -412,7 +422,10 @@ class AdminBoltClient:
 
         create_input = CreateTriggerUrlInput(schedule_slug=schedule_slug, name=name)
         response = self.transport.execute(
-            query, {"input": serialize_input(create_input)}, workspace_uid=workspace_uid
+            query,
+            {"input": serialize_input(create_input)},
+            workspace_uid=workspace_uid,
+            linked_fields=TRIGGER_URL_LINKS,
         )
         return TriggerUrlWithSecret.parse_obj(response["createTriggerUrl"])
 
@@ -446,6 +459,7 @@ class AdminBoltClient:
             query,
             {"input": serialize_input(TriggerUrlKeyInput(public_id=public_id))},
             workspace_uid=workspace_uid,
+            linked_fields=TRIGGER_URL_LINKS,
         )
         return TriggerUrlWithSecret.parse_obj(response["rotateTriggerUrlSecret"])
 
@@ -476,7 +490,10 @@ class AdminBoltClient:
 
         enabled_input = SetTriggerUrlEnabledInput(public_id=public_id, enabled=enabled)
         response = self.transport.execute(
-            query, {"input": serialize_input(enabled_input)}, workspace_uid=workspace_uid
+            query,
+            {"input": serialize_input(enabled_input)},
+            workspace_uid=workspace_uid,
+            linked_fields=TRIGGER_URL_LINKS,
         )
         return TriggerUrl.parse_obj(response["setTriggerUrlEnabled"]["triggerUrl"])
 

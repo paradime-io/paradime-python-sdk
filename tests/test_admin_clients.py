@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Collection, Dict, List, Optional
 
 import pytest
 
@@ -32,16 +32,23 @@ from paradime.apis.admin.integrations.types import (
     FivetranSettings,
     GcpSecretManagerSettings,
 )
-from paradime.apis.admin.jobs.types import AdminJobStatus
+from paradime.apis.admin.jobs.types import AdminJobKind, AdminJobStatus
 from paradime.apis.admin.notifications.types import SlackInstallation
 from paradime.apis.admin.types import UNSET
 
 
 class Call:
-    def __init__(self, query: str, variables: Dict[str, Any], workspace_uid: Optional[str]):
+    def __init__(
+        self,
+        query: str,
+        variables: Dict[str, Any],
+        workspace_uid: Optional[str],
+        linked_fields: Collection[str] = (),
+    ):
         self.query = query
         self.variables = variables
         self.workspace_uid = workspace_uid
+        self.linked_fields = frozenset(linked_fields)
 
 
 class FakeTransport:
@@ -57,8 +64,9 @@ class FakeTransport:
         variables: Optional[Dict[str, Any]] = None,
         *,
         workspace_uid: Optional[str] = None,
+        linked_fields: Collection[str] = (),
     ) -> Dict[str, Any]:
-        self.calls.append(Call(query, variables or {}, workspace_uid))
+        self.calls.append(Call(query, variables or {}, workspace_uid, linked_fields))
         return self.responses.pop(0)
 
 
@@ -224,8 +232,8 @@ ENVIRONMENT = {
     "branch": None,
     "dbtVersion": None,
     "createdAt": "2026-10-01T12:00:00Z",
-    "deferEnvironmentSlug": None,
-    "deferScheduleSlug": None,
+    "deferEnvironment": None,
+    "deferSchedule": None,
     "hasWarehouseConnection": True,
     "variableNames": ["A"],
 }
@@ -276,6 +284,32 @@ class TestEnvironments:
             transport.calls[0].query
         )
 
+    def test_defer_targets_read_as_linked_objects(self) -> None:
+        agent = {
+            **ENVIRONMENT,
+            "slug": "agent",
+            "type": "AGENT",
+            "deferEnvironment": {"slug": "production", "name": "Production"},
+            "deferSchedule": {"slug": "nightly", "name": "Nightly"},
+        }
+        admin, transport = _admin(
+            {"workspace": {"environments": _connection([agent, ENVIRONMENT], None, False)}},
+            {"setAgentEnvironmentDeferTarget": {"environment": agent}},
+        )
+
+        linked, unlinked = admin.environments.list()
+        changed = admin.environments.set_agent_defer_target("agent", schedule_slug="nightly")
+
+        assert linked.defer_environment is not None
+        assert linked.defer_environment.name == "Production"
+        assert linked.defer_environment_slug == "production"
+        assert linked.defer_schedule_slug == "nightly"
+        assert unlinked.defer_environment_slug is None and unlinked.defer_schedule_slug is None
+        assert changed.defer_schedule_slug == "nightly"
+        for call in transport.calls:
+            assert "deferEnvironment {" in call.query and "deferSchedule {" in call.query
+            assert call.linked_fields == {"deferEnvironment", "deferSchedule"}
+
     def test_defer_target_takes_one_target(self) -> None:
         admin, _ = _admin()
 
@@ -285,7 +319,7 @@ class TestEnvironments:
 
 JOB = {
     "id": "job-1",
-    "kind": "connectGitRepository",
+    "kind": "CONNECT_GIT_REPOSITORY",
     "status": "QUEUED",
     "failure": None,
     "result": None,
@@ -343,12 +377,12 @@ class TestGit:
 
     def test_check_and_rotate(self) -> None:
         admin, transport = _admin(
-            {"checkGitRepository": {"job": {**JOB, "kind": "checkGitRepository"}}},
+            {"checkGitRepository": {"job": {**JOB, "kind": "CHECK_GIT_REPOSITORY"}}},
             {"rotateGitDeployKey": {"deployKey": {"publicKey": "ssh-ed25519 BBBB"}}},
             {"rotateGitDeployKey": {"deployKey": {"publicKey": "ssh-ed25519 CCCC"}}},
         )
 
-        assert admin.git.check_repository("git@x:y.git").kind == "checkGitRepository"
+        assert admin.git.check_repository("git@x:y.git").kind == AdminJobKind.CHECK_GIT_REPOSITORY
         admin.git.rotate_deploy_key()
         assert admin.git.rotate_deploy_key(force=True).public_key == "ssh-ed25519 CCCC"
         assert transport.calls[1].variables == {"input": {}}
@@ -517,6 +551,36 @@ class TestConnections:
         assert "... on ProfileConnectionSettings" in transport.calls[0].query
         assert "warehouseType" in transport.calls[0].query
 
+    def test_the_environment_reads_as_a_linked_object(self) -> None:
+        admin, transport = _admin(
+            {
+                "workspace": {
+                    "warehouseConnections": _connection(
+                        [CONNECTION, {**CONNECTION, "environment": None}], None, False
+                    )
+                }
+            },
+            {"setWarehouseConnection": {"warehouseConnection": CONNECTION}},
+            {"setDefaultWarehouseConnection": {"warehouseConnection": CONNECTION}},
+        )
+
+        linked, unreadable = admin.connections.list()
+        admin.connections.set(
+            SnowflakeConnectionInput(account="acme"),
+            scope=ConnectionScope.SCHEDULER,
+            environment_slug="production",
+        )
+        admin.connections.set_default(
+            "default", scope=ConnectionScope.SCHEDULER, environment_slug="production"
+        )
+
+        assert linked.environment is not None and linked.environment.name == "Production"
+        assert linked.environment_slug == "production"
+        assert unreadable.environment is None and unreadable.environment_slug is None
+        for call in transport.calls:
+            assert "environment {" in call.query
+            assert call.linked_fields == {"environment"}
+
     def test_delete_and_set_default(self) -> None:
         admin, transport = _admin(
             {"deleteWarehouseConnection": {"deletedConnectionId": "default"}},
@@ -545,7 +609,7 @@ class TestConnections:
 
 CONNECTION = {
     "scope": "SCHEDULER",
-    "environmentSlug": "production",
+    "environment": {"slug": "production", "name": "Production"},
     "connectionId": "default",
     "type": "SNOWFLAKE",
     "isDefault": True,
@@ -630,7 +694,7 @@ class TestDevelopmentAndCostConnections:
         cost = {
             **CONNECTION,
             "scope": "COST",
-            "environmentSlug": None,
+            "environment": None,
             "type": "BIGQUERY",
             "settings": {
                 "__typename": "BigQueryConnectionSettings",
@@ -672,7 +736,7 @@ class TestDevelopmentAndCostConnections:
         dev = {
             **CONNECTION,
             "scope": "DEVELOPMENT_SHARED",
-            "environmentSlug": None,
+            "environment": None,
             "settings": {
                 "__typename": "SnowflakeConnectionSettings",
                 "account": "acme",

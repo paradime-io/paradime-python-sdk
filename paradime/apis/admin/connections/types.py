@@ -1,12 +1,20 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Type, Union
 
-from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum
+from paradime.apis.admin.types import (
+    ENVIRONMENT_LINK_FIELDS,
+    AdminInputModel,
+    AdminModel,
+    EnvironmentLink,
+    OpenEnum,
+)
 from paradime.tools.pydantic import StrictStr, validator
 
-WAREHOUSE_CONNECTION_FIELDS = """
+WAREHOUSE_CONNECTION_FIELDS = f"""
     scope
-    environmentSlug
+    environment {{
+        {ENVIRONMENT_LINK_FIELDS}
+    }}
     connectionId
     type
     isDefault
@@ -14,9 +22,9 @@ WAREHOUSE_CONNECTION_FIELDS = """
     targetName
     threads
     updatedAt
-    settings {
+    settings {{
         __typename
-        ... on SnowflakeConnectionSettings {
+        ... on SnowflakeConnectionSettings {{
             account
             role
             database
@@ -31,8 +39,8 @@ WAREHOUSE_CONNECTION_FIELDS = """
             hasPrivateKeyPassphrase
             hasClientSecret
             hasProfile
-        }
-        ... on BigQueryConnectionSettings {
+        }}
+        ... on BigQueryConnectionSettings {{
             bigqueryConnectionType: connectionType
             location
             datasetName
@@ -44,16 +52,16 @@ WAREHOUSE_CONNECTION_FIELDS = """
             hasServiceAccountJson
             hasClientSecret
             hasProfile
-        }
-        ... on DatabricksConnectionSettings {
+        }}
+        ... on DatabricksConnectionSettings {{
             host
             httpPath
             catalog
             schema
             hasToken
             hasProfile
-        }
-        ... on RedshiftConnectionSettings {
+        }}
+        ... on RedshiftConnectionSettings {{
             hostName
             port
             database
@@ -61,13 +69,13 @@ WAREHOUSE_CONNECTION_FIELDS = """
             username
             hasPassword
             hasProfile
-        }
-        ... on DuckDbConnectionSettings {
+        }}
+        ... on DuckDbConnectionSettings {{
             duckdbConnectionType: connectionType
             schema
             hasProfile
-        }
-        ... on FireboltConnectionSettings {
+        }}
+        ... on FireboltConnectionSettings {{
             hostName
             accountName
             database
@@ -76,14 +84,16 @@ WAREHOUSE_CONNECTION_FIELDS = """
             username
             hasPassword
             hasProfile
-        }
-        ... on ProfileConnectionSettings {
+        }}
+        ... on ProfileConnectionSettings {{
             warehouseType
             schema
             hasProfile
-        }
-    }
+        }}
+    }}
 """
+
+WAREHOUSE_CONNECTION_LINKS = frozenset({"environment"})
 
 
 CONNECTION_TYPE_ALIASES = ("bigqueryConnectionType", "duckdbConnectionType")
@@ -222,7 +232,7 @@ SETTINGS_BY_TYPENAME: Dict[str, Type[AdminModel]] = {
 
 class WarehouseConnection(AdminModel):
     scope: ConnectionScope
-    environment_slug: Optional[str] = None
+    environment: Optional[EnvironmentLink] = None
     connection_id: str
     type: WarehouseType
     is_default: Optional[bool] = None
@@ -231,6 +241,10 @@ class WarehouseConnection(AdminModel):
     threads: Optional[int] = None
     updated_at: Optional[datetime] = None
     settings: Optional[Any] = None
+
+    @property
+    def environment_slug(self) -> Optional[str]:
+        return self.environment.slug if self.environment else None
 
     @validator("settings", pre=True)
     def _parse_settings(cls, value: Any) -> Any:

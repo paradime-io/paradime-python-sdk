@@ -1,14 +1,23 @@
 from datetime import datetime
 from typing import List, Optional
 
-from paradime.apis.admin.types import AdminInputModel, AdminModel
+from paradime.apis.admin.types import (
+    BOLT_SCHEDULE_LINK_FIELDS,
+    ENVIRONMENT_LINK_FIELDS,
+    AdminInputModel,
+    AdminModel,
+    BoltScheduleLink,
+    EnvironmentLink,
+)
 
-BOLT_SCHEDULE_DEFINITION_FIELDS = """
+BOLT_SCHEDULE_DEFINITION_FIELDS = f"""
     slug
     name
     schedule
     timezone
-    environment
+    environment {{
+        {ENVIRONMENT_LINK_FIELDS}
+    }}
     gitBranch
     ownerEmail
     description
@@ -20,18 +29,23 @@ BOLT_SCHEDULE_DEFINITION_FIELDS = """
     updatedAt
 """
 
-TRIGGER_URL_FIELDS = """
+BOLT_SCHEDULE_DEFINITION_LINKS = frozenset({"environment"})
+
+TRIGGER_URL_FIELDS = f"""
     publicId
     name
     isEnabled
     url
-    scheduleSlug
-    scheduleFound
+    schedule {{
+        {BOLT_SCHEDULE_LINK_FIELDS}
+    }}
     createdAt
     lastEventAt
     hasSecret
     secretUpdatedAt
 """
+
+TRIGGER_URL_LINKS = frozenset({"schedule"})
 
 
 class BoltScheduleDefinition(AdminModel):
@@ -39,7 +53,7 @@ class BoltScheduleDefinition(AdminModel):
     name: str
     schedule: Optional[str] = None
     timezone: Optional[str] = None
-    environment: Optional[str] = None
+    environment: Optional[EnvironmentLink] = None
     git_branch: Optional[str] = None
     owner_email: Optional[str] = None
     description: Optional[str] = None
@@ -56,8 +70,7 @@ class TriggerUrl(AdminModel):
     name: str
     is_enabled: Optional[bool] = None
     url: Optional[str] = None
-    schedule_slug: Optional[str] = None
-    schedule_found: Optional[bool] = None
+    schedule: Optional[BoltScheduleLink] = None
     created_at: Optional[datetime] = None
     last_event_at: Optional[datetime] = None
     has_secret: Optional[bool] = None

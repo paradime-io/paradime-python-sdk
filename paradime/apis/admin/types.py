@@ -76,6 +76,14 @@ class OpenEnum(str, Enum):
         return cls.__members__.get("UNKNOWN")
 
 
+class GitProvider(OpenEnum):
+    GITHUB = "GITHUB"
+    GITLAB = "GITLAB"
+    BITBUCKET = "BITBUCKET"
+    AZURE_DEVOPS = "AZURE_DEVOPS"
+    UNKNOWN = "UNKNOWN"
+
+
 class _Unset:
     def __repr__(self) -> str:
         return "UNSET"
@@ -95,6 +103,37 @@ def given(**values: Any) -> Dict[str, Any]:
 
 def serialize_input(model: BaseModel) -> Dict[str, Any]:
     return json.loads(model.json(by_alias=True, exclude_unset=True))
+
+
+ENVIRONMENT_LINK_FIELDS = """
+    slug
+    name
+"""
+
+BOLT_SCHEDULE_LINK_FIELDS = """
+    slug
+    name
+"""
+
+
+class EnvironmentLink(AdminModel):
+    """
+    An environment another object names. Reading it needs `environments:read`; a key without
+    it reads None in its place.
+    """
+
+    slug: str
+    name: Optional[str] = None
+
+
+class BoltScheduleLink(AdminModel):
+    """
+    A Bolt schedule another object names. Reading it needs `bolt:schedules:list`; a key
+    without it reads None in its place.
+    """
+
+    slug: str
+    name: Optional[str] = None
 
 
 @dataclass

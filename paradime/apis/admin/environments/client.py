@@ -2,6 +2,7 @@ from typing import Iterator, Optional
 
 from paradime.apis.admin.environments.types import (
     ENVIRONMENT_FIELDS,
+    ENVIRONMENT_LINKS,
     CreateEnvironmentInput,
     DeferTargetInput,
     DeleteEnvironmentInput,
@@ -85,6 +86,7 @@ class AdminEnvironmentsClient:
                     "after": after,
                 },
                 workspace_uid=workspace_uid,
+                linked_fields=ENVIRONMENT_LINKS,
             )
             workspace = response["workspace"] or {}
             return parse_page(workspace.get("environments"), Environment.parse_obj)
@@ -264,6 +266,9 @@ class AdminEnvironmentsClient:
         """
 
         response = self.transport.execute(
-            query, {"input": serialize_input(mutation_input)}, workspace_uid=workspace_uid
+            query,
+            {"input": serialize_input(mutation_input)},
+            workspace_uid=workspace_uid,
+            linked_fields=ENVIRONMENT_LINKS,
         )
         return Environment.parse_obj(response[mutation]["environment"])

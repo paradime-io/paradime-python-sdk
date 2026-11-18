@@ -3,6 +3,7 @@ from typing import Any, Dict, Iterator, Optional
 from paradime.apis.admin.connections.types import (
     ADAPTER_KEYS,
     WAREHOUSE_CONNECTION_FIELDS,
+    WAREHOUSE_CONNECTION_LINKS,
     ConnectionAdapter,
     ConnectionScope,
     WarehouseAdapterInput,
@@ -106,6 +107,7 @@ class AdminConnectionsClient:
                     "after": after,
                 },
                 workspace_uid=workspace_uid,
+                linked_fields=WAREHOUSE_CONNECTION_LINKS,
             )
             workspace = response["workspace"] or {}
             return parse_page(workspace.get("warehouseConnections"), WarehouseConnection.parse_obj)
@@ -223,7 +225,9 @@ class AdminConnectionsClient:
             target_name=target_name,
             threads=threads,
         )
-        response = self.transport.execute(query, variables, workspace_uid=workspace_uid)
+        response = self.transport.execute(
+            query, variables, workspace_uid=workspace_uid, linked_fields=WAREHOUSE_CONNECTION_LINKS
+        )
         return WarehouseConnection.parse_obj(
             response["setWarehouseConnection"]["warehouseConnection"]
         )
@@ -310,7 +314,10 @@ class AdminConnectionsClient:
             **given(environment_slug=environment_slug or UNSET),
         )
         response = self.transport.execute(
-            query, {"input": serialize_input(key)}, workspace_uid=workspace_uid
+            query,
+            {"input": serialize_input(key)},
+            workspace_uid=workspace_uid,
+            linked_fields=WAREHOUSE_CONNECTION_LINKS,
         )
         return WarehouseConnection.parse_obj(
             response["setDefaultWarehouseConnection"]["warehouseConnection"]
