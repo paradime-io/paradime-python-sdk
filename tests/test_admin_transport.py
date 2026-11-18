@@ -413,3 +413,21 @@ def test_a_connection_error_keeps_the_company_token_out(
     assert all(FAKE_TOKEN not in text for text in shown)
     assert "/api/v1/***/graphql" in str(raised)
     assert raised.__cause__ is None and raised.__context__ is None
+
+
+def test_a_response_without_data_keeps_the_company_token_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    post = FakePost(
+        FakeResponse(text=f"<html>Gateway page for /api/v1/{FAKE_TOKEN}/graphql</html>")
+    )
+    monkeypatch.setattr(transport_module.requests, "post", post)
+    client = APIClient(api_secret="prdm_wsp_secret", api_endpoint=TOKEN_ENDPOINT)
+
+    with pytest.raises(ParadimeAPIException) as exc_info:
+        AdminTransport(client).execute("query q { x }")
+
+    raised = exc_info.value
+    assert FAKE_TOKEN not in str(raised) and FAKE_TOKEN not in repr(raised.args)
+    assert raised.response_text == "<html>Gateway page for /api/v1/***/graphql</html>"
+    assert raised.status_code == 200

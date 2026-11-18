@@ -149,7 +149,11 @@ class AdminTransport:
                 response_text=response_text,
             )
         if not isinstance(body, dict) or body.get("data") is None:
-            raise ParadimeAPIException(f"Error: {response.status_code} - {response.text}")
+            raise ParadimeAPIException(
+                f"Error: {response.status_code} - {response_text}",
+                status_code=response.status_code,
+                response_text=response_text,
+            )
         return body["data"]
 
 
