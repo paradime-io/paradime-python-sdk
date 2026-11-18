@@ -13,7 +13,12 @@ from paradime.apis.admin.git.types import (
     GitRepository,
     RotateGitDeployKeyInput,
 )
-from paradime.apis.admin.jobs.types import ADMIN_JOB_FIELDS, AdminJob
+from paradime.apis.admin.jobs.types import (
+    GIT_REPOSITORY_CHECK_RESULT_FIELDS,
+    GIT_REPOSITORY_CONNECT_RESULT_FIELDS,
+    AdminJob,
+    admin_job_fields,
+)
 from paradime.apis.admin.transport import AdminTransport
 from paradime.apis.admin.types import serialize_input
 
@@ -76,7 +81,8 @@ class AdminGitClient:
 
         Returns:
             ConnectGitRepositoryResult: The repository now and, when the deploy key connects it
-                with validation, the cloning job; wait for it with `admin.jobs.wait`.
+                with validation, the cloning job; wait for it with `admin.jobs.wait`. The
+                job's result is a `GitRepositoryConnectResult`.
         """
 
         query = f"""
@@ -86,7 +92,7 @@ class AdminGitClient:
                         {GIT_REPOSITORY_FIELDS}
                     }}
                     job {{
-                        {ADMIN_JOB_FIELDS}
+                        {admin_job_fields(GIT_REPOSITORY_CONNECT_RESULT_FIELDS)}
                     }}
                 }}
             }}
@@ -108,14 +114,15 @@ class AdminGitClient:
             workspace_uid (str, optional): The workspace to use, for a company API key.
 
         Returns:
-            AdminJob: The job; wait for it with `admin.jobs.wait`.
+            AdminJob: The job; wait for it with `admin.jobs.wait`. Its result is a
+                `GitRepositoryCheckResult`.
         """
 
         query = f"""
             mutation adminCheckGitRepository($input: CheckGitRepositoryInput!) {{
                 checkGitRepository(input: $input) {{
                     job {{
-                        {ADMIN_JOB_FIELDS}
+                        {admin_job_fields(GIT_REPOSITORY_CHECK_RESULT_FIELDS)}
                     }}
                 }}
             }}

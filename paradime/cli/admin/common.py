@@ -7,7 +7,7 @@ import click
 
 from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.exception import AdminJobTimeoutException
-from paradime.apis.admin.jobs.types import AdminJob
+from paradime.apis.admin.jobs.types import AdminJob, DeployedBoltSchedulePage
 from paradime.cli import console
 from paradime.client.api_exception import ParadimeAPIException
 from paradime.client.paradime_cli_client import get_cli_client_or_exit
@@ -91,6 +91,46 @@ def print_model(model: BaseModel, *, as_json: bool) -> None:
             console.kv(name, show(value))
 
 
+DEPLOYED_SCHEDULE_COLUMNS = ["Slug", "Source", "Failure reason"]
+DEPLOYED_SCHEDULE_FIELDS = ["slug", "source", "failure_reason"]
+
+
+def print_job_result(job: AdminJob) -> None:
+    if job.result is None:
+        return
+    for name, value in job.result:
+        if isinstance(value, DeployedBoltSchedulePage):
+            console.kv(f"result.{name}", f"{len(value.nodes)} of {value.total_count}")
+            print_models(
+                value.nodes,
+                columns=DEPLOYED_SCHEDULE_COLUMNS,
+                fields=DEPLOYED_SCHEDULE_FIELDS,
+                as_json=False,
+            )
+            if value.has_next_page:
+                console.info(
+                    f"Showing the first {len(value.nodes)} of {value.total_count} schedules. "
+                    f"List them all with: paradime admin jobs deployed-schedules {job.id}"
+                )
+        else:
+            console.kv(f"result.{name}", show(value))
+
+
+def print_job(job: AdminJob, *, as_json: bool) -> None:
+    if as_json:
+        console.json_out(to_json(job))
+        return
+    for name, value in job:
+        if name == "result":
+            continue
+        if isinstance(value, BaseModel):
+            for child_name, child_value in value:
+                console.kv(f"{name}.{child_name}", show(child_value))
+        else:
+            console.kv(name, show(value))
+    print_job_result(job)
+
+
 def wait_for_job(job: AdminJob, *, timeout: float, workspace_uid: Optional[str]) -> AdminJob:
     with console.spinner(f"Waiting for job {job.id}…"):
         return get_admin().jobs.wait(job.id, timeout=timeout, workspace_uid=workspace_uid)
@@ -112,8 +152,7 @@ def report_job(
         console.json_out({"job": to_json(job)})
         return
     console.kv("job", f"{job.id} ({job.status.value})")
-    if job.result is not None:
-        console.kv("result", json.dumps(job.result))
+    print_job_result(job)
     if not wait:
         console.info(f"Follow it with: paradime admin jobs wait {job.id}")
 

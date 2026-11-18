@@ -105,6 +105,12 @@ paradime.admin.environment_variables.set({"DBT_TARGET": "prod"}, environment_slu
 paradime.admin.users.create("data-lead@example.com", UserAccountType.ADMIN, workspace_uid=workspace.uid)
 ```
 
+Async operations return an `AdminJob`. `admin.jobs.wait` polls it until it finishes and returns
+it with a typed `result` for its `kind`: a `DeployBoltSchedulesResult` holds the first page of
+the schedules a deploy read, with why each failed when it did (`admin.jobs.deployed_schedules`
+reads them all), and a `DinoAiAgentSyncResult` counts the agents a sync added, updated and
+skipped.
+
 `workspace_uid` on a call sends `X-Paradime-Workspace` for that call only, so one company API
 key can work across workspaces. The same operations are on the CLI under `paradime admin`;
 environment variable values and connection secrets are read from stdin or a file, never from

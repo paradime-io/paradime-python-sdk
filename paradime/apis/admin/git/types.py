@@ -1,7 +1,12 @@
 from typing import Optional
 
 from paradime.apis.admin.jobs.types import AdminJob
-from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum
+from paradime.apis.admin.types import (
+    AdminInputModel,
+    AdminModel,
+    GitProvider as GitProvider,
+    OpenEnum,
+)
 
 GIT_REPOSITORY_FIELDS = """
     mode
@@ -24,14 +29,6 @@ GIT_REPOSITORY_FIELDS = """
     }
     githubAppInstallUrl
 """
-
-
-class GitProvider(OpenEnum):
-    GITHUB = "GITHUB"
-    GITLAB = "GITLAB"
-    BITBUCKET = "BITBUCKET"
-    AZURE_DEVOPS = "AZURE_DEVOPS"
-    UNKNOWN = "UNKNOWN"
 
 
 class GitConnectionMode(OpenEnum):
