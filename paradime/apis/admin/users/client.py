@@ -13,16 +13,20 @@ from paradime.apis.admin.types import (
 from paradime.apis.admin.users.types import (
     USER_FIELDS,
     AdminUser,
+    CreateUserInput,
+    DeactivateUserInput,
     ReactivateUserInput,
     SetAutoJoinDomainsInput,
+    UpdateUserInput,
+    UserAccountType,
     UserStatus,
 )
+from paradime.tools.pydantic import BaseModel
 
 
 class AdminUsersClient:
     """
-    A workspace's members, former members and invitees. Inviting, changing roles and disabling
-    users stay on `paradime.users`.
+    A workspace's members, former members and invitees.
     """
 
     def __init__(self, transport: AdminTransport) -> None:
@@ -72,6 +76,71 @@ class AdminUsersClient:
 
         return iterate_pages(fetch_page)
 
+    def create(
+        self,
+        email: str,
+        account_type: UserAccountType,
+        *,
+        workspace_uid: Optional[str] = None,
+    ) -> AdminUser:
+        """
+        Invites a person by email with a role, and sends them the invitation email. An email
+        that already belongs to a user or to a pending invitation raises
+        `AdminConflictException`.
+
+        Args:
+            email (str): The email the invitation is sent to.
+            account_type (UserAccountType): The role the invitation gives.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
+
+        Returns:
+            AdminUser: The invitee, `INVITED` with a `PENDING` invitation.
+        """
+
+        return self._mutate(
+            "createUser",
+            CreateUserInput(email=email, account_type=account_type),
+            workspace_uid,
+        )
+
+    def update(
+        self,
+        uid: str,
+        *,
+        account_type: UserAccountType,
+        workspace_uid: Optional[str] = None,
+    ) -> AdminUser:
+        """
+        Changes the role of an active member. Giving a user the role they hold is not an error.
+
+        Args:
+            uid (str): The user's uid.
+            account_type (UserAccountType): The role the user gets.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
+
+        Returns:
+            AdminUser: The user, with their new role.
+        """
+
+        return self._mutate(
+            "updateUser", UpdateUserInput(uid=uid, account_type=account_type), workspace_uid
+        )
+
+    def deactivate(self, uid: str, *, workspace_uid: Optional[str] = None) -> AdminUser:
+        """
+        Deactivates a member: they can no longer sign in to the workspace, and `reactivate`
+        brings them back with the same role. Deactivating a former member is not an error.
+
+        Args:
+            uid (str): The user's uid.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
+
+        Returns:
+            AdminUser: The user, deactivated.
+        """
+
+        return self._mutate("deactivateUser", DeactivateUserInput(uid=uid), workspace_uid)
+
     def reactivate(self, uid: str, *, workspace_uid: Optional[str] = None) -> AdminUser:
         """
         Brings a former member back with the role they had. Reactivating an active user is
@@ -85,22 +154,7 @@ class AdminUsersClient:
             AdminUser: The user, active again.
         """
 
-        query = f"""
-            mutation adminReactivateUser($input: ReactivateUserInput!) {{
-                reactivateUser(input: $input) {{
-                    user {{
-                        {USER_FIELDS}
-                    }}
-                }}
-            }}
-        """
-
-        response = self.transport.execute(
-            query,
-            {"input": serialize_input(ReactivateUserInput(uid=uid))},
-            workspace_uid=workspace_uid,
-        )
-        return AdminUser.parse_obj(response["reactivateUser"]["user"])
+        return self._mutate("reactivateUser", ReactivateUserInput(uid=uid), workspace_uid)
 
     def get_auto_join_domains(self, *, workspace_uid: Optional[str] = None) -> List[str]:
         """
@@ -156,3 +210,22 @@ class AdminUsersClient:
             workspace_uid=workspace_uid,
         )
         return response["setAutoJoinDomains"]["workspace"].get("autoJoinDomains") or []
+
+    def _mutate(
+        self, mutation: str, mutation_input: BaseModel, workspace_uid: Optional[str]
+    ) -> AdminUser:
+        input_type = mutation[0].upper() + mutation[1:] + "Input"
+        query = f"""
+            mutation admin{input_type[:-5]}($input: {input_type}!) {{
+                {mutation}(input: $input) {{
+                    user {{
+                        {USER_FIELDS}
+                    }}
+                }}
+            }}
+        """
+
+        response = self.transport.execute(
+            query, {"input": serialize_input(mutation_input)}, workspace_uid=workspace_uid
+        )
+        return AdminUser.parse_obj(response[mutation]["user"])
