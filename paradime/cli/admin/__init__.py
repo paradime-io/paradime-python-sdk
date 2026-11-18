@@ -15,7 +15,7 @@ def admin() -> None:
     """
     Administer Paradime through the Administration API (Enterprise plan).
 
-    Workspace-level commands take --workspace to target a workspace with a company-level key.
+    Workspace-level commands take --workspace to target a workspace with a company API key.
     """
     pass
 

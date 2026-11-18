@@ -7,9 +7,12 @@ from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.connections.types import (
     BigQueryConnectionSettings,
     ConnectionScope,
+    DatabricksConnectionSettings,
     DuckDbConnectionSettings,
+    FireboltConnectionSettings,
     ProfileConnectionInput,
     ProfileConnectionSettings,
+    RedshiftConnectionSettings,
     SnowflakeConnectionInput,
     SnowflakeConnectionSettings,
     WarehouseAdapterInput,
@@ -20,9 +23,17 @@ from paradime.apis.admin.git.types import (
     DeployKeyConnectionInput,
     GitHubAppConnectionInput,
     GitProvider,
+    GitRepository,
     GitRepositoryState,
 )
+from paradime.apis.admin.integrations.types import (
+    AzureKeyVaultSettings,
+    DatadogSettings,
+    FivetranSettings,
+    GcpSecretManagerSettings,
+)
 from paradime.apis.admin.jobs.types import AdminJobStatus
+from paradime.apis.admin.notifications.types import SlackInstallation
 from paradime.apis.admin.types import UNSET
 
 
@@ -139,7 +150,7 @@ class TestWorkspaces:
         workspace = admin.workspaces.get()
         assert workspace is not None and workspace.uid == "w1"
         assert admin.workspaces.delete("w1").dbt_version is None
-        assert transport.calls[0].variables == {"uid": None}
+        assert transport.calls[0].variables == {"workspaceUid": None}
         assert transport.calls[1].variables == {"input": {"workspaceUid": "w1"}}
 
 
@@ -288,7 +299,7 @@ REPOSITORY = {
     "provider": "GITHUB",
     "uri": "git@github.com:acme/analytics.git",
     "dbtProjectDir": None,
-    "verified": False,
+    "isVerified": False,
     "deployKey": {"publicKey": "ssh-ed25519 AAAA"},
     "githubApp": None,
     "gitlabApp": None,
@@ -411,7 +422,7 @@ class TestConnections:
                                 "settings": {
                                     "__typename": "BigQueryConnectionSettings",
                                     "bigqueryConnectionType": "SERVICE_ACCOUNT",
-                                    "serviceAccountJsonIsSet": True,
+                                    "hasServiceAccountJson": True,
                                 },
                             },
                             {
@@ -434,7 +445,7 @@ class TestConnections:
         snowflake, bigquery, duckdb = list(admin.connections.list(scope=ConnectionScope.SCHEDULER))
 
         assert isinstance(snowflake.settings, SnowflakeConnectionSettings)
-        assert snowflake.settings.password_is_set is True
+        assert snowflake.settings.has_password is True
         assert snowflake.settings.schema_name == "dbt"
         assert isinstance(bigquery.settings, BigQueryConnectionSettings)
         assert bigquery.settings.connection_type is not None
@@ -471,7 +482,7 @@ class TestConnections:
                 "__typename": "ProfileConnectionSettings",
                 "warehouseType": "TRINO",
                 "schema": "analytics",
-                "profileIsSet": True,
+                "hasProfile": True,
             },
         }
         admin, transport = _admin(
@@ -500,7 +511,7 @@ class TestConnections:
         assert isinstance(trino.settings, ProfileConnectionSettings)
         assert trino.settings.warehouse_type == WarehouseType.TRINO
         assert trino.settings.schema_name == "analytics"
-        assert trino.settings.profile_is_set is True
+        assert trino.settings.has_profile is True
         assert isinstance(unknown.settings, ProfileConnectionSettings)
         assert unknown.settings.warehouse_type == WarehouseType.UNKNOWN
         assert "... on ProfileConnectionSettings" in transport.calls[0].query
@@ -538,7 +549,7 @@ CONNECTION = {
     "connectionId": "default",
     "type": "SNOWFLAKE",
     "isDefault": True,
-    "connectionName": "Snowflake",
+    "name": "Snowflake",
     "targetName": "prod",
     "threads": 8,
     "updatedAt": "2026-11-05T10:00:00Z",
@@ -546,7 +557,7 @@ CONNECTION = {
         "__typename": "SnowflakeConnectionSettings",
         "account": "acme",
         "schema": "dbt",
-        "passwordIsSet": True,
+        "hasPassword": True,
     },
 }
 
@@ -558,7 +569,7 @@ class TestUsage:
                 "usage": {
                     "from": "2026-10-01T00:00:00Z",
                     "to": "2026-11-01T00:00:00Z",
-                    "dinoai": {"credits": 120, "backgroundAgentCredits": 20},
+                    "dinoAi": {"credits": 120, "backgroundAgentCredits": 20},
                     "bolt": {"billedSeconds": 3600},
                 }
             }
@@ -567,7 +578,7 @@ class TestUsage:
         usage = admin.usage.get(datetime(2026, 10, 1), datetime(2026, 11, 1), workspace_uid="w1")
 
         assert usage is not None
-        assert usage.dinoai.credits == 120 and usage.bolt.billed_seconds == 3600
+        assert usage.dino_ai.credits == 120 and usage.bolt.billed_seconds == 3600
         assert usage.period_from == datetime(2026, 10, 1, tzinfo=timezone.utc)
         assert transport.calls[0].variables == {
             "period": {"from": "2026-10-01T00:00:00", "to": "2026-11-01T00:00:00"},
@@ -577,7 +588,7 @@ class TestUsage:
     def test_list_workspaces_pages_the_nested_connection(self) -> None:
         row = {
             "workspace": {"uid": "w1", "name": "A"},
-            "dinoai": {"credits": 1, "backgroundAgentCredits": 0},
+            "dinoAi": {"credits": 1, "backgroundAgentCredits": 0},
             "bolt": {"billedSeconds": 60},
         }
         admin, transport = _admin(
@@ -625,7 +636,7 @@ class TestDevelopmentAndCostConnections:
                 "__typename": "BigQueryConnectionSettings",
                 "costGcsBucketName": "audit-logs",
                 "costProjectIds": ["p1", "p2"],
-                "serviceAccountJsonIsSet": True,
+                "hasServiceAccountJson": True,
             },
         }
         admin, transport = _admin({"setWarehouseConnection": {"warehouseConnection": cost}})
@@ -667,7 +678,7 @@ class TestDevelopmentAndCostConnections:
                 "account": "acme",
                 "useSso": True,
                 "clientId": "cid",
-                "clientSecretIsSet": True,
+                "hasClientSecret": True,
             },
         }
         admin, transport = _admin(
@@ -701,3 +712,42 @@ class TestDevelopmentAndCostConnections:
         assert saved.settings.use_sso is True and saved.scope == ConnectionScope.DEVELOPMENT_SHARED
         assert "... on BigQueryConnectionSettings" in transport.calls[0].query
         assert "costProjectIds" in transport.calls[0].query and "useSso" in transport.calls[0].query
+
+
+@pytest.mark.parametrize(
+    "model, data, attributes",
+    [
+        (DatabricksConnectionSettings, {"hasToken": True}, ["has_token"]),
+        (DatabricksConnectionSettings, {"hasProfile": True}, ["has_profile"]),
+        (RedshiftConnectionSettings, {"hasPassword": True}, ["has_password"]),
+        (RedshiftConnectionSettings, {"hasProfile": True}, ["has_profile"]),
+        (DuckDbConnectionSettings, {"hasProfile": True}, ["has_profile"]),
+        (FireboltConnectionSettings, {"hasPassword": True}, ["has_password"]),
+        (FireboltConnectionSettings, {"hasProfile": True}, ["has_profile"]),
+        (FivetranSettings, {"hasApiSecret": True}, ["has_api_secret"]),
+        (
+            DatadogSettings,
+            {"hasApiKey": True, "hasApplicationKey": True},
+            ["has_api_key", "has_application_key"],
+        ),
+        (AzureKeyVaultSettings, {"hasClientSecret": True}, ["has_client_secret"]),
+        (GcpSecretManagerSettings, {"hasServiceAccountJson": True}, ["has_service_account_json"]),
+        (
+            SlackInstallation,
+            {"status": "CONNECTED", "isReconnectRequired": True},
+            ["is_reconnect_required"],
+        ),
+        (
+            GitRepository,
+            {"mode": "SSH_DEPLOY_KEY", "state": "CONNECTED", "isVerified": True},
+            ["is_verified"],
+        ),
+    ],
+)
+def test_has_and_is_fields_parse_from_their_api_keys(
+    model: Any, data: Dict[str, Any], attributes: List[str]
+) -> None:
+    parsed = model.parse_obj(data)
+
+    for attribute in attributes:
+        assert getattr(parsed, attribute) is True

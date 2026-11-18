@@ -288,9 +288,9 @@ def test_cleanup_finds_the_workspace_by_name_when_its_uid_is_unknown(
 class MissingStepApi(StubAdminApi):
     def op_adminWorkspaceSetupStatus(self, variables: Dict[str, Any], workspace: Any) -> Any:
         status, reply = super().op_adminWorkspaceSetupStatus(variables, workspace)
-        steps = reply["data"]["workspaceSetupStatus"]["steps"]
+        steps = reply["data"]["workspace"]["setupStatus"]["steps"]
         steps[-1].update(status="MISSING", detail="No Bolt run has finished yet.")
-        reply["data"]["workspaceSetupStatus"]["isComplete"] = False
+        reply["data"]["workspace"]["setupStatus"]["isComplete"] = False
         return status, reply
 
 
@@ -303,7 +303,7 @@ def test_setup_status_fails_on_a_missing_required_row_not_on_pending_ones() -> N
         server.shutdown()
 
     assert code == 1
-    assert "FAIL  14   workspaceSetupStatus" in output
+    assert "FAIL  14   setupStatus" in output
     assert "required steps missing: FIRST_BOLT_RUN" in output
     assert "PENDING_USER_ACTION GITHUB_APP (optional)" in output
     assert "MISSING             FIRST_BOLT_RUN: No Bolt run has finished yet." in output
@@ -318,7 +318,7 @@ def test_main_refuses_a_workspace_key_before_any_request(capsys: pytest.CaptureF
     }
 
     assert onboard.main([], environ) == 2
-    assert "account API key" in capsys.readouterr().err
+    assert "company API key" in capsys.readouterr().err
 
 
 def test_a_secret_reference_to_an_unset_variable_is_a_config_error() -> None:
@@ -534,7 +534,7 @@ def test_the_development_connection_sends_only_workspace_level_fields(
     assert sent == [
         {
             "scope": "DEVELOPMENT_SHARED",
-            "connectionName": "Snowflake development",
+            "name": "Snowflake development",
             "targetName": "dev",
             "adapter": {"snowflake": {"account": "acme-xy12345", "useKeyPairAuth": True}},
         }
@@ -593,7 +593,7 @@ def test_notifications_route_alerts_to_email_and_read_slack(stub: Tuple[StubAdmi
     sent = [
         v["input"] for operation, v in api.variables if operation == "adminSetAlertNotifications"
     ]
-    assert sent == [{"category": "BOLT_SYSTEM", "email": {"enabled": True}}]
+    assert sent == [{"category": "BOLT_SYSTEM", "email": {"isEnabled": True}}]
     assert outcome.detail == "BOLT_SYSTEM alerts: email True, Slack PENDING_USER_ACTION"
 
 

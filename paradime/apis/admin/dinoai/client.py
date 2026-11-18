@@ -2,12 +2,12 @@ from typing import Iterator, List, Optional, Sequence, Tuple
 
 from paradime.apis.admin.dinoai.types import (
     DINOAI_AGENT_DEFINITION_FIELDS,
-    DinoaiAgentDefinition,
-    DinoaiAgentEdgeInput,
-    DinoaiAgentSpecInput,
-    DinoaiWorkspaceSettings,
-    SetDinoaiAgentDefinitionInput,
-    SetDinoaiWorkspaceSettingsInput,
+    DinoAiAgentDefinition,
+    DinoAiAgentEdgeInput,
+    DinoAiAgentSpecInput,
+    DinoAiWorkspaceSettings,
+    SetDinoAiAgentDefinitionInput,
+    SetDinoAiWorkspaceSettingsInput,
 )
 from paradime.apis.admin.jobs.types import ADMIN_JOB_FIELDS, AdminJob
 from paradime.apis.admin.transport import AdminTransport
@@ -24,7 +24,7 @@ from paradime.apis.admin.types import (
 )
 
 
-class AdminDinoaiClient:
+class AdminDinoAiClient:
     """
     DinoAI agent definitions and workspace settings. Running agents stays on
     `paradime.dinoai_agents`.
@@ -35,23 +35,23 @@ class AdminDinoaiClient:
 
     def list_agents(
         self, *, workspace_uid: Optional[str] = None, page_size: int = DEFAULT_PAGE_SIZE
-    ) -> Iterator[DinoaiAgentDefinition]:
+    ) -> Iterator[DinoAiAgentDefinition]:
         """
         Iterates over the workspace's DinoAI agent definitions, from YAML and from the UI.
 
         Args:
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
             page_size (int): How many agents to read per request, at most 500.
 
         Returns:
-            Iterator[DinoaiAgentDefinition]: The agents, read a page at a time.
+            Iterator[DinoAiAgentDefinition]: The agents, read a page at a time.
         """
 
         check_page_size(page_size)
         query = f"""
-            query adminDinoaiAgentDefinitions($workspaceUid: String, $first: Int, $after: String) {{
-                workspace(uid: $workspaceUid) {{
-                    dinoaiAgentDefinitions(first: $first, after: $after) {{
+            query adminDinoAiAgentDefinitions($workspaceUid: String, $first: Int, $after: String) {{
+                workspace(workspaceUid: $workspaceUid) {{
+                    dinoAiAgentDefinitions(first: $first, after: $after) {{
                         edges {{
                             node {{
                                 {DINOAI_AGENT_DEFINITION_FIELDS}
@@ -63,7 +63,7 @@ class AdminDinoaiClient:
             }}
         """
 
-        def fetch_page(after: Optional[str]) -> Page[DinoaiAgentDefinition]:
+        def fetch_page(after: Optional[str]) -> Page[DinoAiAgentDefinition]:
             response = self.transport.execute(
                 query,
                 {"workspaceUid": workspace_uid, "first": page_size, "after": after},
@@ -71,29 +71,29 @@ class AdminDinoaiClient:
             )
             workspace = response["workspace"] or {}
             return parse_page(
-                workspace.get("dinoaiAgentDefinitions"), DinoaiAgentDefinition.parse_obj
+                workspace.get("dinoAiAgentDefinitions"), DinoAiAgentDefinition.parse_obj
             )
 
         return iterate_pages(fetch_page)
 
     def get_agent(
         self, slug: str, *, workspace_uid: Optional[str] = None
-    ) -> Optional[DinoaiAgentDefinition]:
+    ) -> Optional[DinoAiAgentDefinition]:
         """
         Reads one DinoAI agent definition.
 
         Args:
             slug (str): The agent's slug.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
-            Optional[DinoaiAgentDefinition]: The agent, or None when there is none.
+            Optional[DinoAiAgentDefinition]: The agent, or None when there is none.
         """
 
         query = f"""
-            query adminDinoaiAgentDefinition($workspaceUid: String, $slug: String!) {{
-                workspace(uid: $workspaceUid) {{
-                    dinoaiAgentDefinition(slug: $slug) {{
+            query adminDinoAiAgentDefinition($workspaceUid: String, $slug: String!) {{
+                workspace(workspaceUid: $workspaceUid) {{
+                    dinoAiAgentDefinition(slug: $slug) {{
                         {DINOAI_AGENT_DEFINITION_FIELDS}
                     }}
                 }}
@@ -103,46 +103,46 @@ class AdminDinoaiClient:
         response = self.transport.execute(
             query, {"workspaceUid": workspace_uid, "slug": slug}, workspace_uid=workspace_uid
         )
-        agent = (response["workspace"] or {}).get("dinoaiAgentDefinition")
-        return DinoaiAgentDefinition.parse_obj(agent) if agent is not None else None
+        agent = (response["workspace"] or {}).get("dinoAiAgentDefinition")
+        return DinoAiAgentDefinition.parse_obj(agent) if agent is not None else None
 
     def set_agent(
         self,
         name: str,
-        spec: DinoaiAgentSpecInput,
+        spec: DinoAiAgentSpecInput,
         *,
         slug: Optional[str] = None,
         slack_bot_name: Optional[str] = None,
         slack_bot_icon_url: Optional[str] = None,
         workspace_uid: Optional[str] = None,
-    ) -> DinoaiAgentDefinition:
+    ) -> DinoAiAgentDefinition:
         """
         Creates or replaces a DinoAI agent definition. With a `slug`, sending the same input
         again changes nothing. A spec field left out is unset on the agent.
 
         Args:
             name (str): The agent's name.
-            spec (DinoaiAgentSpecInput): What the agent is and may do.
+            spec (DinoAiAgentSpecInput): What the agent is and may do.
             slug (str, optional): The agent's slug; minted when left out.
             slack_bot_name (str, optional): The name the agent posts under in Slack.
             slack_bot_icon_url (str, optional): The icon the agent posts with in Slack.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
-            DinoaiAgentDefinition: The agent, as now stored.
+            DinoAiAgentDefinition: The agent, as now stored.
         """
 
         query = f"""
-            mutation adminSetDinoaiAgentDefinition($input: SetDinoaiAgentDefinitionInput!) {{
-                setDinoaiAgentDefinition(input: $input) {{
-                    dinoaiAgentDefinition {{
+            mutation adminSetDinoAiAgentDefinition($input: SetDinoAiAgentDefinitionInput!) {{
+                setDinoAiAgentDefinition(input: $input) {{
+                    dinoAiAgentDefinition {{
                         {DINOAI_AGENT_DEFINITION_FIELDS}
                     }}
                 }}
             }}
         """
 
-        agent_input = SetDinoaiAgentDefinitionInput(
+        agent_input = SetDinoAiAgentDefinitionInput(
             name=name,
             spec=spec,
             **given(
@@ -154,8 +154,8 @@ class AdminDinoaiClient:
         response = self.transport.execute(
             query, {"input": serialize_input(agent_input)}, workspace_uid=workspace_uid
         )
-        return DinoaiAgentDefinition.parse_obj(
-            response["setDinoaiAgentDefinition"]["dinoaiAgentDefinition"]
+        return DinoAiAgentDefinition.parse_obj(
+            response["setDinoAiAgentDefinition"]["dinoAiAgentDefinition"]
         )
 
     def delete_agent(self, slug: str, *, workspace_uid: Optional[str] = None) -> str:
@@ -164,15 +164,15 @@ class AdminDinoaiClient:
 
         Args:
             slug (str): The agent's slug.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             str: The slug of the deleted agent.
         """
 
         query = """
-            mutation adminDeleteDinoaiAgentDefinition($input: DeleteDinoaiAgentDefinitionInput!) {
-                deleteDinoaiAgentDefinition(input: $input) {
+            mutation adminDeleteDinoAiAgentDefinition($input: DeleteDinoAiAgentDefinitionInput!) {
+                deleteDinoAiAgentDefinition(input: $input) {
                     deletedSlug
                 }
             }
@@ -181,7 +181,7 @@ class AdminDinoaiClient:
         response = self.transport.execute(
             query, {"input": {"slug": slug}}, workspace_uid=workspace_uid
         )
-        return response["deleteDinoaiAgentDefinition"]["deletedSlug"]
+        return response["deleteDinoAiAgentDefinition"]["deletedSlug"]
 
     def set_agent_graph(
         self, edges: Sequence[Tuple[str, str]], *, workspace_uid: Optional[str] = None
@@ -192,12 +192,12 @@ class AdminDinoaiClient:
         Args:
             edges (Sequence[Tuple[str, str]]): ``(from_slug, to_slug)`` pairs: the first agent
                 may delegate to the second.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
         """
 
         query = """
-            mutation adminSetDinoaiAgentGraph($input: SetDinoaiAgentGraphInput!) {
-                setDinoaiAgentGraph(input: $input) {
+            mutation adminSetDinoAiAgentGraph($input: SetDinoAiAgentGraphInput!) {
+                setDinoAiAgentGraph(input: $input) {
                     workspace {
                         uid
                     }
@@ -205,8 +205,8 @@ class AdminDinoaiClient:
             }
         """
 
-        edge_inputs: List[DinoaiAgentEdgeInput] = [
-            DinoaiAgentEdgeInput(from_slug=from_slug, to_slug=to_slug)
+        edge_inputs: List[DinoAiAgentEdgeInput] = [
+            DinoAiAgentEdgeInput(from_slug=from_slug, to_slug=to_slug)
             for from_slug, to_slug in edges
         ]
         self.transport.execute(
@@ -217,21 +217,21 @@ class AdminDinoaiClient:
 
     def get_settings(
         self, *, workspace_uid: Optional[str] = None
-    ) -> Optional[DinoaiWorkspaceSettings]:
+    ) -> Optional[DinoAiWorkspaceSettings]:
         """
         Reads the workspace's DinoAI settings.
 
         Args:
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
-            Optional[DinoaiWorkspaceSettings]: The settings.
+            Optional[DinoAiWorkspaceSettings]: The settings.
         """
 
         query = """
-            query adminDinoaiSettings($workspaceUid: String) {
-                workspace(uid: $workspaceUid) {
-                    dinoaiSettings {
+            query adminDinoAiSettings($workspaceUid: String) {
+                workspace(workspaceUid: $workspaceUid) {
+                    dinoAiSettings {
                         sqlQueryToolEnabled
                     }
                 }
@@ -241,31 +241,31 @@ class AdminDinoaiClient:
         response = self.transport.execute(
             query, {"workspaceUid": workspace_uid}, workspace_uid=workspace_uid
         )
-        settings = (response["workspace"] or {}).get("dinoaiSettings")
-        return DinoaiWorkspaceSettings.parse_obj(settings) if settings is not None else None
+        settings = (response["workspace"] or {}).get("dinoAiSettings")
+        return DinoAiWorkspaceSettings.parse_obj(settings) if settings is not None else None
 
     def set_settings(
         self,
         *,
         sql_query_tool_enabled: Optional[bool] = None,
         workspace_uid: Optional[str] = None,
-    ) -> Optional[DinoaiWorkspaceSettings]:
+    ) -> Optional[DinoAiWorkspaceSettings]:
         """
         Changes the workspace's DinoAI settings. A setting left out keeps its value.
 
         Args:
             sql_query_tool_enabled (bool, optional): Whether agents may run SQL queries.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
-            Optional[DinoaiWorkspaceSettings]: The settings now.
+            Optional[DinoAiWorkspaceSettings]: The settings now.
         """
 
         query = """
-            mutation adminSetDinoaiWorkspaceSettings($input: SetDinoaiWorkspaceSettingsInput!) {
-                setDinoaiWorkspaceSettings(input: $input) {
+            mutation adminSetDinoAiWorkspaceSettings($input: SetDinoAiWorkspaceSettingsInput!) {
+                setDinoAiWorkspaceSettings(input: $input) {
                     workspace {
-                        dinoaiSettings {
+                        dinoAiSettings {
                             sqlQueryToolEnabled
                         }
                     }
@@ -273,7 +273,7 @@ class AdminDinoaiClient:
             }
         """
 
-        settings_input = SetDinoaiWorkspaceSettingsInput(
+        settings_input = SetDinoAiWorkspaceSettingsInput(
             **given(
                 sql_query_tool_enabled=(
                     sql_query_tool_enabled if sql_query_tool_enabled is not None else UNSET
@@ -283,8 +283,8 @@ class AdminDinoaiClient:
         response = self.transport.execute(
             query, {"input": serialize_input(settings_input)}, workspace_uid=workspace_uid
         )
-        settings = response["setDinoaiWorkspaceSettings"]["workspace"].get("dinoaiSettings")
-        return DinoaiWorkspaceSettings.parse_obj(settings) if settings is not None else None
+        settings = response["setDinoAiWorkspaceSettings"]["workspace"].get("dinoAiSettings")
+        return DinoAiWorkspaceSettings.parse_obj(settings) if settings is not None else None
 
     def sync_agents_from_code(
         self, *, branch: Optional[str] = None, workspace_uid: Optional[str] = None
@@ -294,17 +294,17 @@ class AdminDinoaiClient:
 
         Args:
             branch (str, optional): The branch to read; the default branch when left out.
-            workspace_uid (str, optional): The workspace to sync, for a company-level key.
+            workspace_uid (str, optional): The workspace to sync, for a company API key.
 
         Returns:
             AdminJob: The job; wait for it with `admin.jobs.wait`.
         """
 
         query = f"""
-            mutation adminSyncDinoaiAgentDefinitionsFromCode(
-                $input: SyncDinoaiAgentDefinitionsFromCodeInput!
+            mutation adminSyncDinoAiAgentDefinitionsFromCode(
+                $input: SyncDinoAiAgentDefinitionsFromCodeInput!
             ) {{
-                syncDinoaiAgentDefinitionsFromCode(input: $input) {{
+                syncDinoAiAgentDefinitionsFromCode(input: $input) {{
                     job {{
                         {ADMIN_JOB_FIELDS}
                     }}
@@ -317,4 +317,4 @@ class AdminDinoaiClient:
             {"input": {"branch": branch} if branch else {}},
             workspace_uid=workspace_uid,
         )
-        return AdminJob.parse_obj(response["syncDinoaiAgentDefinitionsFromCode"]["job"])
+        return AdminJob.parse_obj(response["syncDinoAiAgentDefinitionsFromCode"]["job"])

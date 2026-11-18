@@ -22,7 +22,7 @@ class AdminJobsClient:
 
         Args:
             job_id (str): The job's id, as the operation that started it returned.
-            workspace_uid (str, optional): The workspace to target, for a company-level key.
+            workspace_uid (str, optional): The workspace to target, for a company API key.
 
         Returns:
             Optional[AdminJob]: The job, or None when the key can't see a job with this id.
@@ -55,7 +55,7 @@ class AdminJobsClient:
             job_id (str): The job's id.
             timeout (float): How many seconds to wait at most. Defaults to 600.
             poll_interval (float): Seconds between polls. Defaults to 2.
-            workspace_uid (str, optional): The workspace to target, for a company-level key.
+            workspace_uid (str, optional): The workspace to target, for a company API key.
 
         Returns:
             AdminJob: The succeeded job; its `result` holds what it produced.

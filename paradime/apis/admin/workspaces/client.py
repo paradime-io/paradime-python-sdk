@@ -32,21 +32,21 @@ class AdminWorkspacesClient:
 
         Args:
             uid (str, optional): The workspace's uid. Leave it out for the key's workspace, or
-                the one a company-level key targets.
+                the one a company API key targets.
 
         Returns:
             Optional[AdminWorkspace]: The workspace, or None when the server returned none.
         """
 
         query = f"""
-            query adminWorkspace($uid: String) {{
-                workspace(uid: $uid) {{
+            query adminWorkspace($workspaceUid: String) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     {WORKSPACE_FIELDS}
                 }}
             }}
         """
 
-        response = self.transport.execute(query, {"uid": uid})
+        response = self.transport.execute(query, {"workspaceUid": uid})
         workspace = response["workspace"]
         return AdminWorkspace.parse_obj(workspace) if workspace is not None else None
 
@@ -83,7 +83,7 @@ class AdminWorkspacesClient:
 
     def create(self, name: str, *, dbt_version: Optional[str] = None) -> AdminWorkspace:
         """
-        Creates a workspace. Needs a company-level key. Sending the same name again returns
+        Creates a workspace. Needs a company API key. Sending the same name again returns
         the existing workspace.
 
         Args:

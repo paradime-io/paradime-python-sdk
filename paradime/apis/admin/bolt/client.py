@@ -78,7 +78,7 @@ class AdminBoltClient:
 
         Args:
             slug (str): The slug of the schedule to change.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             BoltScheduleDefinition: The schedule, as now stored.
@@ -135,7 +135,7 @@ class AdminBoltClient:
         Args:
             branch (str, optional): The branch you expect the schedules to deploy from; a
                 different branch is refused before anything starts.
-            workspace_uid (str, optional): The workspace to deploy, for a company-level key.
+            workspace_uid (str, optional): The workspace to deploy, for a company API key.
 
         Returns:
             AdminJob: The job; wait for it with `admin.jobs.wait`. Its result lists each
@@ -172,7 +172,7 @@ class AdminBoltClient:
 
         Args:
             schedule_slug (str): The schedule's slug.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
             page_size (int): How many URLs to read per request, at most 500.
 
         Returns:
@@ -187,7 +187,7 @@ class AdminBoltClient:
                 $first: Int
                 $after: String
             ) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     triggerUrls(scheduleSlug: $scheduleSlug, first: $first, after: $after) {{
                         edges {{
                             node {{
@@ -225,7 +225,7 @@ class AdminBoltClient:
         Args:
             schedule_slug (str): The slug of the schedule the URL starts.
             name (str): The URL's name, unique among the schedule's.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             TriggerUrlWithSecret: The Trigger URL and its secret, sent as
@@ -258,7 +258,7 @@ class AdminBoltClient:
 
         Args:
             public_id (str): The Trigger URL's public id.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             TriggerUrlWithSecret: The Trigger URL and its new secret.
@@ -291,7 +291,7 @@ class AdminBoltClient:
         Args:
             public_id (str): The Trigger URL's public id.
             enabled (bool): Whether a request to the URL starts a run.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             TriggerUrl: The Trigger URL.
@@ -319,7 +319,7 @@ class AdminBoltClient:
 
         Args:
             public_id (str): The Trigger URL's public id.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             str: The public id of the deleted Trigger URL.

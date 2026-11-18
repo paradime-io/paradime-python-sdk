@@ -12,22 +12,22 @@ READINESS = {"status": "DONE", "missing": [], "missingSuggested": ["AGENT_CONNEC
 SETUP_STATUS = {
     "isComplete": False,
     "steps": [
-        {"step": "GIT_REPOSITORY", "status": "DONE", "required": True},
+        {"step": "GIT_REPOSITORY", "status": "DONE", "isRequired": True},
         {
             "step": "GITHUB_APP",
             "status": "PENDING_USER_ACTION",
-            "required": False,
+            "isRequired": False,
             "installUrl": "https://app.example.test/install-github",
             "detail": "Install the GitHub App.",
         },
         {
             "step": "SCHEDULER_CONNECTION",
             "status": "MISSING",
-            "required": True,
+            "isRequired": True,
             "environmentSlug": "production",
             "detail": "No warehouse connection.",
         },
-        {"step": "SOMETHING_NEW", "status": "DONE", "required": False},
+        {"step": "SOMETHING_NEW", "status": "DONE", "isRequired": False},
     ],
     "products": {
         "codeIde": READINESS,
@@ -38,7 +38,7 @@ SETUP_STATUS = {
 
 
 def test_get_reads_the_checklist_for_one_workspace() -> None:
-    admin, transport = _admin({"workspaceSetupStatus": SETUP_STATUS})
+    admin, transport = _admin({"workspace": {"setupStatus": SETUP_STATUS}})
 
     status = admin.setup_status.get(workspace_uid="w1")
 
@@ -55,19 +55,26 @@ def test_get_reads_the_checklist_for_one_workspace() -> None:
     assert status.products.bolt.missing == [SetupStep.SCHEDULER_CONNECTION]
     assert status.products.code_ide.missing_suggested == [SetupStep.AGENT_CONNECTION]
     call = transport.calls[0]
-    assert "workspaceSetupStatus(workspaceUid: $workspaceUid)" in call.query
+    assert "workspace(workspaceUid: $workspaceUid)" in call.query
+    assert "setupStatus {" in call.query
     assert call.variables == {"workspaceUid": "w1"} and call.workspace_uid == "w1"
 
 
 def test_get_returns_none_when_the_server_returns_none() -> None:
-    admin, _ = _admin({"workspaceSetupStatus": None})
+    admin, _ = _admin({"workspace": {"setupStatus": None}})
+
+    assert admin.setup_status.get() is None
+
+
+def test_get_returns_none_when_the_server_returns_no_workspace() -> None:
+    admin, _ = _admin({"workspace": None})
 
     assert admin.setup_status.get() is None
 
 
 @pytest.fixture
 def setup_admin(monkeypatch: pytest.MonkeyPatch) -> Any:
-    admin, _ = _admin({"workspaceSetupStatus": SETUP_STATUS})
+    admin, _ = _admin({"workspace": {"setupStatus": SETUP_STATUS}})
     monkeypatch.setattr(common, "get_admin", lambda: admin)
     return admin
 
@@ -120,7 +127,7 @@ def test_cli_prints_each_product_with_what_it_needs(
 def test_cli_exits_with_an_error_when_there_is_no_setup_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    admin, _ = _admin({"workspaceSetupStatus": None})
+    admin, _ = _admin({"workspace": {"setupStatus": None}})
     monkeypatch.setattr(common, "get_admin", lambda: admin)
     errors: List[str] = []
     monkeypatch.setattr(common.console, "error", errors.append)

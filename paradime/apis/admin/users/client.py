@@ -40,7 +40,7 @@ class AdminUsersClient:
 
         Args:
             statuses (Sequence[UserStatus], optional): Only users with one of these statuses.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
             page_size (int): How many users to read per request, at most 500.
 
         Returns:
@@ -79,7 +79,7 @@ class AdminUsersClient:
 
         Args:
             uid (str): The user's uid.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             AdminUser: The user, active again.
@@ -107,7 +107,7 @@ class AdminUsersClient:
         Reads the email domains whose users join the workspace on sign-up.
 
         Args:
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
             List[str]: The domains; empty when auto-join is off.
@@ -115,7 +115,7 @@ class AdminUsersClient:
 
         query = """
             query adminAutoJoinDomains($workspaceUid: String) {
-                workspace(uid: $workspaceUid) {
+                workspace(workspaceUid: $workspaceUid) {
                     autoJoinDomains
                 }
             }
@@ -134,7 +134,7 @@ class AdminUsersClient:
 
         Args:
             domains (Sequence[str]): Email domains, such as ``example.com``.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             List[str]: The domains now set.

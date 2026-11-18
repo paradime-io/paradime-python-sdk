@@ -26,7 +26,7 @@ def workspace_option(f: F) -> F:
         "workspace_uid",
         default=None,
         help="The uid of the workspace to target, sent as X-Paradime-Workspace. Needed with a "
-        "company-level key when PARADIME_WORKSPACE_UID is not the workspace you mean.",
+        "company API key when PARADIME_WORKSPACE_UID is not the workspace you mean.",
     )(f)
 
 

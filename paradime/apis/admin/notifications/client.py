@@ -29,7 +29,7 @@ class AdminNotificationsClient:
         the page where an account admin connects it in a browser.
 
         Args:
-            workspace_uid (str, optional): The workspace to target, for a company-level key.
+            workspace_uid (str, optional): The workspace to target, for a company API key.
 
         Returns:
             Optional[SlackInstallation]: The connection, or None when the server returned none.
@@ -56,7 +56,7 @@ class AdminNotificationsClient:
         Args:
             team_id (str, optional): The Slack team expected to be connected; when another
                 team is, nothing changes and the call fails with `CONFLICT`.
-            workspace_uid (str, optional): The workspace to target, for a company-level key.
+            workspace_uid (str, optional): The workspace to target, for a company API key.
 
         Returns:
             SlackInstallation: The connection, now pending.
@@ -91,7 +91,7 @@ class AdminNotificationsClient:
 
         Args:
             category (AlertCategory): The alerts to read; `BOLT_SYSTEM` by default.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
             Optional[AlertNotifications]: The destinations, or None when the server returned none.
@@ -99,7 +99,7 @@ class AdminNotificationsClient:
 
         query = f"""
             query adminAlertNotifications($workspaceUid: String, $category: AlertCategory!) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     alertNotifications(category: $category) {{
                         {ALERT_NOTIFICATIONS_FIELDS}
                     }}
@@ -134,7 +134,7 @@ class AdminNotificationsClient:
                 without `slack_user_ids`, it replaces the Slack destination.
             slack_user_ids (Sequence[str], optional): Slack user ids.
             email_enabled (bool, optional): Whether alert emails are on.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             AlertNotifications: Where the category's alerts now go.
@@ -156,7 +156,7 @@ class AdminNotificationsClient:
                 channel_ids=list(slack_channel_ids or []), user_ids=list(slack_user_ids or [])
             )
         if email_enabled is not None:
-            destinations["email"] = EmailAlertDestinationInput(enabled=email_enabled)
+            destinations["email"] = EmailAlertDestinationInput(is_enabled=email_enabled)
         notifications_input = SetAlertNotificationsInput(category=category, **destinations)
         response = self.transport.execute(
             query, {"input": serialize_input(notifications_input)}, workspace_uid=workspace_uid

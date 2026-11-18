@@ -13,7 +13,7 @@ WORKSPACE_SETUP_STATUS_FIELDS = f"""
     steps {{
         step
         status
-        required
+        isRequired
         environmentSlug
         installUrl
         detail
@@ -55,7 +55,7 @@ class SetupStepStatus(OpenEnum):
 class WorkspaceSetupStep(AdminModel):
     step: SetupStep
     status: SetupStepStatus
-    required: bool
+    is_required: bool
     environment_slug: Optional[str] = None
     install_url: Optional[str] = None
     detail: Optional[str] = None

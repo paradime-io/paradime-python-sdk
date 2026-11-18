@@ -9,7 +9,7 @@ GIT_REPOSITORY_FIELDS = """
     provider
     uri
     dbtProjectDir
-    verified
+    isVerified
     deployKey {
         publicKey
     }
@@ -34,7 +34,7 @@ class GitProvider(OpenEnum):
     UNKNOWN = "UNKNOWN"
 
 
-class GitRepositoryMode(OpenEnum):
+class GitConnectionMode(OpenEnum):
     SSH_DEPLOY_KEY = "SSH_DEPLOY_KEY"
     GITHUB_APP = "GITHUB_APP"
     GITLAB_APP = "GITLAB_APP"
@@ -67,12 +67,12 @@ class GitLabAppRepository(AdminModel):
 
 
 class GitRepository(AdminModel):
-    mode: GitRepositoryMode
+    mode: GitConnectionMode
     state: GitRepositoryState
     provider: Optional[GitProvider] = None
     uri: Optional[str] = None
     dbt_project_dir: Optional[str] = None
-    verified: Optional[bool] = None
+    is_verified: Optional[bool] = None
     deploy_key: Optional[GitDeployKey] = None
     github_app: Optional[GitHubAppRepository] = None
     gitlab_app: Optional[GitLabAppRepository] = None

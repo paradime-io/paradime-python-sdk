@@ -9,7 +9,7 @@ git:
   uri: git@github.com:acme/analytics.git
 
 development:
-  connection_name: Snowflake development
+  name: Snowflake development
   target_name: dev
   adapter:
     snowflake:
@@ -23,7 +23,7 @@ environments:
 
 scheduler_connections:
   production:
-    connection_name: Snowflake production
+    name: Snowflake production
     target_name: prod
     threads: 8
     adapter:
@@ -37,7 +37,7 @@ scheduler_connections:
         useKeyPairAuth: true
         privateKey: {fromEnv: ONBOARDING_SNOWFLAKE_PRIVATE_KEY}
   staging:
-    connection_name: Snowflake staging
+    name: Snowflake staging
     target_name: staging
     threads: 8
     adapter:
@@ -60,7 +60,7 @@ agent:
   slug: agent
   name: Agent
   connection:
-    connection_name: Snowflake agent
+    name: Snowflake agent
     target_name: agent
     threads: 4
     adapter:

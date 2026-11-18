@@ -53,83 +53,83 @@ DINOAI_AGENT_DEFINITION_FIELDS = """
 """
 
 
-class DinoaiAgentSource(OpenEnum):
+class DinoAiAgentSource(OpenEnum):
     YAML = "YAML"
     UI = "UI"
     UNKNOWN = "UNKNOWN"
 
 
-class DinoaiAgentModel(OpenEnum):
+class DinoAiAgentModel(OpenEnum):
     HAIKU = "HAIKU"
     SONNET = "SONNET"
     OPUS = "OPUS"
     UNKNOWN = "UNKNOWN"
 
 
-class DinoaiAgentToolGateMode(OpenEnum):
+class DinoAiAgentToolGateMode(OpenEnum):
     ALLOWLIST = "ALLOWLIST"
     DENYLIST = "DENYLIST"
     UNKNOWN = "UNKNOWN"
 
 
-class DinoaiAgentAnswerIn(OpenEnum):
+class DinoAiAgentAnswerIn(OpenEnum):
     THREAD = "THREAD"
     CHANNEL = "CHANNEL"
     UNKNOWN = "UNKNOWN"
 
 
-class DinoaiAgentUpdates(OpenEnum):
+class DinoAiAgentUpdates(OpenEnum):
     ALL = "ALL"
     FINAL = "FINAL"
     UNKNOWN = "UNKNOWN"
 
 
-class DinoaiAgentToolGate(AdminModel):
-    mode: Optional[DinoaiAgentToolGateMode] = None
+class DinoAiAgentToolGate(AdminModel):
+    mode: Optional[DinoAiAgentToolGateMode] = None
     names: Optional[List[str]] = None
 
 
-class DinoaiAgentSlack(AdminModel):
+class DinoAiAgentSlack(AdminModel):
     channel: Optional[str] = None
-    answer_in: Optional[DinoaiAgentAnswerIn] = None
-    updates: Optional[DinoaiAgentUpdates] = None
+    answer_in: Optional[DinoAiAgentAnswerIn] = None
+    updates: Optional[DinoAiAgentUpdates] = None
 
 
-class DinoaiAgentMsTeams(AdminModel):
+class DinoAiAgentMsTeams(AdminModel):
     team: Optional[str] = None
     channel: Optional[str] = None
-    answer_in: Optional[DinoaiAgentAnswerIn] = None
-    updates: Optional[DinoaiAgentUpdates] = None
+    answer_in: Optional[DinoAiAgentAnswerIn] = None
+    updates: Optional[DinoAiAgentUpdates] = None
 
 
-class DinoaiAgentJira(AdminModel):
+class DinoAiAgentJira(AdminModel):
     default_watchers: Optional[List[str]] = None
 
 
-class DinoaiAgentGitWrites(AdminModel):
+class DinoAiAgentGitWrites(AdminModel):
     comment: Optional[bool] = None
     edit: Optional[bool] = None
     approve: Optional[bool] = None
     merge: Optional[bool] = None
 
 
-class DinoaiAgentDefinition(AdminModel):
+class DinoAiAgentDefinition(AdminModel):
     slug: str
     name: str
-    source: Optional[DinoaiAgentSource] = None
+    source: Optional[DinoAiAgentSource] = None
     version: Optional[int] = None
     role: Optional[str] = None
     goal: Optional[str] = None
     backstory: Optional[str] = None
-    model: Optional[DinoaiAgentModel] = None
+    model: Optional[DinoAiAgentModel] = None
     model_family: Optional[str] = None
     environment: Optional[str] = None
-    tools: Optional[DinoaiAgentToolGate] = None
-    mcp_tools: Optional[DinoaiAgentToolGate] = None
-    slack: Optional[DinoaiAgentSlack] = None
-    ms_teams: Optional[DinoaiAgentMsTeams] = None
-    jira: Optional[DinoaiAgentJira] = None
-    git_writes: Optional[DinoaiAgentGitWrites] = None
+    tools: Optional[DinoAiAgentToolGate] = None
+    mcp_tools: Optional[DinoAiAgentToolGate] = None
+    slack: Optional[DinoAiAgentSlack] = None
+    ms_teams: Optional[DinoAiAgentMsTeams] = None
+    jira: Optional[DinoAiAgentJira] = None
+    git_writes: Optional[DinoAiAgentGitWrites] = None
     agents_squad: Optional[List[str]] = None
     slack_bot_name: Optional[str] = None
     slack_bot_icon_url: Optional[str] = None
@@ -140,67 +140,67 @@ class DinoaiAgentDefinition(AdminModel):
     updated_at: Optional[datetime] = None
 
 
-class DinoaiWorkspaceSettings(AdminModel):
+class DinoAiWorkspaceSettings(AdminModel):
     sql_query_tool_enabled: Optional[bool] = None
 
 
-class DinoaiAgentToolGateInput(AdminInputModel):
-    mode: DinoaiAgentToolGateMode
+class DinoAiAgentToolGateInput(AdminInputModel):
+    mode: DinoAiAgentToolGateMode
     names: Optional[List[str]] = None
 
 
-class DinoaiAgentSlackInput(AdminInputModel):
+class DinoAiAgentSlackSettingsInput(AdminInputModel):
     channel: str
-    answer_in: Optional[DinoaiAgentAnswerIn] = None
-    updates: Optional[DinoaiAgentUpdates] = None
+    answer_in: Optional[DinoAiAgentAnswerIn] = None
+    updates: Optional[DinoAiAgentUpdates] = None
 
 
-class DinoaiAgentMsTeamsInput(AdminInputModel):
+class DinoAiAgentMsTeamsInput(AdminInputModel):
     team: str
     channel: str
-    answer_in: Optional[DinoaiAgentAnswerIn] = None
-    updates: Optional[DinoaiAgentUpdates] = None
+    answer_in: Optional[DinoAiAgentAnswerIn] = None
+    updates: Optional[DinoAiAgentUpdates] = None
 
 
-class DinoaiAgentJiraInput(AdminInputModel):
+class DinoAiAgentJiraInput(AdminInputModel):
     default_watchers: List[str]
 
 
-class DinoaiAgentGitWritesInput(AdminInputModel):
+class DinoAiAgentGitWritesInput(AdminInputModel):
     comment: Optional[bool] = None
     edit: Optional[bool] = None
     approve: Optional[bool] = None
     merge: Optional[bool] = None
 
 
-class DinoaiAgentSpecInput(AdminInputModel):
+class DinoAiAgentSpecInput(AdminInputModel):
     role: str
     goal: str
     backstory: str
     version: Optional[int] = None
-    model: Optional[DinoaiAgentModel] = None
+    model: Optional[DinoAiAgentModel] = None
     model_family: Optional[str] = None
     environment: Optional[str] = None
-    tools: Optional[DinoaiAgentToolGateInput] = None
-    mcp_tools: Optional[DinoaiAgentToolGateInput] = None
-    slack: Optional[DinoaiAgentSlackInput] = None
-    ms_teams: Optional[DinoaiAgentMsTeamsInput] = None
-    jira: Optional[DinoaiAgentJiraInput] = None
-    git_writes: Optional[DinoaiAgentGitWritesInput] = None
+    tools: Optional[DinoAiAgentToolGateInput] = None
+    mcp_tools: Optional[DinoAiAgentToolGateInput] = None
+    slack: Optional[DinoAiAgentSlackSettingsInput] = None
+    ms_teams: Optional[DinoAiAgentMsTeamsInput] = None
+    jira: Optional[DinoAiAgentJiraInput] = None
+    git_writes: Optional[DinoAiAgentGitWritesInput] = None
 
 
-class SetDinoaiAgentDefinitionInput(AdminInputModel):
+class SetDinoAiAgentDefinitionInput(AdminInputModel):
     slug: Optional[str] = None
     name: str
-    spec: DinoaiAgentSpecInput
+    spec: DinoAiAgentSpecInput
     slack_bot_name: Optional[str] = None
     slack_bot_icon_url: Optional[str] = None
 
 
-class DinoaiAgentEdgeInput(AdminInputModel):
+class DinoAiAgentEdgeInput(AdminInputModel):
     from_slug: str
     to_slug: str
 
 
-class SetDinoaiWorkspaceSettingsInput(AdminInputModel):
+class SetDinoAiWorkspaceSettingsInput(AdminInputModel):
     sql_query_tool_enabled: Optional[bool] = None

@@ -68,7 +68,7 @@ class AdminEnvironmentVariablesClient:
         Args:
             environment_slug (str, optional): An environment's slug, for its variables. Leave it
                 out for the workspace's own variables.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
             page_size (int): How many variables to read per request, at most 500.
 
         Returns:
@@ -85,7 +85,7 @@ class AdminEnvironmentVariablesClient:
                 $first: Int
                 $after: String
             ) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     environmentVariables(
                         scope: $scope
                         environmentSlug: $environmentSlug
@@ -136,7 +136,7 @@ class AdminEnvironmentVariablesClient:
                 variable with `delete`.
             environment_slug (str, optional): An environment's slug, to set its variables.
             replace (bool): Make these the scope's only variables, deleting the others.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             SetEnvironmentVariablesResult: The names added, changed or deleted, and how many
@@ -188,7 +188,7 @@ class AdminEnvironmentVariablesClient:
         Args:
             names (List[str]): The names to delete.
             environment_slug (str, optional): An environment's slug, to delete its variables.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             List[str]: The names that existed and were deleted.
@@ -225,7 +225,7 @@ class AdminEnvironmentVariablesClient:
             name (str): The variable's current name.
             new_name (str): Its new name, which no other variable may have.
             environment_slug (str, optional): An environment's slug, for its variables.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             EnvironmentVariable: The variable, under its new name.
@@ -264,7 +264,7 @@ class AdminEnvironmentVariablesClient:
         Args:
             name (str): The variable's name.
             environment_slug (str, optional): An environment's slug, for its variables.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
             str: The value.

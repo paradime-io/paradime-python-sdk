@@ -571,7 +571,7 @@ class Onboarding:
             Step(11, "notifications", self.notifications, needs=(1,)),
             Step(12, "inviteUser", self.invite_users, needs=(1,)),
             Step(13, "triggerBoltRun", self.bolt_run, needs=(3, 7)),
-            Step(14, "workspaceSetupStatus", self.setup_status, needs=(1,)),
+            Step(14, "setupStatus", self.setup_status, needs=(1,)),
         ]
 
     def leftovers_step(self) -> Step:
@@ -698,11 +698,11 @@ class Onboarding:
         saved = self.target.admin.connections.set(
             adapter,
             scope=ConnectionScope.DEVELOPMENT_SHARED,
-            connection_name=development.get("connection_name"),
+            name=development.get("name"),
             target_name=development.get("target_name"),
             workspace_uid=self.target_uid,
         )
-        detail = f"{saved.type.value} {saved.connection_name or ''!r} saved"
+        detail = f"{saved.type.value} {saved.name or ''!r} saved"
         if left_out:
             detail += f"; left out per-user fields: {', '.join(left_out)}"
         return Outcome(detail)
@@ -731,7 +731,7 @@ class Onboarding:
             WarehouseAdapterInput.parse_obj(connection.get("adapter") or {}),
             scope=scope,
             environment_slug=slug,
-            connection_name=connection.get("connection_name"),
+            name=connection.get("name"),
             target_name=connection.get("target_name"),
             threads=connection.get("threads"),
         )
@@ -797,7 +797,7 @@ class Onboarding:
         alerts = notifications.set_alert_notifications(
             email_enabled=None if email is None else bool(email),
         )
-        enabled = alerts.email.enabled if alerts.email else None
+        enabled = alerts.email.is_enabled if alerts.email else None
         parts.append(f"{alerts.category.value} alerts: email {enabled}")
         slack = notifications.get_slack()
         if slack is not None:
@@ -860,7 +860,7 @@ class Onboarding:
     def setup_status(self) -> Outcome:
         status = self.target.admin.setup_status.get(workspace_uid=self.target_uid)
         if status is None:
-            raise StepFailed("workspaceSetupStatus returned nothing")
+            raise StepFailed("setupStatus returned nothing")
         notes = []
         counts: Dict[str, int] = {}
         missing_required = []
@@ -868,13 +868,13 @@ class Onboarding:
             state = row.status.value
             counts[state] = counts.get(state, 0) + 1
             name = row.step.value + (f" {row.environment_slug}" if row.environment_slug else "")
-            note = f"{state:<19} {name}" + ("" if row.required else " (optional)")
+            note = f"{state:<19} {name}" + ("" if row.is_required else " (optional)")
             if row.install_url:
                 note += f" {row.install_url}"
             if row.status == SetupStepStatus.MISSING and row.detail:
                 note += f": {row.detail}"
             notes.append(note)
-            if row.status == SetupStepStatus.MISSING and row.required:
+            if row.status == SetupStepStatus.MISSING and row.is_required:
                 missing_required.append(name)
         products = status.products
         notes.append(
@@ -984,7 +984,7 @@ def parse_arguments(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Onboard a new workspace with the Paradime Administration API, then delete it. "
-            "Credentials come from PARADIME_API_ENDPOINT, PARADIME_API_SECRET (an account key, "
+            "Credentials come from PARADIME_API_ENDPOINT, PARADIME_API_SECRET (a company API key, "
             "prdm_cmp_...) and PARADIME_WORKSPACE_UID (an existing workspace the key reaches, "
             "never deleted); everything else from the config file."
         ),
@@ -1028,7 +1028,7 @@ def main(
         api_secret = required_environment(environ, "PARADIME_API_SECRET")
         if not api_secret.startswith(COMPANY_API_TOKEN_PREFIX):
             raise ConfigError(
-                f"PARADIME_API_SECRET must be an account API key ({COMPANY_API_TOKEN_PREFIX}...)."
+                f"PARADIME_API_SECRET must be a company API key ({COMPANY_API_TOKEN_PREFIX}...)."
             )
         api_endpoint = required_environment(environ, "PARADIME_API_ENDPOINT")
         bootstrap_uid = required_environment(environ, "PARADIME_WORKSPACE_UID")

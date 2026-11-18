@@ -47,7 +47,7 @@ class AdminEnvironmentsClient:
 
         Args:
             type (EnvironmentType, optional): Only environments of this type.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
             page_size (int): How many environments to read per request, at most 500.
 
         Returns:
@@ -62,7 +62,7 @@ class AdminEnvironmentsClient:
                 $first: Int
                 $after: String
             ) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     environments(type: $type, first: $first, after: $after) {{
                         edges {{
                             node {{
@@ -97,7 +97,7 @@ class AdminEnvironmentsClient:
 
         Args:
             slug (str): The environment's slug.
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
 
         Returns:
             Optional[Environment]: The environment, or None when the workspace has none with
@@ -133,7 +133,7 @@ class AdminEnvironmentsClient:
             slug (str, optional): The slug to give it; minted when left out.
             branch (str, optional): The git branch its runs use.
             dbt_version (str, optional): The dbt version its runs use.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             Environment: The new environment, or the existing one.
@@ -168,7 +168,7 @@ class AdminEnvironmentsClient:
             name (str, optional): A new display name.
             branch (str, optional): The git branch its runs use.
             dbt_version (str, optional): The dbt version its runs use.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             Environment: The environment, with its new settings.
@@ -185,7 +185,7 @@ class AdminEnvironmentsClient:
 
         Args:
             slug (str): The slug of the environment to delete.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             Environment: The deleted environment.
@@ -199,7 +199,7 @@ class AdminEnvironmentsClient:
 
         Args:
             slug (str): The slug of the environment.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             Environment: The environment, now the default.
@@ -225,7 +225,7 @@ class AdminEnvironmentsClient:
             slug (str): The slug of the agent environment.
             environment_slug (str, optional): A Bolt environment to defer to.
             schedule_slug (str, optional): A Bolt schedule to defer to.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             Environment: The environment, with its new target.

@@ -14,16 +14,16 @@ WORKSPACE_INTEGRATION_FIELDS = """
         ... on LookerSettings {
             baseUrl
             clientId
-            clientSecretIsSet
+            hasClientSecret
         }
         ... on FivetranSettings {
             apiKeyHint
-            apiSecretIsSet
+            hasApiSecret
         }
         ... on DatadogSettings {
             site
-            apiKeyIsSet
-            applicationKeyIsSet
+            hasApiKey
+            hasApplicationKey
         }
     }
 """
@@ -37,17 +37,17 @@ EXTERNAL_SECRETS_PROVIDER_FIELDS = """
             accessKeyIdHint
             roleArn
             region
-            secretAccessKeyIsSet
+            hasSecretAccessKey
         }
         ... on AzureKeyVaultSettings {
             tenantId
             clientId
             defaultVaultUrl
-            clientSecretIsSet
+            hasClientSecret
         }
         ... on GcpSecretManagerSettings {
             defaultProject
-            serviceAccountJsonIsSet
+            hasServiceAccountJson
         }
     }
 """
@@ -88,37 +88,37 @@ class ExternalSecretsProviderName(OpenEnum):
 class LookerSettings(AdminModel):
     base_url: Optional[str] = None
     client_id: Optional[str] = None
-    client_secret_is_set: Optional[bool] = None
+    has_client_secret: Optional[bool] = None
 
 
 class FivetranSettings(AdminModel):
     api_key_hint: Optional[str] = None
-    api_secret_is_set: Optional[bool] = None
+    has_api_secret: Optional[bool] = None
 
 
 class DatadogSettings(AdminModel):
     site: Optional[DatadogSite] = None
-    api_key_is_set: Optional[bool] = None
-    application_key_is_set: Optional[bool] = None
+    has_api_key: Optional[bool] = None
+    has_application_key: Optional[bool] = None
 
 
 class AwsSecretsManagerSettings(AdminModel):
     access_key_id_hint: Optional[str] = None
     role_arn: Optional[str] = None
     region: Optional[str] = None
-    secret_access_key_is_set: Optional[bool] = None
+    has_secret_access_key: Optional[bool] = None
 
 
 class AzureKeyVaultSettings(AdminModel):
     tenant_id: Optional[str] = None
     client_id: Optional[str] = None
     default_vault_url: Optional[str] = None
-    client_secret_is_set: Optional[bool] = None
+    has_client_secret: Optional[bool] = None
 
 
 class GcpSecretManagerSettings(AdminModel):
     default_project: Optional[str] = None
-    service_account_json_is_set: Optional[bool] = None
+    has_service_account_json: Optional[bool] = None
 
 
 def _settings_by_typename(*classes: Type[AdminModel]) -> Dict[str, Type[AdminModel]]:

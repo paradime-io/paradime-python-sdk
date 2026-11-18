@@ -2,9 +2,9 @@ import pytest
 from test_admin_clients import _admin, _connection
 
 from paradime.apis.admin.dinoai.types import (
-    DinoaiAgentModel,
-    DinoaiAgentSpecInput,
-    DinoaiAgentToolGateInput,
+    DinoAiAgentModel,
+    DinoAiAgentSpecInput,
+    DinoAiAgentToolGateInput,
 )
 from paradime.apis.admin.integrations.types import (
     AwsSecretsManagerConfigInput,
@@ -96,13 +96,23 @@ class TestNotifications:
         assert transport.calls[0].variables == {}
 
 
-TRIGGER_URL = {"publicId": "p1", "name": "ci", "enabled": True, "url": "https://hooks/p1"}
+TRIGGER_URL = {
+    "publicId": "p1",
+    "name": "ci",
+    "isEnabled": True,
+    "url": "https://hooks/p1",
+    "hasSecret": True,
+}
 
 
 class TestBolt:
     def test_update_schedule_sends_the_whole_schedule(self) -> None:
         admin, transport = _admin(
-            {"updateBoltSchedule": {"schedule": {"slug": "nightly", "name": "Nightly"}}}
+            {
+                "updateBoltSchedule": {
+                    "schedule": {"slug": "nightly", "name": "Nightly", "isSuspended": True}
+                }
+            }
         )
 
         definition = admin.bolt.update_schedule(
@@ -126,7 +136,7 @@ class TestBolt:
                 },
             }
         }
-        assert definition.slug == "nightly"
+        assert definition.slug == "nightly" and definition.is_suspended is True
 
     def test_trigger_url_secrets_are_returned_but_kept_out_of_repr(self) -> None:
         admin, _ = _admin({"createTriggerUrl": {"triggerUrl": TRIGGER_URL, "secret": "tok-123"}})
@@ -134,6 +144,7 @@ class TestBolt:
         created = admin.bolt.create_trigger_url("nightly", "ci")
 
         assert created.secret == "tok-123"
+        assert created.trigger_url.is_enabled is True and created.trigger_url.has_secret is True
         assert "tok-123" not in repr(created)
         assert "https://hooks/p1" in repr(created)
 
@@ -153,7 +164,7 @@ class TestIntegrations:
             "settings": {
                 "__typename": "LookerSettings",
                 "baseUrl": "https://looker.example.test",
-                "clientSecretIsSet": True,
+                "hasClientSecret": True,
             },
         }
         admin, transport = _admin({"setIntegration": {"integration": integration}})
@@ -177,7 +188,7 @@ class TestIntegrations:
         }
         assert result.name == IntegrationName.LOOKER
         assert isinstance(result.settings, LookerSettings)
-        assert result.settings.client_secret_is_set is True
+        assert result.settings.has_client_secret is True
 
     def test_test_and_disconnect(self) -> None:
         admin, transport = _admin(
@@ -203,7 +214,7 @@ class TestIntegrations:
             "settings": {
                 "__typename": "AwsSecretsManagerSettings",
                 "accessKeyIdHint": "AKIA…WXYZ",
-                "secretAccessKeyIsSet": True,
+                "hasSecretAccessKey": True,
             },
         }
         admin, transport = _admin(
@@ -249,18 +260,18 @@ class TestIntegrations:
 AGENT = {"slug": "analyst", "name": "Analyst", "model": "SONNET", "source": "UI"}
 
 
-class TestDinoai:
+class TestDinoAi:
     def test_set_agent_sends_the_spec(self) -> None:
-        admin, transport = _admin({"setDinoaiAgentDefinition": {"dinoaiAgentDefinition": AGENT}})
+        admin, transport = _admin({"setDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
 
         agent = admin.dinoai.set_agent(
             "Analyst",
-            DinoaiAgentSpecInput(
+            DinoAiAgentSpecInput(
                 role="r",
                 goal="g",
                 backstory="b",
-                model=DinoaiAgentModel.SONNET,
-                tools=DinoaiAgentToolGateInput(mode="ALLOWLIST", names=["run_sql_query"]),
+                model=DinoAiAgentModel.SONNET,
+                tools=DinoAiAgentToolGateInput(mode="ALLOWLIST", names=["run_sql_query"]),
             ),
             slug="analyst",
         )
@@ -278,19 +289,19 @@ class TestDinoai:
                 "slug": "analyst",
             }
         }
-        assert agent.model == DinoaiAgentModel.SONNET
+        assert agent.model == DinoAiAgentModel.SONNET
 
     def test_graph_settings_and_sync(self) -> None:
-        job = {"id": "j1", "kind": "syncDinoaiAgentDefinitionsFromCode", "status": "RUNNING"}
+        job = {"id": "j1", "kind": "syncDinoAiAgentDefinitionsFromCode", "status": "RUNNING"}
         admin, transport = _admin(
-            {"setDinoaiAgentGraph": {"workspace": {"uid": "w1"}}},
+            {"setDinoAiAgentGraph": {"workspace": {"uid": "w1"}}},
             {
-                "setDinoaiWorkspaceSettings": {
-                    "workspace": {"dinoaiSettings": {"sqlQueryToolEnabled": False}}
+                "setDinoAiWorkspaceSettings": {
+                    "workspace": {"dinoAiSettings": {"sqlQueryToolEnabled": False}}
                 }
             },
-            {"syncDinoaiAgentDefinitionsFromCode": {"job": job}},
-            {"workspace": {"dinoaiAgentDefinition": None}},
+            {"syncDinoAiAgentDefinitionsFromCode": {"job": job}},
+            {"workspace": {"dinoAiAgentDefinition": None}},
         )
 
         admin.dinoai.set_agent_graph([("lead", "analyst")])
@@ -305,6 +316,24 @@ class TestDinoai:
         assert settings is not None and settings.sql_query_tool_enabled is False
         assert job_started.id == "j1"
         assert admin.dinoai.get_agent("missing") is None
+
+    def test_reads_use_the_dino_ai_keys(self) -> None:
+        admin, transport = _admin(
+            {"workspace": {"dinoAiAgentDefinitions": _connection([AGENT], None, False)}},
+            {"workspace": {"dinoAiAgentDefinition": AGENT}},
+            {"workspace": {"dinoAiSettings": {"sqlQueryToolEnabled": True}}},
+        )
+
+        agents = list(admin.dinoai.list_agents())
+        agent = admin.dinoai.get_agent("analyst")
+        settings = admin.dinoai.get_settings()
+
+        assert [a.slug for a in agents] == ["analyst"]
+        assert agent is not None and agent.slug == "analyst"
+        assert settings is not None and settings.sql_query_tool_enabled is True
+        assert "dinoAiAgentDefinitions(first: $first" in transport.calls[0].query
+        assert "dinoAiAgentDefinition(slug: $slug)" in transport.calls[1].query
+        assert "dinoAiSettings {" in transport.calls[2].query
 
 
 def test_every_domain_is_on_the_admin_client() -> None:

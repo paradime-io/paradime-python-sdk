@@ -82,7 +82,7 @@ class AdminIntegrationsClient:
         Iterates over the workspace's integrations.
 
         Args:
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
             page_size (int): How many integrations to read per request, at most 500.
 
         Returns:
@@ -92,7 +92,7 @@ class AdminIntegrationsClient:
         check_page_size(page_size)
         query = f"""
             query adminIntegrations($workspaceUid: String, $first: Int, $after: String) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     integrations(first: $first, after: $after) {{
                         edges {{
                             node {{
@@ -126,7 +126,7 @@ class AdminIntegrationsClient:
         Args:
             config: One integration's settings, such as `LookerIntegrationInput`, or an
                 `IntegrationConfigInput`.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             WorkspaceIntegration: The integration.
@@ -156,7 +156,7 @@ class AdminIntegrationsClient:
 
         Args:
             config: One integration's settings; see `set`.
-            workspace_uid (str, optional): The workspace to use, for a company-level key.
+            workspace_uid (str, optional): The workspace to use, for a company API key.
 
         Returns:
             IntegrationTestResult: The integration, and when the test ran.
@@ -185,7 +185,7 @@ class AdminIntegrationsClient:
 
         Args:
             name (IntegrationName): The integration.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             WorkspaceIntegration: The integration, now disconnected.
@@ -215,7 +215,7 @@ class AdminIntegrationsClient:
         Iterates over the workspace's external secret managers.
 
         Args:
-            workspace_uid (str, optional): The workspace to read, for a company-level key.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
             page_size (int): How many providers to read per request, at most 500.
 
         Returns:
@@ -229,7 +229,7 @@ class AdminIntegrationsClient:
                 $first: Int
                 $after: String
             ) {{
-                workspace(uid: $workspaceUid) {{
+                workspace(workspaceUid: $workspaceUid) {{
                     externalSecretsProviders(first: $first, after: $after) {{
                         edges {{
                             node {{
@@ -270,7 +270,7 @@ class AdminIntegrationsClient:
                 `ExternalSecretsProviderConfigInput`.
             test_reference (str, optional): A secret reference to read with the new settings
                 before saving them.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             ExternalSecretsProvider: The provider.
@@ -304,7 +304,7 @@ class AdminIntegrationsClient:
 
         Args:
             reference (str): The external-secret reference.
-            workspace_uid (str, optional): The workspace to use, for a company-level key.
+            workspace_uid (str, optional): The workspace to use, for a company API key.
 
         Returns:
             ExternalSecretReferenceTestResult: The provider that resolved it, and when.
@@ -332,7 +332,7 @@ class AdminIntegrationsClient:
 
         Args:
             name (ExternalSecretsProviderName): The provider.
-            workspace_uid (str, optional): The workspace to change, for a company-level key.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
             ExternalSecretsProviderName: The deleted provider.

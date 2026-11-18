@@ -19,16 +19,19 @@ class AdminSetupStatusClient:
 
         Args:
             workspace_uid (str, optional): The workspace to read. Leave it out for the key's
-                workspace, or the one a company-level key targets.
+                workspace, or the one a company API key targets.
 
         Returns:
-            Optional[WorkspaceSetupStatus]: The checklist, or None when the server returned none.
+            Optional[WorkspaceSetupStatus]: The checklist, or None when the server returned no
+                workspace or no checklist.
         """
 
         query = f"""
             query adminWorkspaceSetupStatus($workspaceUid: String) {{
-                workspaceSetupStatus(workspaceUid: $workspaceUid) {{
-                    {WORKSPACE_SETUP_STATUS_FIELDS}
+                workspace(workspaceUid: $workspaceUid) {{
+                    setupStatus {{
+                        {WORKSPACE_SETUP_STATUS_FIELDS}
+                    }}
                 }}
             }}
         """
@@ -36,5 +39,6 @@ class AdminSetupStatusClient:
         response = self.transport.execute(
             query, {"workspaceUid": workspace_uid}, workspace_uid=workspace_uid
         )
-        status = response["workspaceSetupStatus"]
+        workspace = response["workspace"]
+        status = workspace.get("setupStatus") if workspace is not None else None
         return WorkspaceSetupStatus.parse_obj(status) if status is not None else None

@@ -141,7 +141,7 @@ class StubAdminApi:
             "provider": "GITHUB" if self.connected else None,
             "uri": "git@github.com:acme/analytics.git" if self.connected else None,
             "dbtProjectDir": None,
-            "verified": self.connected,
+            "isVerified": self.connected,
             "deployKey": {"publicKey": PUBLIC_KEY},
             "githubApp": None,
             "gitlabApp": None,
@@ -202,7 +202,7 @@ class StubAdminApi:
             "connectionId": "default",
             "type": "SNOWFLAKE",
             "isDefault": True,
-            "connectionName": connection_input.get("connectionName"),
+            "name": connection_input.get("name"),
             "targetName": connection_input.get("targetName"),
             "threads": connection_input.get("threads"),
             "updatedAt": NOW,
@@ -249,7 +249,7 @@ class StubAdminApi:
             "installUrl": "https://app.paradime.io/slack/install?state=stub",
             "teamId": None,
             "teamName": None,
-            "reconnectRequired": False,
+            "isReconnectRequired": False,
             "missingScopes": [],
         }
         return self.ok({"slack": slack})
@@ -276,7 +276,7 @@ class StubAdminApi:
             return {
                 "step": step,
                 "status": status,
-                "required": required,
+                "isRequired": required,
                 "environmentSlug": fields.get("environmentSlug"),
                 "installUrl": fields.get("installUrl"),
                 "detail": fields.get("detail"),
@@ -306,7 +306,11 @@ class StubAdminApi:
             "agent": dict(ready, missingSuggested=["GITHUB_APP"]),
         }
         return self.ok(
-            {"workspaceSetupStatus": {"isComplete": True, "steps": steps, "products": products}}
+            {
+                "workspace": {
+                    "setupStatus": {"isComplete": True, "steps": steps, "products": products}
+                }
+            }
         )
 
     def github(self, method: str, path: str, body: Dict[str, Any]) -> Reply:

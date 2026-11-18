@@ -57,7 +57,7 @@ def get(uid: Optional[str], as_json: bool) -> None:
 @common.handle_admin_errors
 def create(name: str, dbt_version: Optional[str], as_json: bool) -> None:
     """
-    Create a workspace. Needs a company-level key. Running it again with the same NAME
+    Create a workspace. Needs a company API key. Running it again with the same NAME
     returns the existing workspace.
     """
     workspace = common.get_admin().workspaces.create(name, dbt_version=dbt_version)
