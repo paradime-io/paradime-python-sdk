@@ -113,6 +113,28 @@ class NativeIntegrationNodeType(Enum):
     POWER_BI_DATASET = "PowerBIDataset"
     POWER_BI_REPORT = "PowerBIReport"
     POWER_BI_DASHBOARD = "PowerBIDashboard"
+    THOUGHTSPOT_WORKSHEET = "ThoughtSpotWorksheet"
+    THOUGHTSPOT_ANSWER = "ThoughtSpotAnswer"
+    THOUGHTSPOT_VISUALIZATION = "ThoughtSpotVisualization"
+    THOUGHTSPOT_LIVEBOARD = "ThoughtSpotLiveboard"
+    SIGMA_WORKBOOK = "SigmaWorkbook"
+    SIGMA_PAGE = "SigmaPage"
+    SIGMA_ELEMENT = "SigmaElement"
+    LIGHTDASH_EXPLORE = "LightdashExplore"
+    LIGHTDASH_CHART = "LightdashChart"
+    LIGHTDASH_DASHBOARD = "LightdashDashboard"
+    OMNI_MODEL = "OmniModel"
+    OMNI_VIEW = "OmniView"
+    OMNI_DOCUMENT = "OmniDocument"
+    OMNI_DASHBOARD = "OmniDashboard"
+    OMNI_TILE = "OmniTile"
+    METABASE_COLLECTION = "MetabaseCollection"
+    METABASE_DASHBOARD = "MetabaseDashboard"
+    METABASE_CARD = "MetabaseCard"
+    METABASE_MODEL = "MetabaseModel"
+    METABASE_TABLE = "MetabaseTable"
+    AIRBYTE_SOURCE = "AirbyteSource"
+    AIRBYTE_CONNECTION = "AirbyteConnection"
 
 
 class LineageDependencyNativeIntegration(ParadimeBaseModel):
@@ -227,6 +249,167 @@ class Lineage(ParadimeBaseModel):
         }
 
 
+# -------- Field-level lineage --------
+
+
+class FieldTransformation(str, Enum):
+    """
+    How a field is derived from the field it references.
+
+    DIRECT: the value passes through unchanged (renamed or not).
+    AGGREGATION: the value is aggregated, e.g. SUM(amount).
+    EXPRESSION: the value is computed from one or more fields.
+    FILTER: the field only filters the result; it does not contribute to the value.
+    """
+
+    DIRECT = "DIRECT"
+    AGGREGATION = "AGGREGATION"
+    EXPRESSION = "EXPRESSION"
+    FILTER = "FILTER"
+
+
+def _field_reference(
+    target_key: str,
+    target: Dict[str, Any],
+    transformation: Optional[FieldTransformation],
+    expression: Optional[str],
+) -> Dict[str, Any]:
+    reference: Dict[str, Any] = {target_key: target}
+    if transformation is not None:
+        reference["transformation"] = transformation.value
+    if expression is not None:
+        reference["expression"] = expression
+    return reference
+
+
+class FieldDependencySqlColumn(ParadimeBaseModel):
+    """
+    A warehouse column a field reads from (upstream) or writes to (downstream).
+
+    Attributes:
+        database_name (str, optional): The name of the database.
+        schema_name (str, optional): The name of the schema.
+        table_name (str): The name of the table.
+        column_name (str): The name of the column.
+        transformation (FieldTransformation, optional): How the field relates to the column. Default is DIRECT.
+        expression (str, optional): The expression behind the relationship, e.g. "SUM(amount)".
+    """
+
+    database_name: Optional[str] = None
+    schema_name: Optional[str] = None
+    table_name: str
+    column_name: str
+    transformation: Optional[FieldTransformation] = None
+    expression: Optional[str] = None
+
+    def _to_gql_dict(self) -> Dict[str, Any]:
+        return _field_reference(
+            "sqlColumn",
+            {
+                "database": self.database_name,
+                "schema": self.schema_name,
+                "table": self.table_name,
+                "column": self.column_name,
+            },
+            self.transformation,
+            self.expression,
+        )
+
+
+class FieldDependencyNativeIntegrationField(ParadimeBaseModel):
+    """
+    A field of a native integration node. At least one of node_id or node_name should be provided.
+
+    Attributes:
+        node_type (NativeIntegrationNodeType): The type of the native integration node.
+        node_id (str, optional): The unique identifier of the node. Required if node_name is not provided.
+        node_name (str, optional): The name of the node. Required if node_id is not provided.
+        field_name (str): The name of the field on that node.
+        transformation (FieldTransformation, optional): How the fields relate. Default is DIRECT.
+        expression (str, optional): The expression behind the relationship.
+    """
+
+    node_type: NativeIntegrationNodeType
+    node_id: Optional[str] = None
+    node_name: Optional[str] = None
+    field_name: str
+    transformation: Optional[FieldTransformation] = None
+    expression: Optional[str] = None
+
+    def _to_gql_dict(self) -> Dict[str, Any]:
+        return _field_reference(
+            "nativeIntegrationField",
+            {
+                "nodeType": self.node_type.value,
+                "nodeId": self.node_id,
+                "nodeName": self.node_name,
+                "fieldName": self.field_name,
+            },
+            self.transformation,
+            self.expression,
+        )
+
+
+class FieldDependencyCustomIntegrationField(ParadimeBaseModel):
+    """
+    A field of a custom integration node, in this integration or another one.
+    At least one of node_id or node_name should be provided; for a node of another integration, provide node_id.
+
+    Attributes:
+        node_type (str): The type of the custom integration node.
+        integration_uid (str, optional): The unique identifier of the custom integration.
+        integration_name (str, optional): The name of the custom integration.
+        node_id (str, optional): The stable id of the node. Required if node_name is not provided.
+        node_name (str, optional): The name of the node. Required if node_id is not provided.
+        field_name (str): The name of the field on that node.
+        transformation (FieldTransformation, optional): How the fields relate. Default is DIRECT.
+        expression (str, optional): The expression behind the relationship.
+    """
+
+    node_type: str
+    integration_uid: Optional[str] = None
+    integration_name: Optional[str] = None
+    node_id: Optional[str] = None
+    node_name: Optional[str] = None
+    field_name: str
+    transformation: Optional[FieldTransformation] = None
+    expression: Optional[str] = None
+
+    def _to_gql_dict(self) -> Dict[str, Any]:
+        return _field_reference(
+            "customIntegrationField",
+            {
+                "nodeType": self.node_type,
+                "integrationUid": self.integration_uid,
+                "integrationName": self.integration_name,
+                "nodeStableId": self.node_id,
+                "nodeName": self.node_name,
+                "fieldName": self.field_name,
+            },
+            self.transformation,
+            self.expression,
+        )
+
+
+FieldDependency = Union[
+    FieldDependencySqlColumn,
+    FieldDependencyNativeIntegrationField,
+    FieldDependencyCustomIntegrationField,
+]
+
+
+def _field_lineage(
+    upstream_fields: Optional[List[FieldDependency]],
+    downstream_fields: Optional[List[FieldDependency]],
+) -> Dict[str, Any]:
+    lineage: Dict[str, Any] = {}
+    if upstream_fields is not None:
+        lineage["upstreamFields"] = [field._to_gql_dict() for field in upstream_fields]
+    if downstream_fields is not None:
+        lineage["downstreamFields"] = [field._to_gql_dict() for field in downstream_fields]
+    return lineage
+
+
 # -------- ChartLike Node --------
 
 
@@ -239,12 +422,16 @@ class NodeChartLikeAttributesField(ParadimeBaseModel):
         description (str, optional): The description of the field.
         type (str, optional): The type of the field.
         data_type (str, optional): The data type of the field.
+        upstream_fields (list[FieldDependency], optional): The fields and warehouse columns this field reads from.
+        downstream_fields (list[FieldDependency], optional): The fields and warehouse columns this field feeds, for targets that cannot declare it themselves.
     """
 
     name: Optional[str]
     description: Optional[str]
     type: Optional[str]
     data_type: Optional[str]
+    upstream_fields: Optional[List[FieldDependency]] = None
+    downstream_fields: Optional[List[FieldDependency]] = None
 
     def _to_gql_dict(self) -> Dict[str, Any]:
         return {
@@ -252,6 +439,7 @@ class NodeChartLikeAttributesField(ParadimeBaseModel):
             "description": self.description or "",
             "type": self.type or "",
             "dataType": self.data_type or "",
+            **_field_lineage(self.upstream_fields, self.downstream_fields),
         }
 
 
@@ -393,12 +581,16 @@ class NodeDatasourceLikeAttributesField(ParadimeBaseModel):
         description (str, optional): The description of the field.
         type (str, optional): The type of the field.
         data_type (str, optional): The data type of the field.
+        upstream_fields (list[FieldDependency], optional): The fields and warehouse columns this field reads from.
+        downstream_fields (list[FieldDependency], optional): The fields and warehouse columns this field feeds, for targets that cannot declare it themselves.
     """
 
     name: Optional[str]
     description: Optional[str]
     type: Optional[str]
     data_type: Optional[str]
+    upstream_fields: Optional[List[FieldDependency]] = None
+    downstream_fields: Optional[List[FieldDependency]] = None
 
     def _to_gql_dict(self) -> Dict[str, Any]:
         return {
@@ -406,6 +598,7 @@ class NodeDatasourceLikeAttributesField(ParadimeBaseModel):
             "description": self.description or "",
             "type": self.type or "",
             "dataType": self.data_type or "",
+            **_field_lineage(self.upstream_fields, self.downstream_fields),
         }
 
 
