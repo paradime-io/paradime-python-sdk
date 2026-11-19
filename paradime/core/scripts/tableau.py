@@ -544,7 +544,7 @@ def _extract_job_id_from_response(response_text: str) -> Optional[str]:
 
     try:
         # Fallback to XML parsing (older API versions)
-        import xml.etree.ElementTree as ET
+        import defusedxml.ElementTree as ET
 
         root = ET.fromstring(response_text)
 
@@ -626,7 +626,7 @@ def _wait_for_job_completion(
             except (json.JSONDecodeError, KeyError):
                 # Fallback to XML parsing (older API versions)
                 try:
-                    import xml.etree.ElementTree as ET
+                    import defusedxml.ElementTree as ET
 
                     root = ET.fromstring(job_response.text)
                     job_elem = root.find(".//{http://onlinehelp.tableau.com/ts-api}job")
