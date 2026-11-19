@@ -39,15 +39,26 @@ class FakeEnvironmentVariables:
 
 class FakeConnections:
     def __init__(self) -> None:
-        self.set_calls: List[Dict[str, Any]] = []
+        self.create_calls: List[Dict[str, Any]] = []
+        self.update_calls: List[Dict[str, Any]] = []
         self.test_calls: List[Dict[str, Any]] = []
+        self.error: Optional[Exception] = None
 
     def test(self, adapter: Any, **kwargs: Any) -> WarehouseConnectionTestResult:
         self.test_calls.append({"adapter": adapter, **kwargs})
         return WarehouseConnectionTestResult(type="SNOWFLAKE", tested_at="2026-11-05T10:00:00Z")
 
-    def set(self, adapter: Any, **kwargs: Any) -> WarehouseConnection:
-        self.set_calls.append({"adapter": adapter, **kwargs})
+    def create(self, adapter: Any, **kwargs: Any) -> WarehouseConnection:
+        self.create_calls.append({"adapter": adapter, **kwargs})
+        return self._answer()
+
+    def update(self, adapter: Any, **kwargs: Any) -> WarehouseConnection:
+        self.update_calls.append({"adapter": adapter, **kwargs})
+        return self._answer()
+
+    def _answer(self) -> WarehouseConnection:
+        if self.error:
+            raise self.error
         return WarehouseConnection(
             scope="SCHEDULER",
             connection_id="default",
@@ -57,7 +68,7 @@ class FakeConnections:
 
     def list(self, **kwargs: Any) -> List[WarehouseConnection]:
         return [
-            self.set(None),
+            self._answer(),
             WarehouseConnection(scope="COST", connection_id="cost", type="BIGQUERY"),
         ]
 
@@ -252,7 +263,7 @@ def test_connection_settings_come_from_the_config_file(
 
     result = _run(
         "connections",
-        "set",
+        "create",
         "--scope",
         "scheduler",
         "--environment",
@@ -265,7 +276,7 @@ def test_connection_settings_come_from_the_config_file(
     )
 
     assert result.exit_code == 0, result.output
-    call = fake_admin.connections.set_calls[0]
+    call = fake_admin.connections.create_calls[0]
     assert call["adapter"].snowflake.password == "hunter2"
     assert call["adapter"].snowflake.schema_name == "dbt"
     assert call["threads"] == 8 and call["scope"].value == "SCHEDULER"
@@ -275,7 +286,7 @@ def test_connection_settings_come_from_the_config_file(
 def test_connection_config_rejects_unknown_settings(fake_admin: FakeAdmin) -> None:
     result = _run(
         "connections",
-        "set",
+        "create",
         "--scope",
         "AGENT",
         "--environment",
@@ -287,13 +298,13 @@ def test_connection_config_rejects_unknown_settings(fake_admin: FakeAdmin) -> No
 
     assert result.exit_code == 2
     assert "acount" in result.output
-    assert fake_admin.connections.set_calls == []
+    assert fake_admin.connections.create_calls == []
 
 
 def test_a_profile_connection_config_takes_its_warehouse_type(fake_admin: FakeAdmin) -> None:
     result = _run(
         "connections",
-        "set",
+        "create",
         "--scope",
         "SCHEDULER",
         "--environment",
@@ -304,7 +315,7 @@ def test_a_profile_connection_config_takes_its_warehouse_type(fake_admin: FakeAd
     )
 
     assert result.exit_code == 0, result.output
-    settings = fake_admin.connections.set_calls[0]["adapter"].profile_connection
+    settings = fake_admin.connections.create_calls[0]["adapter"].profile_connection
     assert settings.warehouse_type == WarehouseType.TRINO
     assert settings.schema_name == "analytics"
 
@@ -312,7 +323,7 @@ def test_a_profile_connection_config_takes_its_warehouse_type(fake_admin: FakeAd
 def test_an_extension_connection_config_is_refused(fake_admin: FakeAdmin) -> None:
     result = _run(
         "connections",
-        "set",
+        "create",
         "--scope",
         "SCHEDULER",
         "--environment",
@@ -324,14 +335,77 @@ def test_an_extension_connection_config_is_refused(fake_admin: FakeAdmin) -> Non
 
     assert result.exit_code == 2
     assert "extension" in result.output
-    assert fake_admin.connections.set_calls == []
+    assert fake_admin.connections.create_calls == []
 
 
-def test_connections_have_no_secret_options() -> None:
-    result = _run("connections", "set", "--help")
+@pytest.mark.parametrize("command", ["create", "update", "test"])
+def test_connections_have_no_secret_options(command: str) -> None:
+    result = _run("connections", command, "--help")
 
     assert "--password" not in result.output
     assert "--config" in result.output
+
+
+def test_connections_update_sends_only_what_was_given(fake_admin: FakeAdmin) -> None:
+    result = _run(
+        "connections",
+        "update",
+        "--scope",
+        "AGENT",
+        "--environment",
+        "agent",
+        "--connection-id",
+        "second",
+        "--config",
+        "-",
+        "--json",
+        input="snowflake:\n  account: acme\n  database: analytics\n",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_admin.connections.create_calls == []
+    call = fake_admin.connections.update_calls[0]
+    assert call["scope"].value == "AGENT" and call["environment_slug"] == "agent"
+    assert call["connection_id"] == "second"
+    assert call["name"] is None and call["target_name"] is None and call["threads"] is None
+    assert call["adapter"].snowflake.database == "analytics"
+    assert json.loads(result.output)["connectionId"] == "default"
+
+
+def test_connections_set_is_gone() -> None:
+    result = _run("connections", "set", "--scope", "COST", "--config", "-", input="snowflake: {}\n")
+
+    assert result.exit_code == 2
+    assert "No such command 'set'" in result.output
+
+
+@pytest.mark.parametrize(
+    "command, error",
+    [
+        (
+            "create",
+            AdminConflictException(
+                "Connection default exists with other settings.",
+                field=["input", "connectionId"],
+            ),
+        ),
+        (
+            "update",
+            AdminNotFoundException("No connection default.", field=["input", "connectionId"]),
+        ),
+    ],
+)
+def test_connection_create_conflict_and_update_not_found_exit_with_the_error(
+    fake_admin: FakeAdmin, command: str, error: Exception
+) -> None:
+    fake_admin.connections.error = error
+
+    result = _run(
+        "connections", command, "--scope", "COST", "--config", "-", input="snowflake: {}\n"
+    )
+
+    assert result.exit_code == 1
+    assert " ".join(str(error).split()) in " ".join(result.output.split())
 
 
 def test_set_sends_dollar_references_verbatim(
@@ -367,7 +441,7 @@ def test_connection_config_refuses_an_unquoted_number_for_a_text_setting(
 ) -> None:
     result = _run(
         "connections",
-        "set",
+        "create",
         "--scope",
         "SCHEDULER",
         "--environment",
@@ -379,13 +453,13 @@ def test_connection_config_refuses_an_unquoted_number_for_a_text_setting(
 
     assert result.exit_code == 2, result.output
     assert "redshift.port" in result.output and "Quote the value" in result.output
-    assert fake_admin.connections.set_calls == []
+    assert fake_admin.connections.create_calls == []
 
 
 def test_connection_config_keeps_a_quoted_number_as_written(fake_admin: FakeAdmin) -> None:
     result = _run(
         "connections",
-        "set",
+        "create",
         "--scope",
         "SCHEDULER",
         "--environment",
@@ -396,7 +470,7 @@ def test_connection_config_keeps_a_quoted_number_as_written(fake_admin: FakeAdmi
     )
 
     assert result.exit_code == 0, result.output
-    assert fake_admin.connections.set_calls[0]["adapter"].snowflake.account == "00123456"
+    assert fake_admin.connections.create_calls[0]["adapter"].snowflake.account == "00123456"
 
 
 def test_set_refuses_an_empty_environment(fake_admin: FakeAdmin) -> None:
@@ -550,7 +624,7 @@ def test_workspace_level_scopes_take_no_environment(fake_admin: FakeAdmin, scope
     config = "snowflake:\n  account: acme\n"
     with_environment = _run(
         "connections",
-        "set",
+        "create",
         "--scope",
         scope,
         "--environment",
@@ -559,25 +633,25 @@ def test_workspace_level_scopes_take_no_environment(fake_admin: FakeAdmin, scope
         "-",
         input=config,
     )
-    without = _run("connections", "set", "--scope", scope, "--config", "-", input=config)
+    without = _run("connections", "create", "--scope", scope, "--config", "-", input=config)
 
     assert with_environment.exit_code == 2
     assert without.exit_code == 0, without.output
-    call = fake_admin.connections.set_calls[0]
+    call = fake_admin.connections.create_calls[0]
     assert call["scope"].value == scope.upper() and call["environment_slug"] is None
 
 
 def test_environment_scopes_need_an_environment(fake_admin: FakeAdmin) -> None:
     result = _run(
-        "connections", "set", "--scope", "SCHEDULER", "--config", "-", input="snowflake: {}\n"
+        "connections", "create", "--scope", "SCHEDULER", "--config", "-", input="snowflake: {}\n"
     )
 
     assert result.exit_code == 2
     assert "--environment" in result.output
-    assert fake_admin.connections.set_calls == []
+    assert fake_admin.connections.create_calls == []
 
 
-@pytest.mark.parametrize("command", ["set", "test"])
+@pytest.mark.parametrize("command", ["create", "update", "test"])
 def test_connection_name_option_is_sent_as_name(fake_admin: FakeAdmin, command: str) -> None:
     result = _run(
         "connections",

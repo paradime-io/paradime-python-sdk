@@ -124,11 +124,26 @@ the command line:
 
 ```bash
 printf '%s' "$DBT_TOKEN" | paradime admin env-vars set DBT_TOKEN --environment production
-paradime admin connections set --scope SCHEDULER --environment production --config snowflake.yml
+paradime admin connections create --scope SCHEDULER --environment production --config snowflake.yml \
+  --name Snowflake --target prod --threads 8
+paradime admin connections update --scope SCHEDULER --environment production --config snowflake.yml
 paradime admin bolt schedules create --slug nightly --name Nightly --schedule "0 2 * * *" --environment production --command "dbt build"
 paradime admin bolt schedules update nightly --config nightly.yml
 paradime admin bolt schedules list --json
 ```
+
+`paradime.admin.connections.create` saves a new connection: sending the same settings again
+returns the stored one, and a connection that exists with other settings raises
+`AdminConflictException`. `update` changes an existing connection, replacing its warehouse
+settings while secrets, name, target and threads left out keep their stored values; a
+connection that does not exist raises `AdminNotFoundException`.
+
+DinoAI agent definitions follow the same rule: `paradime.admin.dinoai.create_agent` with a
+`slug` returns the stored agent when sent again and raises `AdminConflictException` when an
+agent with other settings holds the slug, and `update_agent` replaces an agent's definition by
+slug, raising `AdminNotFoundException` when no agent holds it. A Bolt Trigger URL is paused
+with `paradime.admin.bolt.pause_trigger_url` and resumed with `resume_trigger_url`; pausing a
+paused one, or resuming one that runs, changes nothing.
 
 `paradime.admin.users` invites people with a role (`create`, which sends the invitation email
 and returns the invitee as `INVITED`), changes a member's role (`update`), and deactivates and

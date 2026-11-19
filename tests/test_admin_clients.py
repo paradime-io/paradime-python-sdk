@@ -2,9 +2,11 @@ from datetime import datetime, timezone
 from typing import Any, Collection, Dict, List, Optional
 
 import pytest
+from test_admin_transport import FakeResponse, _error, _transport
 
 from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.connections.types import (
+    WAREHOUSE_CONNECTION_FIELDS,
     BigQueryConnectionSettings,
     ConnectionScope,
     DatabricksConnectionSettings,
@@ -19,6 +21,7 @@ from paradime.apis.admin.connections.types import (
     WarehouseType,
 )
 from paradime.apis.admin.environments.types import EnvironmentType
+from paradime.apis.admin.exception import AdminConflictException, AdminNotFoundException, ErrorCode
 from paradime.apis.admin.git.types import (
     DeployKeyConnectionInput,
     GitHubAppConnectionInput,
@@ -430,10 +433,10 @@ class TestConnections:
 
     def test_a_whole_adapter_block_is_sent_as_given(self) -> None:
         admin, transport = _admin(
-            {"setWarehouseConnection": {"warehouseConnection": CONNECTION}},
+            {"createWarehouseConnection": {"warehouseConnection": CONNECTION}},
         )
 
-        admin.connections.set(
+        admin.connections.create(
             WarehouseAdapterInput.parse_obj({"duckdb": {"connectionType": "MOTHERDUCK"}}),
             scope=ConnectionScope.AGENT,
             environment_slug="agent",
@@ -491,13 +494,13 @@ class TestConnections:
 
     def test_a_profile_connection_is_sent_with_its_warehouse_type(self) -> None:
         admin, transport = _admin(
-            {"setWarehouseConnection": {"warehouseConnection": CONNECTION}},
+            {"createWarehouseConnection": {"warehouseConnection": CONNECTION}},
         )
 
         settings = ProfileConnectionInput(
             warehouse_type=WarehouseType.SQL_SERVER, schema_name="dbo", profile="dbt: {}"
         )
-        admin.connections.set(settings, scope=ConnectionScope.SCHEDULER, environment_slug="prod")
+        admin.connections.create(settings, scope=ConnectionScope.SCHEDULER, environment_slug="prod")
 
         assert transport.calls[0].variables["input"]["adapter"] == {
             "profileConnection": {
@@ -560,12 +563,18 @@ class TestConnections:
                     )
                 }
             },
-            {"setWarehouseConnection": {"warehouseConnection": CONNECTION}},
+            {"createWarehouseConnection": {"warehouseConnection": CONNECTION}},
+            {"updateWarehouseConnection": {"warehouseConnection": CONNECTION}},
             {"setDefaultWarehouseConnection": {"warehouseConnection": CONNECTION}},
         )
 
         linked, unreadable = admin.connections.list()
-        admin.connections.set(
+        admin.connections.create(
+            SnowflakeConnectionInput(account="acme"),
+            scope=ConnectionScope.SCHEDULER,
+            environment_slug="production",
+        )
+        admin.connections.update(
             SnowflakeConnectionInput(account="acme"),
             scope=ConnectionScope.SCHEDULER,
             environment_slug="production",
@@ -580,6 +589,119 @@ class TestConnections:
         for call in transport.calls:
             assert "environment {" in call.query
             assert call.linked_fields == {"environment"}
+
+    @pytest.mark.parametrize("method", ["create", "update"])
+    def test_create_and_update_send_their_own_document(self, method: str) -> None:
+        mutation = f"{method}WarehouseConnection"
+        admin, transport = _admin({mutation: {"warehouseConnection": CONNECTION}})
+
+        saved = getattr(admin.connections, method)(
+            SnowflakeConnectionInput(account="acme", password="hunter2"),
+            scope=ConnectionScope.SCHEDULER,
+            environment_slug="production",
+            connection_id="second",
+            name="Snowflake",
+            target_name="prod",
+            threads=8,
+            workspace_uid="w2",
+        )
+
+        input_type = mutation[0].upper() + mutation[1:] + "Input"
+        assert " ".join(transport.calls[0].query.split()) == " ".join(
+            f"""
+            mutation admin{input_type[:-5]}($input: {input_type}!) {{
+                {mutation}(input: $input) {{
+                    warehouseConnection {{
+                        {WAREHOUSE_CONNECTION_FIELDS}
+                    }}
+                }}
+            }}
+            """.split()
+        )
+        assert transport.calls[0].variables == {
+            "input": {
+                "scope": "SCHEDULER",
+                "environmentSlug": "production",
+                "connectionId": "second",
+                "name": "Snowflake",
+                "targetName": "prod",
+                "threads": 8,
+                "adapter": {"snowflake": {"account": "acme", "password": "hunter2"}},
+            }
+        }
+        assert transport.calls[0].workspace_uid == "w2"
+        assert transport.calls[0].linked_fields == {"environment"}
+        assert saved.connection_id == "default" and saved.name == "Snowflake"
+
+    def test_update_leaves_out_what_keeps_its_stored_value(self) -> None:
+        admin, transport = _admin(
+            {"updateWarehouseConnection": {"warehouseConnection": CONNECTION}}
+        )
+
+        admin.connections.update(
+            SnowflakeConnectionInput(account="acme", database="analytics"),
+            scope=ConnectionScope.SCHEDULER,
+            environment_slug="production",
+        )
+
+        assert transport.calls[0].variables == {
+            "input": {
+                "scope": "SCHEDULER",
+                "environmentSlug": "production",
+                "adapter": {"snowflake": {"account": "acme", "database": "analytics"}},
+            }
+        }
+
+    def test_create_over_other_settings_raises_conflict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        transport, post = _transport(
+            monkeypatch,
+            [],
+            FakeResponse(
+                _error(
+                    "CONFLICT",
+                    "Connection default exists with other settings.",
+                    field=["input", "connectionId"],
+                )
+            ),
+        )
+        admin = AdminClient(client=None, transport=transport)
+
+        with pytest.raises(AdminConflictException) as exc_info:
+            admin.connections.create(
+                SnowflakeConnectionInput(account="other"),
+                scope=ConnectionScope.SCHEDULER,
+                environment_slug="production",
+            )
+
+        assert exc_info.value.code == ErrorCode.CONFLICT
+        assert exc_info.value.field == ["input", "connectionId"]
+        assert len(post.requests) == 1
+
+    def test_update_of_a_missing_connection_raises_not_found(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        transport, post = _transport(
+            monkeypatch,
+            [],
+            FakeResponse(
+                _error("NOT_FOUND", "No connection ghost.", field=["input", "connectionId"])
+            ),
+        )
+        admin = AdminClient(client=None, transport=transport)
+
+        with pytest.raises(AdminNotFoundException) as exc_info:
+            admin.connections.update(
+                SnowflakeConnectionInput(account="acme"),
+                scope=ConnectionScope.SCHEDULER,
+                environment_slug="production",
+                connection_id="ghost",
+            )
+
+        assert exc_info.value.code == ErrorCode.NOT_FOUND
+        assert exc_info.value.field == ["input", "connectionId"]
+        assert len(post.requests) == 1
 
     def test_delete_and_set_default(self) -> None:
         admin, transport = _admin(
@@ -703,9 +825,9 @@ class TestDevelopmentAndCostConnections:
                 "hasServiceAccountJson": True,
             },
         }
-        admin, transport = _admin({"setWarehouseConnection": {"warehouseConnection": cost}})
+        admin, transport = _admin({"createWarehouseConnection": {"warehouseConnection": cost}})
 
-        saved = admin.connections.set(
+        saved = admin.connections.create(
             BigQueryConnectionInput(
                 service_account_json="{}",
                 cost_gcs_bucket_name="audit-logs",
@@ -746,17 +868,17 @@ class TestDevelopmentAndCostConnections:
             },
         }
         admin, transport = _admin(
-            {"setWarehouseConnection": {"warehouseConnection": dev}},
-            {"setWarehouseConnection": {"warehouseConnection": dev}},
+            {"createWarehouseConnection": {"warehouseConnection": dev}},
+            {"createWarehouseConnection": {"warehouseConnection": dev}},
         )
 
-        saved = admin.connections.set(
+        saved = admin.connections.create(
             SnowflakeConnectionInput(
                 account="acme", use_sso=True, client_id="cid", client_secret="cs"
             ),
             scope=ConnectionScope.DEVELOPMENT_SHARED,
         )
-        admin.connections.set(
+        admin.connections.create(
             BigQueryConnectionInput(project_id="proj", client_id="cid", client_secret="cs"),
             scope=ConnectionScope.DEVELOPMENT_SHARED,
         )

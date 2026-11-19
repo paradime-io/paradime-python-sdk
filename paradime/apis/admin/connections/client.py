@@ -172,7 +172,7 @@ class AdminConnectionsClient:
         response = self.transport.execute(query, variables, workspace_uid=workspace_uid)
         return WarehouseConnectionTestResult.parse_obj(response["testWarehouseConnection"])
 
-    def set(
+    def create(
         self,
         adapter: ConnectionAdapter,
         *,
@@ -185,8 +185,9 @@ class AdminConnectionsClient:
         workspace_uid: Optional[str] = None,
     ) -> WarehouseConnection:
         """
-        Tests, then saves a connection: an upsert by scope, environment and connection id.
-        Sending the same input again saves nothing new.
+        Tests, then saves a new connection, by scope, environment and connection id. Sending
+        the same input again returns the stored connection and changes nothing; a connection
+        that exists with other settings raises `AdminConflictException`.
 
         Args:
             adapter: The warehouse settings; see `test`.
@@ -194,29 +195,22 @@ class AdminConnectionsClient:
             environment_slug (str, optional): The environment's slug, for `SCHEDULER` and
                 `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
             connection_id (str, optional): The connection's id; `default` when left out.
-            name (str, optional): A name; required for a new connection.
-            target_name (str, optional): The dbt target name; required for a new connection.
-            threads (int, optional): dbt threads; required for a new connection.
+            name (str, optional): A name; required, not used by `COST`.
+            target_name (str, optional): The dbt target name; required, not used by `COST`.
+            threads (int, optional): dbt threads; required, not used by `COST` and
+                `DEVELOPMENT_SHARED`.
             workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
-            WarehouseConnection: The saved connection.
+            WarehouseConnection: The created connection, or the identical one stored.
 
         Raises:
+            AdminConflictException: When the connection exists with other settings.
             AdminConnectionTestFailedException: When the warehouse refuses the connection.
         """
 
-        query = f"""
-            mutation adminSetWarehouseConnection($input: SetWarehouseConnectionInput!) {{
-                setWarehouseConnection(input: $input) {{
-                    warehouseConnection {{
-                        {WAREHOUSE_CONNECTION_FIELDS}
-                    }}
-                }}
-            }}
-        """
-
-        variables = self._connection_variables(
+        return self._save(
+            "createWarehouseConnection",
             adapter,
             scope=scope,
             environment_slug=environment_slug,
@@ -224,12 +218,56 @@ class AdminConnectionsClient:
             name=name,
             target_name=target_name,
             threads=threads,
+            workspace_uid=workspace_uid,
         )
-        response = self.transport.execute(
-            query, variables, workspace_uid=workspace_uid, linked_fields=WAREHOUSE_CONNECTION_LINKS
-        )
-        return WarehouseConnection.parse_obj(
-            response["setWarehouseConnection"]["warehouseConnection"]
+
+    def update(
+        self,
+        adapter: ConnectionAdapter,
+        *,
+        scope: ConnectionScope,
+        environment_slug: Optional[str] = None,
+        connection_id: Optional[str] = None,
+        name: Optional[str] = None,
+        target_name: Optional[str] = None,
+        threads: Optional[int] = None,
+        workspace_uid: Optional[str] = None,
+    ) -> WarehouseConnection:
+        """
+        Tests, then saves new settings for an existing connection. `adapter` replaces the
+        warehouse settings; a secret, `name`, `target_name` or `threads` left out keeps its
+        stored value. Sending the same input again changes nothing.
+
+        Args:
+            adapter: The warehouse settings; see `test`.
+            scope (ConnectionScope): `SCHEDULER`, `AGENT`, `DEVELOPMENT_SHARED` or `COST`.
+            environment_slug (str, optional): The environment's slug, for `SCHEDULER` and
+                `AGENT`; left out for `DEVELOPMENT_SHARED` and `COST`.
+            connection_id (str, optional): The connection's id; `default` when left out.
+            name (str, optional): A new name; the stored one when left out.
+            target_name (str, optional): A new dbt target name; the stored one when left out.
+            threads (int, optional): New dbt threads; the stored value when left out.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
+
+        Returns:
+            WarehouseConnection: The updated connection.
+
+        Raises:
+            AdminNotFoundException: When there is no such connection.
+            AdminConnectionTestFailedException: When the warehouse refuses the connection;
+                the stored connection is kept.
+        """
+
+        return self._save(
+            "updateWarehouseConnection",
+            adapter,
+            scope=scope,
+            environment_slug=environment_slug,
+            connection_id=connection_id,
+            name=name,
+            target_name=target_name,
+            threads=threads,
+            workspace_uid=workspace_uid,
         )
 
     def delete(
@@ -322,6 +360,32 @@ class AdminConnectionsClient:
         return WarehouseConnection.parse_obj(
             response["setDefaultWarehouseConnection"]["warehouseConnection"]
         )
+
+    def _save(
+        self,
+        mutation: str,
+        adapter: ConnectionAdapter,
+        *,
+        scope: ConnectionScope,
+        workspace_uid: Optional[str],
+        **settings: Any,
+    ) -> WarehouseConnection:
+        input_type = mutation[0].upper() + mutation[1:] + "Input"
+        query = f"""
+            mutation admin{input_type[:-5]}($input: {input_type}!) {{
+                {mutation}(input: $input) {{
+                    warehouseConnection {{
+                        {WAREHOUSE_CONNECTION_FIELDS}
+                    }}
+                }}
+            }}
+        """
+
+        variables = self._connection_variables(adapter, scope=scope, **settings)
+        response = self.transport.execute(
+            query, variables, workspace_uid=workspace_uid, linked_fields=WAREHOUSE_CONNECTION_LINKS
+        )
+        return WarehouseConnection.parse_obj(response[mutation]["warehouseConnection"])
 
     def _connection_variables(
         self, adapter: ConnectionAdapter, *, scope: ConnectionScope, **settings: Any

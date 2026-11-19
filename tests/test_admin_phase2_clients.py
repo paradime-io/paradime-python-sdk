@@ -5,9 +5,10 @@ import pytest
 from test_admin_clients import _admin, _connection
 from test_admin_transport import FakeResponse, _error, _transport
 
-from paradime.apis.admin.bolt.types import BoltScheduleDefinition
+from paradime.apis.admin.bolt.types import TRIGGER_URL_FIELDS, BoltScheduleDefinition
 from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.dinoai.types import (
+    DINOAI_AGENT_DEFINITION_FIELDS,
     DinoAiAgentDefinition,
     DinoAiAgentModel,
     DinoAiAgentSpecInput,
@@ -433,6 +434,54 @@ class TestBolt:
         assert "schedule {" in transport.calls[0].query
         assert transport.calls[0].linked_fields == {"schedule"}
 
+    @pytest.mark.parametrize(
+        "method, mutation, enabled",
+        [
+            ("pause_trigger_url", "pauseTriggerUrl", False),
+            ("resume_trigger_url", "resumeTriggerUrl", True),
+        ],
+    )
+    def test_pause_and_resume_send_only_the_public_id(
+        self, method: str, mutation: str, enabled: bool
+    ) -> None:
+        admin, transport = _admin({mutation: {"triggerUrl": {**TRIGGER_URL, "isEnabled": enabled}}})
+
+        trigger_url = getattr(admin.bolt, method)("p1", workspace_uid="w2")
+
+        input_type = mutation[0].upper() + mutation[1:] + "Input"
+        assert " ".join(transport.calls[0].query.split()) == " ".join(
+            f"""
+            mutation admin{input_type[:-5]}($input: {input_type}!) {{
+                {mutation}(input: $input) {{
+                    triggerUrl {{
+                        {TRIGGER_URL_FIELDS}
+                    }}
+                }}
+            }}
+            """.split()
+        )
+        assert transport.calls[0].variables == {"input": {"publicId": "p1"}}
+        assert transport.calls[0].workspace_uid == "w2"
+        assert transport.calls[0].linked_fields == {"schedule"}
+        assert trigger_url.is_enabled is enabled
+
+    @pytest.mark.parametrize("method", ["pause_trigger_url", "resume_trigger_url"])
+    def test_pause_and_resume_of_an_unknown_public_id_raise_not_found(
+        self, monkeypatch: pytest.MonkeyPatch, method: str
+    ) -> None:
+        transport, _ = _transport(
+            monkeypatch,
+            [],
+            FakeResponse(_error("NOT_FOUND", "No Trigger URL ghost.", field=["input", "publicId"])),
+        )
+        admin = AdminClient(client=None, transport=transport)
+
+        with pytest.raises(AdminNotFoundException) as exc_info:
+            getattr(admin.bolt, method)("ghost")
+
+        assert exc_info.value.code == ErrorCode.NOT_FOUND
+        assert exc_info.value.field == ["input", "publicId"]
+
     def test_linked_schedules_and_environments_read_as_objects(self) -> None:
         schedule = {
             "slug": "nightly",
@@ -449,12 +498,12 @@ class TestBolt:
                     )
                 }
             },
-            {"setTriggerUrlEnabled": {"triggerUrl": TRIGGER_URL}},
+            {"pauseTriggerUrl": {"triggerUrl": TRIGGER_URL}},
             {"updateBoltScheduleDefinition": {"schedule": schedule}},
         )
 
         linked, missing = admin.bolt.list_trigger_urls("nightly")
-        admin.bolt.set_trigger_url_enabled("p1", False)
+        admin.bolt.pause_trigger_url("p1")
         definition = admin.bolt.update_schedule(
             "nightly", name="Nightly", schedule="OFF", environment="production", commands=["dbt"]
         )
@@ -585,10 +634,10 @@ AGENT = {"slug": "analyst", "name": "Analyst", "model": "SONNET", "source": "UI"
 
 
 class TestDinoAi:
-    def test_set_agent_sends_the_spec(self) -> None:
-        admin, transport = _admin({"setDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
+    def test_create_agent_sends_the_spec(self) -> None:
+        admin, transport = _admin({"createDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
 
-        agent = admin.dinoai.set_agent(
+        agent = admin.dinoai.create_agent(
             "Analyst",
             DinoAiAgentSpecInput(
                 role="r",
@@ -598,8 +647,20 @@ class TestDinoAi:
                 tools=DinoAiAgentToolGateInput(mode="ALLOWLIST", names=["run_sql_query"]),
             ),
             slug="analyst",
+            workspace_uid="w2",
         )
 
+        assert " ".join(transport.calls[0].query.split()) == " ".join(
+            f"""
+            mutation adminCreateDinoAiAgentDefinition($input: CreateDinoAiAgentDefinitionInput!) {{
+                createDinoAiAgentDefinition(input: $input) {{
+                    dinoAiAgentDefinition {{
+                        {DINOAI_AGENT_DEFINITION_FIELDS}
+                    }}
+                }}
+            }}
+            """.split()
+        )
         assert transport.calls[0].variables == {
             "input": {
                 "name": "Analyst",
@@ -613,8 +674,94 @@ class TestDinoAi:
                 "slug": "analyst",
             }
         }
+        assert transport.calls[0].workspace_uid == "w2"
         assert agent.model == DinoAiAgentModel.SONNET
         assert transport.calls[0].linked_fields == {"environment"}
+
+    def test_create_agent_without_a_slug_leaves_it_out(self) -> None:
+        admin, transport = _admin({"createDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
+
+        admin.dinoai.create_agent(
+            "Analyst", DinoAiAgentSpecInput(role="r", goal="g", backstory="b")
+        )
+
+        assert transport.calls[0].variables == {
+            "input": {"name": "Analyst", "spec": {"role": "r", "goal": "g", "backstory": "b"}}
+        }
+
+    def test_update_agent_replaces_the_definition_by_slug(self) -> None:
+        admin, transport = _admin({"updateDinoAiAgentDefinition": {"dinoAiAgentDefinition": AGENT}})
+
+        agent = admin.dinoai.update_agent(
+            "analyst",
+            "Analyst",
+            DinoAiAgentSpecInput(role="r", goal="g", backstory="b"),
+            slack_bot_name="Analyst bot",
+        )
+
+        assert " ".join(transport.calls[0].query.split()) == " ".join(
+            f"""
+            mutation adminUpdateDinoAiAgentDefinition($input: UpdateDinoAiAgentDefinitionInput!) {{
+                updateDinoAiAgentDefinition(input: $input) {{
+                    dinoAiAgentDefinition {{
+                        {DINOAI_AGENT_DEFINITION_FIELDS}
+                    }}
+                }}
+            }}
+            """.split()
+        )
+        assert transport.calls[0].variables == {
+            "input": {
+                "slug": "analyst",
+                "name": "Analyst",
+                "spec": {"role": "r", "goal": "g", "backstory": "b"},
+                "slackBotName": "Analyst bot",
+            }
+        }
+        assert agent.slug == "analyst"
+        assert transport.calls[0].linked_fields == {"environment"}
+
+    def test_create_agent_over_other_settings_raises_conflict(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        transport, _ = _transport(
+            monkeypatch,
+            [],
+            FakeResponse(
+                _error(
+                    "CONFLICT",
+                    "Agent analyst exists with other settings.",
+                    field=["input", "slug"],
+                )
+            ),
+        )
+        admin = AdminClient(client=None, transport=transport)
+
+        with pytest.raises(AdminConflictException) as exc_info:
+            admin.dinoai.create_agent(
+                "Other", DinoAiAgentSpecInput(role="r", goal="g", backstory="b"), slug="analyst"
+            )
+
+        assert exc_info.value.code == ErrorCode.CONFLICT
+        assert exc_info.value.field == ["input", "slug"]
+
+    def test_update_agent_of_an_unknown_slug_raises_not_found(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        transport, _ = _transport(
+            monkeypatch,
+            [],
+            FakeResponse(_error("NOT_FOUND", "No agent ghost.", field=["input", "slug"])),
+        )
+        admin = AdminClient(client=None, transport=transport)
+
+        with pytest.raises(AdminNotFoundException) as exc_info:
+            admin.dinoai.update_agent(
+                "ghost", "Ghost", DinoAiAgentSpecInput(role="r", goal="g", backstory="b")
+            )
+
+        assert exc_info.value.code == ErrorCode.NOT_FOUND
+        assert exc_info.value.field == ["input", "slug"]
 
     def test_the_environment_and_squad_read_from_their_links(self) -> None:
         lead = {

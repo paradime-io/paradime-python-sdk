@@ -91,11 +91,6 @@ class TriggerUrlKeyInput(AdminInputModel):
     public_id: str
 
 
-class SetTriggerUrlEnabledInput(AdminInputModel):
-    public_id: str
-    enabled: bool
-
-
 class DeployBoltSchedulesInput(AdminInputModel):
     branch: Optional[str] = None
 

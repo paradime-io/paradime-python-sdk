@@ -87,6 +87,9 @@ class StubAdminApi:
                 LEFTOVER_UID, "onboarding-e2e-20261104-020000"
             )
         self.environments: Dict[str, Dict[str, Any]] = {}
+        self.connections: Dict[
+            Tuple[Optional[str], str, Optional[str], str], Tuple[Dict[str, Any], Dict[str, Any]]
+        ] = {}
         self.calls: List[Tuple[str, Optional[str]]] = []
         self.variables: List[Tuple[str, Dict[str, Any]]] = []
         self.deleted: List[str] = []
@@ -227,14 +230,29 @@ class StubAdminApi:
     def op_adminEnvironments(self, variables: Dict[str, Any], workspace: Optional[str]) -> Reply:
         return self.ok({"workspace": {"environments": _page(list(self.environments.values()))}})
 
-    def op_adminSetWarehouseConnection(
+    def op_adminCreateWarehouseConnection(
         self, variables: Dict[str, Any], workspace: Optional[str]
     ) -> Reply:
         connection_input = variables["input"]
+        key = (
+            workspace,
+            connection_input["scope"],
+            connection_input.get("environmentSlug"),
+            connection_input.get("connectionId", "default"),
+        )
+        stored = self.connections.get(key)
+        if stored is not None:
+            if stored[0] != connection_input:
+                return _error(
+                    "CONFLICT",
+                    "The connection exists with other settings.",
+                    field=["input", "connectionId"],
+                )
+            return self.ok({"createWarehouseConnection": {"warehouseConnection": stored[1]}})
         saved = {
             "scope": connection_input["scope"],
             "environment": self._environment_link(connection_input.get("environmentSlug")),
-            "connectionId": "default",
+            "connectionId": key[3],
             "type": "SNOWFLAKE",
             "isDefault": True,
             "name": connection_input.get("name"),
@@ -243,7 +261,8 @@ class StubAdminApi:
             "updatedAt": NOW,
             "settings": None,
         }
-        return self.ok({"setWarehouseConnection": {"warehouseConnection": saved}})
+        self.connections[key] = (connection_input, saved)
+        return self.ok({"createWarehouseConnection": {"warehouseConnection": saved}})
 
     def _environment_link(self, slug: Optional[str]) -> Optional[Dict[str, Any]]:
         environment = self.environments.get(slug or "")
