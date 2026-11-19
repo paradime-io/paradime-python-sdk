@@ -1,5 +1,6 @@
 from typing import Optional
 
+from paradime.apis.admin.client import AdminClient
 from paradime.apis.audit_log.client import AuditLogClient
 from paradime.apis.bolt.client import BoltClient
 from paradime.apis.catalog.client import CatalogClient
@@ -10,6 +11,10 @@ from paradime.apis.metadata.client import MetadataClient
 from paradime.apis.users.client import UsersClient
 from paradime.apis.workspaces.client import WorkspacesClient
 from paradime.client.api_client import APIClient
+from paradime.client.rate_limit import (
+    DEFAULT_MAX_RATE_LIMIT_RETRIES,
+    DEFAULT_MAX_RETRY_WAIT_SECONDS,
+)
 from paradime.version_check import check_for_new_version
 
 
@@ -18,6 +23,7 @@ class Paradime(APIClient):
     A client for making API requests to the Paradime API.
 
     Attributes:
+        admin (AdminClient): The Administration API client (Enterprise plan).
         audit_log (AuditLogClient): The audit log API client.
         bolt (BoltClient): The bolt API client.
         catalog (CatalogClient): The catalog API client.
@@ -35,11 +41,19 @@ class Paradime(APIClient):
         api_secret (str): The API secret, or a workspace-level (`prdm_wsp_`) or company-level
             (`prdm_cmp_`) bearer token, for authentication. Generate this from Paradime
             account settings.
-        workspace_uid (str, optional): The workspace uid to target. Required when
-            `api_secret` is a company-level (`prdm_cmp_`) token; not used otherwise.
+        workspace_uid (str, optional): The workspace uid to target with a company-level
+            (`prdm_cmp_`) token. Needed for workspace-level calls, which raise
+            `ParadimeWorkspaceRequiredException` without it; not used otherwise.
         api_endpoint (str): The API endpoint URL. Generate this from Paradime account settings.
+        timeout (int, optional): The timeout for API requests in seconds. Defaults to 60 seconds.
+        max_rate_limit_retries (int, optional): How many times to retry a request the API
+            refuses for its rate limit (HTTP 429), after the wait the server asks for. Set 0
+            to raise `ParadimeRateLimitedException` at once. Defaults to 3.
+        max_retry_wait (float, optional): The longest wait to retry after, in seconds; a
+            longer one raises at once. Defaults to 60 seconds.
     """
 
+    admin: AdminClient
     audit_log: AuditLogClient
     bolt: BoltClient
     catalog: CatalogClient
@@ -57,16 +71,23 @@ class Paradime(APIClient):
         api_secret: str,
         workspace_uid: Optional[str] = None,
         api_endpoint: str,
+        timeout: int = 60,
+        max_rate_limit_retries: int = DEFAULT_MAX_RATE_LIMIT_RETRIES,
+        max_retry_wait: float = DEFAULT_MAX_RETRY_WAIT_SECONDS,
     ):
         super().__init__(
             api_key=api_key,
             api_secret=api_secret,
             workspace_uid=workspace_uid,
             api_endpoint=api_endpoint,
+            timeout=timeout,
+            max_rate_limit_retries=max_rate_limit_retries,
+            max_retry_wait=max_retry_wait,
         )
 
         check_for_new_version()
 
+        self.admin = AdminClient(client=self)
         self.audit_log = AuditLogClient(client=self)
         self.bolt = BoltClient(client=self)
         self.catalog = CatalogClient(client=self)

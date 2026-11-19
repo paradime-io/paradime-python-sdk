@@ -363,7 +363,11 @@ def refresh(no_wait: bool, timeout: float, allow_integration_failures: bool) -> 
     try:
         request = client.catalog.refresh()
     except ParadimeAPIException as error:
-        log_line(REFRESH_LABEL, f"FAILED: the refresh could not be requested: {error}")
+        log_line(
+            REFRESH_LABEL,
+            f"FAILED: the refresh could not be requested: {error}",
+            echo=lambda line: click.echo(line, err=True),
+        )
         sys.exit(1)
 
     if not request.token:

@@ -33,12 +33,11 @@ def login() -> None:
     if api_secret.startswith("prdm_wsp_") or api_secret.startswith("prdm_cmp_"):
         workspace_uid = ""
         if api_secret.startswith("prdm_cmp_"):
-            workspace_uid = click.prompt("Enter Workspace UID")
-            while not workspace_uid:
-                console.error(
-                    "Workspace UID is required when using a company-level ('prdm_cmp_') API token."
-                )
-                workspace_uid = click.prompt("Enter Workspace UID")
+            workspace_uid = click.prompt(
+                "Enter Workspace UID (needed for workspace-level commands; leave empty to skip)",
+                default="",
+                show_default=False,
+            )
 
         credentials_lines.append(f"API_SECRET={api_secret}")
         if workspace_uid:

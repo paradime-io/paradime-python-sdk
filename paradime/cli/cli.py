@@ -4,6 +4,7 @@ import click
 from dotenv import load_dotenv
 
 from paradime.cli import console
+from paradime.cli.admin import admin
 from paradime.cli.bolt import bolt
 from paradime.cli.catalog import catalog
 from paradime.cli.dinoai import dinoai
@@ -35,6 +36,7 @@ def _show_welcome() -> None:
     console.welcome_panel(version=sdk_version, workspace_endpoint=workspace_endpoint)
 
 
+cli.add_command(admin)
 cli.add_command(bolt)
 cli.add_command(catalog)
 cli.add_command(dinoai)
