@@ -43,7 +43,7 @@ class SeatHolder(BaseModel):
     uid: str
     name: str
     email: Optional[str]
-    assigned_at: str
+    assigned_at: Optional[str]
 
 
 class SeatPool(BaseModel):
@@ -60,14 +60,22 @@ class SeatPool(BaseModel):
     holders: List[SeatHolder]
 
 
-class SeatAssignment(BaseModel):
-    """``ok`` is False with ``needs_purchase`` when the pool is full: assign again with
+class SeatAssignmentPreview(BaseModel):
+    """What ``assign_seat`` would do. With ``needs_purchase``, assign with
     ``confirm_purchase=True`` and ``expected_seats_after=seats_after`` to buy the seat."""
 
-    ok: bool
+    pool: SeatPool
+    already_assigned: Optional[bool]
     needs_purchase: Optional[bool]
-    assigned: Optional[bool]
-    purchased: Optional[bool]
-    seats: Optional[int]
     seats_after: Optional[int]
     proration_cents: Optional[int]
+
+
+class SeatAssignment(BaseModel):
+    """The pool after the assignment. A full pool without a confirmed purchase raises
+    ``ParadimeAPIException`` whose message starts with ``PURCHASE_CONFIRMATION_REQUIRED``."""
+
+    pool: SeatPool
+    holder: Optional[SeatHolder]
+    assigned: Optional[bool]
+    purchased: Optional[bool]
