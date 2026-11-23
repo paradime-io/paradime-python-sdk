@@ -599,6 +599,56 @@ def test_setup_status_is_read_with_the_sdk_and_reports_each_product(
     assert [w for o, w in api.calls if o == "adminWorkspaceSetupStatus"] == [NEW_UID]
 
 
+class AgentIntegrationApi(StubAdminApi):
+    def op_adminWorkspaceSetupStatus(self, variables: Dict[str, Any], workspace: Any) -> Any:
+        status, reply = super().op_adminWorkspaceSetupStatus(variables, workspace)
+        steps = reply["data"]["workspace"]["setupStatus"]["steps"]
+        steps[5:5] = [
+            {
+                "step": "AGENT_INTEGRATION",
+                "status": "DONE",
+                "isRequired": False,
+                "agentIntegration": "GOOGLE_DRIVE",
+            },
+            {
+                "step": "AGENT_INTEGRATION",
+                "status": "PENDING_USER_ACTION",
+                "isRequired": False,
+                "agentIntegration": "NOTION",
+                "installUrl": "https://app.example.test/settings/integrations",
+            },
+            {
+                "step": "AGENT_INTEGRATION",
+                "status": "MISSING",
+                "isRequired": False,
+                "detail": "The agent integrations could not be read.",
+            },
+        ]
+        return status, reply
+
+
+def test_setup_status_names_each_agent_integration_and_passes_on_optional_rows() -> None:
+    api = AgentIntegrationApi()
+    server, url = start_stub(api)
+    try:
+        onboarding = _onboarding(url)
+        onboarding.create_workspace()
+        outcome = onboarding.setup_status()
+    finally:
+        server.shutdown()
+
+    assert outcome.detail == "isComplete=true, 10 DONE, 1 MISSING, 2 PENDING_USER_ACTION"
+    assert "DONE                AGENT_INTEGRATION GOOGLE_DRIVE (optional)" in outcome.notes
+    assert (
+        "PENDING_USER_ACTION AGENT_INTEGRATION NOTION (optional) "
+        "https://app.example.test/settings/integrations"
+    ) in outcome.notes
+    assert (
+        "MISSING             AGENT_INTEGRATION (optional): "
+        "The agent integrations could not be read."
+    ) in outcome.notes
+
+
 def test_a_profile_development_connection_keeps_its_warehouse_type(
     tmp_path: Path, stub: Tuple[StubAdminApi, str]
 ) -> None:
