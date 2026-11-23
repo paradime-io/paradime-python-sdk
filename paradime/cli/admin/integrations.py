@@ -37,6 +37,16 @@ def _config(config: TextIO) -> IntegrationConfigInput:
     try:
         return IntegrationConfigInput.parse_obj(data)
     except ValidationError as e:
+        unquoted = [
+            ".".join(str(part) for part in error["loc"])
+            for error in e.errors()
+            if error["type"] == "type_error.str"
+        ]
+        if unquoted:
+            raise click.UsageError(
+                f"--config: {', '.join(unquoted)} must be text, and YAML read a number or "
+                "boolean. Quote the value, e.g. accountId: '1234567', so it is sent as written."
+            )
         raise click.UsageError(f"--config has settings the API does not take:\n{e}")
 
 

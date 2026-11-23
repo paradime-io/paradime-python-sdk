@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Type
 
 from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum
-from paradime.tools.pydantic import validator
+from paradime.tools.pydantic import StrictStr, validator
 
 WORKSPACE_INTEGRATION_FIELDS = """
     name
@@ -399,94 +399,94 @@ class ExternalSecretReferenceTestResult(AdminModel):
 
 
 class LookerIntegrationInput(AdminInputModel):
-    base_url: str
-    client_id: str
-    client_secret: Optional[str] = None
+    base_url: StrictStr
+    client_id: StrictStr
+    client_secret: Optional[StrictStr] = None
 
 
 class FivetranIntegrationInput(AdminInputModel):
-    api_key: str
-    api_secret: Optional[str] = None
+    api_key: StrictStr
+    api_secret: Optional[StrictStr] = None
 
 
 class DatadogIntegrationInput(AdminInputModel):
     site: DatadogSite
-    api_key: Optional[str] = None
-    application_key: Optional[str] = None
+    api_key: Optional[StrictStr] = None
+    application_key: Optional[StrictStr] = None
 
 
 class TableauIntegrationInput(AdminInputModel):
-    url: str
-    pat_name: str
-    pat_secret: Optional[str] = None
-    project_ids: Optional[List[str]] = None
+    url: StrictStr
+    pat_name: StrictStr
+    pat_secret: Optional[StrictStr] = None
+    project_ids: Optional[List[StrictStr]] = None
 
 
 class PowerBiIntegrationInput(AdminInputModel):
-    tenant_id: str
-    client_id: str
-    client_secret: Optional[str] = None
-    workspace_ids: List[str]
+    tenant_id: StrictStr
+    client_id: StrictStr
+    client_secret: Optional[StrictStr] = None
+    workspace_ids: List[StrictStr]
 
 
 class DataHubIntegrationInput(AdminInputModel):
-    gms_url: str
-    pat_token: Optional[str] = None
-    domain: Optional[str] = None
+    gms_url: StrictStr
+    pat_token: Optional[StrictStr] = None
+    domain: Optional[StrictStr] = None
 
 
 class SigmaIntegrationInput(AdminInputModel):
-    host: str
-    client_id: str
-    client_secret: Optional[str] = None
+    host: StrictStr
+    client_id: StrictStr
+    client_secret: Optional[StrictStr] = None
 
 
 class ThoughtSpotIntegrationInput(AdminInputModel):
-    host: str
-    username: str
-    password: Optional[str] = None
+    host: StrictStr
+    username: StrictStr
+    password: Optional[StrictStr] = None
 
 
 class LightdashIntegrationInput(AdminInputModel):
-    instance_url: str
-    api_token: Optional[str] = None
+    instance_url: StrictStr
+    api_token: Optional[StrictStr] = None
 
 
 class OmniIntegrationInput(AdminInputModel):
-    host: str
-    api_key: Optional[str] = None
+    host: StrictStr
+    api_key: Optional[StrictStr] = None
 
 
 class MetabaseIntegrationInput(AdminInputModel):
-    host: str
-    api_key: Optional[str] = None
+    host: StrictStr
+    api_key: Optional[StrictStr] = None
 
 
 class AirbyteIntegrationInput(AdminInputModel):
-    client_id: str
-    client_secret: Optional[str] = None
+    client_id: StrictStr
+    client_secret: Optional[StrictStr] = None
 
 
 class HightouchIntegrationInput(AdminInputModel):
-    api_key: Optional[str] = None
+    api_key: Optional[StrictStr] = None
 
 
 class NewRelicIntegrationInput(AdminInputModel):
-    account_id: str
-    api_key: Optional[str] = None
+    account_id: StrictStr
+    api_key: Optional[StrictStr] = None
 
 
 class PagerDutyIntegrationInput(AdminInputModel):
     api_region: PagerDutyRegion
-    api_key: Optional[str] = None
+    api_key: Optional[StrictStr] = None
 
 
 class IncidentIoIntegrationInput(AdminInputModel):
-    api_key: Optional[str] = None
+    api_key: Optional[StrictStr] = None
 
 
 class RootlyIntegrationInput(AdminInputModel):
-    api_key: Optional[str] = None
+    api_key: Optional[StrictStr] = None
 
 
 class IntegrationConfigInput(AdminInputModel):

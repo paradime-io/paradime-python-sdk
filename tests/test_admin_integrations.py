@@ -679,6 +679,78 @@ def test_cli_integrations_config_errors_never_print_a_secret(
     assert transport.calls == []
 
 
+def _unquoted_config(key: str, sent: Dict[str, Any], scalar: str) -> "tuple[str, List[str]]":
+    lines = [f"{key}:"]
+    expected = []
+    for field, value in sent.items():
+        if isinstance(value, list):
+            lines.append(f"  {field}: [{scalar}]")
+            expected.append(f"{key}.{field}.0")
+        elif field == "apiRegion":
+            lines.append(f"  {field}: {value}")
+        else:
+            lines.append(f"  {field}: {scalar}")
+            expected.append(f"{key}.{field}")
+    return "\n".join(lines) + "\n", expected
+
+
+@pytest.mark.parametrize("scalar", ["0123456", "1.5", "true", "1e3"])
+@pytest.mark.parametrize("config, key, sent, secret", CONFIGS)
+def test_cli_integrations_config_refuses_unquoted_numbers_and_booleans_for_text(
+    monkeypatch: pytest.MonkeyPatch,
+    config: Any,
+    key: str,
+    sent: Dict[str, Any],
+    secret: str,
+    scalar: str,
+) -> None:
+    transport, _, runner = _cli(monkeypatch)
+    text, expected = _unquoted_config(key, sent, scalar)
+
+    result = runner.invoke(admin_cli, ["integrations", "set", "--config", "-"], input=text)
+
+    assert result.exit_code == 2, result.output
+    output = " ".join(result.output.split())
+    assert "Quote the value" in output
+    for location in expected:
+        assert location in output
+    assert transport.calls == []
+
+
+@pytest.mark.parametrize("config, key, sent, secret", CONFIGS)
+def test_cli_integrations_config_keeps_quoted_numbers_as_written(
+    monkeypatch: pytest.MonkeyPatch, config: Any, key: str, sent: Dict[str, Any], secret: str
+) -> None:
+    transport, _, runner = _cli(
+        monkeypatch, {"setIntegration": {"integration": {"name": "OMNI", "status": "X"}}}
+    )
+    quoted = {
+        field: (
+            value
+            if field == "apiRegion"
+            else (["0123456"] if isinstance(value, list) else "0123456")
+        )
+        for field, value in sent.items()
+    }
+
+    result = runner.invoke(
+        admin_cli, ["integrations", "set", "--config", "-"], input=json.dumps({key: quoted})
+    )
+
+    assert result.exit_code == 0, result.output
+    assert transport.calls[0].variables == {"input": {"config": {key: quoted}}}
+
+
+@pytest.mark.parametrize("value", [123456, 1.5, True])
+def test_text_settings_refuse_a_value_that_is_not_text(value: Any) -> None:
+    with pytest.raises(ValidationError):
+        MetabaseIntegrationInput(host=value)
+    with pytest.raises(ValidationError):
+        NewRelicIntegrationInput(account_id="1234567", api_key=value)
+    with pytest.raises(ValidationError):
+        TableauIntegrationInput(url="https://t.example.test", pat_name="n", project_ids=[value])
+
+
 @pytest.mark.parametrize("command", ["set", "test"])
 def test_cli_integrations_have_no_secret_options(command: str) -> None:
     result = CliRunner().invoke(admin_cli, ["integrations", command, "--help"])
