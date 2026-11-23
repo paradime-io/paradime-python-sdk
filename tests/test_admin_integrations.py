@@ -14,6 +14,8 @@ from paradime.apis.admin.integrations.types import (
     AgentIntegrationStatus,
     AirbyteIntegrationInput,
     AirbyteSettings,
+    DatadogIntegrationInput,
+    DatadogSite,
     DataHubIntegrationInput,
     DataHubSettings,
     HightouchIntegrationInput,
@@ -45,6 +47,7 @@ from paradime.apis.admin.integrations.types import (
     ThoughtSpotSettings,
 )
 from paradime.apis.admin.setup_status.types import SetupStep, SetupStepStatus
+from paradime.apis.admin.types import serialize_input
 from paradime.cli.admin import admin as admin_cli, common
 from paradime.tools.pydantic import BaseModel, ValidationError
 
@@ -331,6 +334,71 @@ def test_a_region_the_sdk_does_not_know_reads_as_unknown() -> None:
     settings = PagerDutySettings.parse_obj({"apiRegion": "APAC", "hasApiKey": True})
 
     assert settings.api_region == PagerDutyRegion.UNKNOWN
+
+
+@pytest.mark.parametrize("given, sent", [("eu", "EU"), ("Us", "US"), (PagerDutyRegion.EU, "EU")])
+def test_a_pagerduty_region_is_read_in_any_case(given: Any, sent: str) -> None:
+    config = PagerDutyIntegrationInput(api_region=given)
+
+    assert config.api_region.value == sent
+    assert serialize_input(config) == {"apiRegion": sent}
+
+
+@pytest.mark.parametrize("given, sent", [("eu", "EU"), ("us1_fed", "US1_FED")])
+def test_a_datadog_site_is_read_in_any_case(given: str, sent: str) -> None:
+    assert serialize_input(DatadogIntegrationInput(site=given)) == {"site": sent}
+
+
+@pytest.mark.parametrize("given", ["APAC", "unknown", PagerDutyRegion.UNKNOWN, 5, ""])
+def test_an_unknown_pagerduty_region_is_refused_not_sent_as_unknown(given: Any) -> None:
+    with pytest.raises(ValidationError, match="must be one of US, EU"):
+        PagerDutyIntegrationInput(api_region=given, api_key="k")
+
+
+@pytest.mark.parametrize("given", ["US2", "UNKNOWN", DatadogSite.UNKNOWN])
+def test_an_unknown_datadog_site_is_refused_not_sent_as_unknown(given: Any) -> None:
+    with pytest.raises(ValidationError, match="must be one of US1, US3"):
+        DatadogIntegrationInput(site=given)
+
+
+@pytest.mark.parametrize(
+    "config, sent",
+    [
+        ("pagerduty:\n  apiRegion: eu\n", {"pagerduty": {"apiRegion": "EU"}}),
+        ("datadog:\n  site: us5\n", {"datadog": {"site": "US5"}}),
+    ],
+)
+def test_cli_integrations_config_reads_a_region_in_any_case(
+    monkeypatch: pytest.MonkeyPatch, config: str, sent: Dict[str, Any]
+) -> None:
+    transport, _, runner = _cli(
+        monkeypatch, {"testIntegration": {"name": "PAGERDUTY", "testedAt": "2026-11-05T10:00:00Z"}}
+    )
+
+    result = runner.invoke(admin_cli, ["integrations", "test", "--config", "-"], input=config)
+
+    assert result.exit_code == 0, result.output
+    assert transport.calls[0].variables == {"input": {"config": sent}}
+
+
+@pytest.mark.parametrize(
+    "config, location",
+    [
+        ("pagerduty:\n  apiRegion: apac\n", "apiRegion"),
+        ("pagerduty:\n  apiRegion: UNKNOWN\n", "apiRegion"),
+        ("datadog:\n  site: us2\n", "site"),
+    ],
+)
+def test_cli_integrations_config_refuses_an_unknown_region(
+    monkeypatch: pytest.MonkeyPatch, config: str, location: str
+) -> None:
+    transport, _, runner = _cli(monkeypatch)
+
+    result = runner.invoke(admin_cli, ["integrations", "set", "--config", "-"], input=config)
+
+    assert result.exit_code == 2, result.output
+    assert location in result.output and "must be one of" in result.output
+    assert transport.calls == []
 
 
 def test_power_bi_needs_its_workspace_ids() -> None:

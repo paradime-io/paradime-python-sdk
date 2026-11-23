@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Type
 
-from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum
+from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum, known_member
 from paradime.tools.pydantic import StrictStr, validator
 
 WORKSPACE_INTEGRATION_FIELDS = """
@@ -414,6 +414,10 @@ class DatadogIntegrationInput(AdminInputModel):
     api_key: Optional[StrictStr] = None
     application_key: Optional[StrictStr] = None
 
+    @validator("site", pre=True)
+    def _site(cls, value: Any) -> Any:
+        return known_member(DatadogSite, value)
+
 
 class TableauIntegrationInput(AdminInputModel):
     url: StrictStr
@@ -479,6 +483,10 @@ class NewRelicIntegrationInput(AdminInputModel):
 class PagerDutyIntegrationInput(AdminInputModel):
     api_region: PagerDutyRegion
     api_key: Optional[StrictStr] = None
+
+    @validator("api_region", pre=True)
+    def _api_region(cls, value: Any) -> Any:
+        return known_member(PagerDutyRegion, value)
 
 
 class IncidentIoIntegrationInput(AdminInputModel):
