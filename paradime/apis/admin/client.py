@@ -39,7 +39,8 @@ class AdminClient:
         users (AdminUsersClient): Users, their invitations and roles, and auto-join domains.
         notifications (AdminNotificationsClient): Slack and email alerts.
         bolt (AdminBoltClient): UI-defined schedules, schedule deploys and Trigger URLs.
-        integrations (AdminIntegrationsClient): Integrations and external secret managers.
+        integrations (AdminIntegrationsClient): Integrations, DinoAI agent integrations and
+            external secret managers.
         dinoai (AdminDinoAiClient): DinoAI agent definitions and settings.
         setup_status (AdminSetupStatusClient): A workspace's onboarding checklist.
     """

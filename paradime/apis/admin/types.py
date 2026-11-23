@@ -33,6 +33,9 @@ SECRET_FIELDS = frozenset(
         "api_secret",
         "application_key",
         "secret_access_key",
+        "pat_secret",
+        "pat_token",
+        "api_token",
     }
 )
 

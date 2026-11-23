@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from paradime.apis.admin.types import AdminInputModel, AdminModel, OpenEnum
 from paradime.tools.pydantic import validator
@@ -24,6 +24,66 @@ WORKSPACE_INTEGRATION_FIELDS = """
             site
             hasApiKey
             hasApplicationKey
+        }
+        ... on TableauSettings {
+            url
+            patName
+            hasPatSecret
+            projectIds
+        }
+        ... on PowerBiSettings {
+            tenantId
+            clientId
+            hasClientSecret
+            workspaceIds
+        }
+        ... on DataHubSettings {
+            gmsUrl
+            domain
+            hasPatToken
+        }
+        ... on SigmaSettings {
+            host
+            clientId
+            hasClientSecret
+        }
+        ... on ThoughtSpotSettings {
+            host
+            username
+            hasPassword
+        }
+        ... on LightdashSettings {
+            instanceUrl
+            hasApiToken
+        }
+        ... on OmniSettings {
+            host
+            hasApiKey
+        }
+        ... on MetabaseSettings {
+            host
+            hasApiKey
+        }
+        ... on AirbyteSettings {
+            clientId
+            hasClientSecret
+        }
+        ... on HightouchSettings {
+            hasApiKey
+        }
+        ... on NewRelicSettings {
+            accountId
+            hasApiKey
+        }
+        ... on PagerDutySettings {
+            apiRegion
+            hasApiKey
+        }
+        ... on IncidentIoSettings {
+            hasApiKey
+        }
+        ... on RootlySettings {
+            hasApiKey
         }
     }
 """
@@ -52,11 +112,39 @@ EXTERNAL_SECRETS_PROVIDER_FIELDS = """
     }
 """
 
+AGENT_INTEGRATION_FIELDS = """
+    name
+    displayName
+    status
+    reconnectRequired
+"""
+
+AGENT_INTEGRATION_INSTALL_FIELDS = """
+    installUrl
+    installUrlExpiresAt
+"""
+
+AGENT_INTEGRATION_LINKS = frozenset({"installUrl", "installUrlExpiresAt"})
+
 
 class IntegrationName(OpenEnum):
     LOOKER = "LOOKER"
     FIVETRAN = "FIVETRAN"
     DATADOG = "DATADOG"
+    TABLEAU = "TABLEAU"
+    POWER_BI = "POWER_BI"
+    DATAHUB = "DATAHUB"
+    SIGMA = "SIGMA"
+    THOUGHTSPOT = "THOUGHTSPOT"
+    LIGHTDASH = "LIGHTDASH"
+    OMNI = "OMNI"
+    METABASE = "METABASE"
+    AIRBYTE = "AIRBYTE"
+    HIGHTOUCH = "HIGHTOUCH"
+    NEW_RELIC = "NEW_RELIC"
+    PAGERDUTY = "PAGERDUTY"
+    INCIDENT_IO = "INCIDENT_IO"
+    ROOTLY = "ROOTLY"
     UNKNOWN = "UNKNOWN"
 
 
@@ -75,6 +163,45 @@ class DatadogSite(OpenEnum):
     AP1 = "AP1"
     AP2 = "AP2"
     US1_FED = "US1_FED"
+    UNKNOWN = "UNKNOWN"
+
+
+class PagerDutyRegion(OpenEnum):
+    US = "US"
+    EU = "EU"
+    UNKNOWN = "UNKNOWN"
+
+
+class AgentIntegrationName(OpenEnum):
+    ASANA = "ASANA"
+    AZURE_DEVOPS = "AZURE_DEVOPS"
+    BITBUCKET = "BITBUCKET"
+    BOX = "BOX"
+    CLICKUP = "CLICKUP"
+    DROPBOX = "DROPBOX"
+    FIGJAM = "FIGJAM"
+    GITLAB = "GITLAB"
+    GOOGLE_DOCS = "GOOGLE_DOCS"
+    GOOGLE_DRIVE = "GOOGLE_DRIVE"
+    GOOGLE_SHEETS = "GOOGLE_SHEETS"
+    GOOGLE_SLIDES = "GOOGLE_SLIDES"
+    HUBSPOT = "HUBSPOT"
+    JIRA_CLOUD = "JIRA_CLOUD"
+    JIRA_CLOUD_SERVICE_ACCOUNT = "JIRA_CLOUD_SERVICE_ACCOUNT"
+    JIRA_DATA_CENTER = "JIRA_DATA_CENTER"
+    MICROSOFT_TEAMS = "MICROSOFT_TEAMS"
+    MIRO = "MIRO"
+    NOTION = "NOTION"
+    ONEDRIVE = "ONEDRIVE"
+    SHAREPOINT = "SHAREPOINT"
+    SLACK = "SLACK"
+    UNKNOWN = "UNKNOWN"
+
+
+class AgentIntegrationStatus(OpenEnum):
+    CONNECTED = "CONNECTED"
+    PENDING_USER_ACTION = "PENDING_USER_ACTION"
+    UNAVAILABLE = "UNAVAILABLE"
     UNKNOWN = "UNKNOWN"
 
 
@@ -102,6 +229,80 @@ class DatadogSettings(AdminModel):
     has_application_key: Optional[bool] = None
 
 
+class TableauSettings(AdminModel):
+    url: Optional[str] = None
+    pat_name: Optional[str] = None
+    has_pat_secret: Optional[bool] = None
+    project_ids: Optional[List[str]] = None
+
+
+class PowerBiSettings(AdminModel):
+    tenant_id: Optional[str] = None
+    client_id: Optional[str] = None
+    has_client_secret: Optional[bool] = None
+    workspace_ids: Optional[List[str]] = None
+
+
+class DataHubSettings(AdminModel):
+    gms_url: Optional[str] = None
+    domain: Optional[str] = None
+    has_pat_token: Optional[bool] = None
+
+
+class SigmaSettings(AdminModel):
+    host: Optional[str] = None
+    client_id: Optional[str] = None
+    has_client_secret: Optional[bool] = None
+
+
+class ThoughtSpotSettings(AdminModel):
+    host: Optional[str] = None
+    username: Optional[str] = None
+    has_password: Optional[bool] = None
+
+
+class LightdashSettings(AdminModel):
+    instance_url: Optional[str] = None
+    has_api_token: Optional[bool] = None
+
+
+class OmniSettings(AdminModel):
+    host: Optional[str] = None
+    has_api_key: Optional[bool] = None
+
+
+class MetabaseSettings(AdminModel):
+    host: Optional[str] = None
+    has_api_key: Optional[bool] = None
+
+
+class AirbyteSettings(AdminModel):
+    client_id: Optional[str] = None
+    has_client_secret: Optional[bool] = None
+
+
+class HightouchSettings(AdminModel):
+    has_api_key: Optional[bool] = None
+
+
+class NewRelicSettings(AdminModel):
+    account_id: Optional[str] = None
+    has_api_key: Optional[bool] = None
+
+
+class PagerDutySettings(AdminModel):
+    api_region: Optional[PagerDutyRegion] = None
+    has_api_key: Optional[bool] = None
+
+
+class IncidentIoSettings(AdminModel):
+    has_api_key: Optional[bool] = None
+
+
+class RootlySettings(AdminModel):
+    has_api_key: Optional[bool] = None
+
+
 class AwsSecretsManagerSettings(AdminModel):
     access_key_id_hint: Optional[str] = None
     role_arn: Optional[str] = None
@@ -125,7 +326,25 @@ def _settings_by_typename(*classes: Type[AdminModel]) -> Dict[str, Type[AdminMod
     return {settings.__name__: settings for settings in classes}
 
 
-INTEGRATION_SETTINGS = _settings_by_typename(LookerSettings, FivetranSettings, DatadogSettings)
+INTEGRATION_SETTINGS = _settings_by_typename(
+    LookerSettings,
+    FivetranSettings,
+    DatadogSettings,
+    TableauSettings,
+    PowerBiSettings,
+    DataHubSettings,
+    SigmaSettings,
+    ThoughtSpotSettings,
+    LightdashSettings,
+    OmniSettings,
+    MetabaseSettings,
+    AirbyteSettings,
+    HightouchSettings,
+    NewRelicSettings,
+    PagerDutySettings,
+    IncidentIoSettings,
+    RootlySettings,
+)
 SECRETS_PROVIDER_SETTINGS = _settings_by_typename(
     AwsSecretsManagerSettings, AzureKeyVaultSettings, GcpSecretManagerSettings
 )
@@ -160,6 +379,15 @@ class ExternalSecretsProvider(AdminModel):
         return _parse_settings(value, SECRETS_PROVIDER_SETTINGS)
 
 
+class AgentIntegration(AdminModel):
+    name: AgentIntegrationName
+    display_name: Optional[str] = None
+    status: AgentIntegrationStatus
+    reconnect_required: Optional[bool] = None
+    install_url: Optional[str] = None
+    install_url_expires_at: Optional[datetime] = None
+
+
 class IntegrationTestResult(AdminModel):
     name: IntegrationName
     tested_at: datetime
@@ -187,10 +415,98 @@ class DatadogIntegrationInput(AdminInputModel):
     application_key: Optional[str] = None
 
 
+class TableauIntegrationInput(AdminInputModel):
+    url: str
+    pat_name: str
+    pat_secret: Optional[str] = None
+    project_ids: Optional[List[str]] = None
+
+
+class PowerBiIntegrationInput(AdminInputModel):
+    tenant_id: str
+    client_id: str
+    client_secret: Optional[str] = None
+    workspace_ids: List[str]
+
+
+class DataHubIntegrationInput(AdminInputModel):
+    gms_url: str
+    pat_token: Optional[str] = None
+    domain: Optional[str] = None
+
+
+class SigmaIntegrationInput(AdminInputModel):
+    host: str
+    client_id: str
+    client_secret: Optional[str] = None
+
+
+class ThoughtSpotIntegrationInput(AdminInputModel):
+    host: str
+    username: str
+    password: Optional[str] = None
+
+
+class LightdashIntegrationInput(AdminInputModel):
+    instance_url: str
+    api_token: Optional[str] = None
+
+
+class OmniIntegrationInput(AdminInputModel):
+    host: str
+    api_key: Optional[str] = None
+
+
+class MetabaseIntegrationInput(AdminInputModel):
+    host: str
+    api_key: Optional[str] = None
+
+
+class AirbyteIntegrationInput(AdminInputModel):
+    client_id: str
+    client_secret: Optional[str] = None
+
+
+class HightouchIntegrationInput(AdminInputModel):
+    api_key: Optional[str] = None
+
+
+class NewRelicIntegrationInput(AdminInputModel):
+    account_id: str
+    api_key: Optional[str] = None
+
+
+class PagerDutyIntegrationInput(AdminInputModel):
+    api_region: PagerDutyRegion
+    api_key: Optional[str] = None
+
+
+class IncidentIoIntegrationInput(AdminInputModel):
+    api_key: Optional[str] = None
+
+
+class RootlyIntegrationInput(AdminInputModel):
+    api_key: Optional[str] = None
+
+
 class IntegrationConfigInput(AdminInputModel):
     looker: Optional[LookerIntegrationInput] = None
     fivetran: Optional[FivetranIntegrationInput] = None
     datadog: Optional[DatadogIntegrationInput] = None
+    tableau: Optional[TableauIntegrationInput] = None
+    power_bi: Optional[PowerBiIntegrationInput] = None
+    datahub: Optional[DataHubIntegrationInput] = None
+    sigma: Optional[SigmaIntegrationInput] = None
+    thoughtspot: Optional[ThoughtSpotIntegrationInput] = None
+    lightdash: Optional[LightdashIntegrationInput] = None
+    omni: Optional[OmniIntegrationInput] = None
+    metabase: Optional[MetabaseIntegrationInput] = None
+    airbyte: Optional[AirbyteIntegrationInput] = None
+    hightouch: Optional[HightouchIntegrationInput] = None
+    new_relic: Optional[NewRelicIntegrationInput] = None
+    pagerduty: Optional[PagerDutyIntegrationInput] = None
+    incident_io: Optional[IncidentIoIntegrationInput] = None
+    rootly: Optional[RootlyIntegrationInput] = None
 
 
 class AwsSecretsManagerConfigInput(AdminInputModel):

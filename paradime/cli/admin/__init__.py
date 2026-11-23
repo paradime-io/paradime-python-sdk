@@ -1,10 +1,12 @@
 import click
 
+from paradime.cli.admin.agent_integrations import agent_integrations
 from paradime.cli.admin.bolt import bolt
 from paradime.cli.admin.connections import connections
 from paradime.cli.admin.env_vars import env_vars
 from paradime.cli.admin.environments import environments
 from paradime.cli.admin.git import git
+from paradime.cli.admin.integrations import integrations
 from paradime.cli.admin.jobs import jobs
 from paradime.cli.admin.setup_status import setup_status
 from paradime.cli.admin.usage import usage
@@ -32,3 +34,5 @@ admin.add_command(jobs)
 admin.add_command(usage)
 admin.add_command(setup_status)
 admin.add_command(users)
+admin.add_command(integrations)
+admin.add_command(agent_integrations)

@@ -16,6 +16,9 @@ class AdminSetupStatusClient:
         Reads a workspace's onboarding checklist: each step and where it is, and whether the
         Code IDE, Bolt and DinoAI agents can run. Reading it changes nothing. A step waiting
         for a person in a browser is `PENDING_USER_ACTION`, with its page in `install_url`.
+        Each DinoAI agent integration the workspace connected has an `AGENT_INTEGRATION` row,
+        named in `agent_integration`, listed only for a key that holds
+        `integration_settings:read`.
 
         Args:
             workspace_uid (str, optional): The workspace to read. Leave it out for the key's
