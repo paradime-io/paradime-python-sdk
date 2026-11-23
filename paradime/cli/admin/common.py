@@ -1,9 +1,12 @@
 import functools
 import json
+import re
 import sys
 from typing import Any, Callable, Iterable, List, Optional, Sequence, TypeVar, cast
 
 import click
+from ruamel.yaml.constructor import DuplicateKeyError
+from ruamel.yaml.error import YAMLError
 
 from paradime.apis.admin.client import AdminClient
 from paradime.apis.admin.exception import AdminJobTimeoutException
@@ -45,6 +48,16 @@ def handle_admin_errors(f: F) -> F:
             sys.exit(1)
 
     return cast(F, wrapper)
+
+
+def config_error(error: YAMLError) -> str:
+    mark = getattr(error, "problem_mark", None)
+    where = f" at line {mark.line + 1}, column {mark.column + 1}" if mark is not None else ""
+    if isinstance(error, DuplicateKeyError):
+        found = re.match(r'found duplicate key "([A-Za-z0-9_]+)"', str(error.problem or ""))
+        key = f' "{found.group(1)}"' if found else ""
+        return f"--config has a duplicate key{key}{where}."
+    return f"--config is not valid YAML or JSON{where}."
 
 
 def to_json(model: BaseModel) -> Any:

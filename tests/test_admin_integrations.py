@@ -647,6 +647,38 @@ def test_cli_integrations_config_refuses_what_the_api_does_not_take(
     assert transport.calls == []
 
 
+@pytest.mark.parametrize(
+    "config, printed",
+    [
+        (
+            "metabase:\n  host: mb.example.test\n  apiKey: first-s3cret\n  apiKey: second-s3cret\n",
+            '--config has a duplicate key "apiKey" at line 4, column 3.',
+        ),
+        (
+            '{"metabase": {"host": "mb.example.test", "apiKey": "first-s3cret", '
+            '"apiKey": "second-s3cret"}}',
+            '--config has a duplicate key "apiKey" at line 1',
+        ),
+        (
+            "metabase: {apiKey: first-s3cret, apiKey: second-s3cret",
+            "--config is not valid YAML or JSON at line",
+        ),
+    ],
+)
+@pytest.mark.parametrize("command", ["set", "test"])
+def test_cli_integrations_config_errors_never_print_a_secret(
+    monkeypatch: pytest.MonkeyPatch, command: str, config: str, printed: str
+) -> None:
+    transport, _, runner = _cli(monkeypatch)
+
+    result = runner.invoke(admin_cli, ["integrations", command, "--config", "-"], input=config)
+
+    assert result.exit_code == 2, result.output
+    assert printed in " ".join(result.output.split())
+    assert "s3cret" not in result.output
+    assert transport.calls == []
+
+
 @pytest.mark.parametrize("command", ["set", "test"])
 def test_cli_integrations_have_no_secret_options(command: str) -> None:
     result = CliRunner().invoke(admin_cli, ["integrations", command, "--help"])

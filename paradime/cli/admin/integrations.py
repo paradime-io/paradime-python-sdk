@@ -29,7 +29,7 @@ def _config(config: TextIO) -> IntegrationConfigInput:
     try:
         data = YAML(typ="safe").load(config.read())
     except YAMLError as e:
-        raise click.UsageError(f"--config is not valid YAML or JSON: {e}")
+        raise click.UsageError(common.config_error(e))
     if not isinstance(data, dict):
         raise click.UsageError(
             "--config must hold one integration block, such as `metabase: {...}`."
