@@ -184,6 +184,46 @@ paradime admin users update USER_UID --account-type BUSINESS --json
 paradime admin users deactivate USER_UID --yes
 ```
 
+`paradime.admin.integrations` connects the workspace's BI, ETL and observability integrations:
+Looker, Tableau, Power BI, DataHub, Sigma, ThoughtSpot, Lightdash, Omni, Metabase, Fivetran,
+Airbyte, Hightouch, Datadog, New Relic, PagerDuty, incident.io and Rootly. `set` takes one
+integration's input, such as `MetabaseIntegrationInput`, tests the credentials and saves them;
+a refused test raises `AdminConnectionTestFailedException` and saves nothing. `test` checks
+credentials without saving, `disconnect` takes an `IntegrationName`, and `list` returns each
+integration with its typed settings. Secrets are write-only: settings say only whether one is
+saved (`has_api_key`, `has_client_secret`, ...), and a secret left out keeps the saved one
+unless an endpoint setting such as the host changes.
+
+```python
+from paradime.apis.admin.integrations.types import IntegrationName, MetabaseIntegrationInput
+
+paradime.admin.integrations.set(MetabaseIntegrationInput(host="metabase.acme.com", api_key="..."))
+for integration in paradime.admin.integrations.list():
+    print(integration.name, integration.status, integration.settings)
+paradime.admin.integrations.disconnect(IntegrationName.METABASE)
+```
+
+The integrations the workspace's DinoAI agents connect through Nango, such as Notion, Jira and
+Google Drive, are connected by a person in a browser. `list_agent_integrations` returns each one
+with its status: `PENDING_USER_ACTION` waits for that person, and `include_install_urls=True`
+also reads a Connect link (`install_url`) for them to open. Each read makes new links, which
+work for 30 minutes and let whoever opens them connect an account, so share each only with that
+person; reading them needs `integration_settings:write`, and a key without it reads None in
+their place. `disconnect_agent_integration` disconnects one. `admin.setup_status.get` lists an
+`AGENT_INTEGRATION` row, named in `agent_integration`, for each one the workspace connected.
+
+```bash
+paradime admin integrations set --config metabase.yml
+paradime admin integrations test --config - < pagerduty.json
+paradime admin integrations list --json
+paradime admin integrations disconnect METABASE --yes
+paradime admin agent-integrations list --install-urls
+paradime admin agent-integrations disconnect NOTION --yes
+```
+
+The `--config` file holds one integration block, such as
+`metabase: {host: metabase.acme.com, apiKey: ...}`.
+
 ## Examples
 
 Find usage examples [here](https://github.com/paradime-io/paradime-python-sdk/tree/main/examples) to get started with the Paradime Python SDK.
