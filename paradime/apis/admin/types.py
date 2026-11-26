@@ -1,7 +1,7 @@
 import json
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Generic, Iterator, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, Iterator, List, Optional, Type, TypeVar, Union
 
 from paradime.tools.pydantic import BaseModel
 
@@ -33,6 +33,9 @@ SECRET_FIELDS = frozenset(
         "api_secret",
         "application_key",
         "secret_access_key",
+        "pat_secret",
+        "pat_token",
+        "api_token",
     }
 )
 
@@ -74,6 +77,16 @@ class OpenEnum(str, Enum):
     @classmethod
     def _missing_(cls, value: object) -> Any:
         return cls.__members__.get("UNKNOWN")
+
+
+def known_member(enum_class: Type[OpenEnum], value: Any) -> Any:
+    if value is None:
+        return None
+    member = enum_class(value.upper() if isinstance(value, str) else value)
+    if member.value == "UNKNOWN":
+        known = ", ".join(m.value for m in enum_class if m.value != "UNKNOWN")
+        raise ValueError(f"must be one of {known}")
+    return member
 
 
 class GitProvider(OpenEnum):

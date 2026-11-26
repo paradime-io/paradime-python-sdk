@@ -1271,3 +1271,52 @@ def test_users_errors_exit_non_zero_with_their_code(
 
     assert result.exit_code == 1
     assert messages == [printed]
+
+
+@pytest.mark.parametrize(
+    "config, printed",
+    [
+        (
+            "snowflake:\n  account: acme\n  password: first-s3cret\n  password: second-s3cret\n",
+            '--config has a duplicate key "password" at line 4, column 3.',
+        ),
+        (
+            '{"snowflake": {"password": "first-s3cret", "password": "second-s3cret"}}',
+            '--config has a duplicate key "password" at line 1',
+        ),
+        (
+            "snowflake: {password: first-s3cret, password: second-s3cret",
+            "--config is not valid YAML or JSON at line",
+        ),
+    ],
+)
+def test_connection_config_errors_never_print_a_secret(
+    fake_admin: FakeAdmin, config: str, printed: str
+) -> None:
+    result = _run(
+        "connections",
+        "create",
+        "--scope",
+        "SCHEDULER",
+        "--environment",
+        "prod",
+        "--config",
+        "-",
+        input=config,
+    )
+
+    assert result.exit_code == 2, result.output
+    assert printed in " ".join(result.output.split())
+    assert "s3cret" not in result.output
+    assert fake_admin.connections.create_calls == []
+
+
+def test_bolt_schedules_config_duplicate_key_prints_no_value(fake_bolt: FakeBolt) -> None:
+    config = "name: first-name\nname: second-name\nschedule: OFF\nenvironment: production\n"
+
+    result = _run("bolt", "schedules", "create", "--config", "-", input=config)
+
+    assert result.exit_code == 2
+    assert '--config has a duplicate key "name" at line 2, column 1.' in result.output
+    assert "first-name" not in result.output and "second-name" not in result.output
+    assert fake_bolt.calls == []

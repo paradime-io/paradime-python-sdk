@@ -3,7 +3,11 @@ from typing import List, Optional
 import click
 
 from paradime.apis.admin.exception import AdminNotFoundException
-from paradime.apis.admin.setup_status.types import ProductReadiness, SetupStepStatus
+from paradime.apis.admin.setup_status.types import (
+    ProductReadiness,
+    SetupStepStatus,
+    WorkspaceSetupStep,
+)
 from paradime.cli import console
 from paradime.cli.admin import common
 
@@ -13,6 +17,12 @@ def _details(detail: Optional[str], install_url: Optional[str], status: SetupSte
     if install_url and status == SetupStepStatus.PENDING_USER_ACTION:
         parts.append(f"Finish it at {install_url}")
     return " ".join(parts)
+
+
+def _step(step: WorkspaceSetupStep) -> str:
+    if step.agent_integration is None:
+        return step.step.value
+    return f"{step.step.value} {step.agent_integration.value}"
 
 
 def _readiness(readiness: ProductReadiness) -> str:
@@ -43,7 +53,7 @@ def setup_status(workspace_uid: Optional[str], as_json: bool) -> None:
         ["Step", "Environment", "Status", "Required", "Details"],
         [
             [
-                step.step.value,
+                _step(step),
                 step.environment_slug or "",
                 step.status.value,
                 common.show(step.is_required),

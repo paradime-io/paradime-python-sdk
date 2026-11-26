@@ -1,5 +1,6 @@
 from typing import List, Optional
 
+from paradime.apis.admin.integrations.types import AgentIntegrationName
 from paradime.apis.admin.types import AdminModel, OpenEnum
 
 PRODUCT_READINESS_FIELDS = """
@@ -15,6 +16,7 @@ WORKSPACE_SETUP_STATUS_FIELDS = f"""
         status
         isRequired
         environmentSlug
+        agentIntegration
         installUrl
         detail
     }}
@@ -38,6 +40,7 @@ class SetupStep(OpenEnum):
     DEVELOPMENT_CONNECTION = "DEVELOPMENT_CONNECTION"
     SCHEDULER_CONNECTION = "SCHEDULER_CONNECTION"
     AGENT_CONNECTION = "AGENT_CONNECTION"
+    AGENT_INTEGRATION = "AGENT_INTEGRATION"
     ENVIRONMENT_VARIABLES = "ENVIRONMENT_VARIABLES"
     SCHEDULES_DEPLOYED = "SCHEDULES_DEPLOYED"
     NOTIFICATIONS = "NOTIFICATIONS"
@@ -57,6 +60,7 @@ class WorkspaceSetupStep(AdminModel):
     status: SetupStepStatus
     is_required: bool
     environment_slug: Optional[str] = None
+    agent_integration: Optional[AgentIntegrationName] = None
     install_url: Optional[str] = None
     detail: Optional[str] = None
 

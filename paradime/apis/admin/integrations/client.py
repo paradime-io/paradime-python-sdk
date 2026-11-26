@@ -1,21 +1,40 @@
 from typing import Any, Dict, Iterator, Optional, Type, Union
 
 from paradime.apis.admin.integrations.types import (
+    AGENT_INTEGRATION_FIELDS,
+    AGENT_INTEGRATION_INSTALL_FIELDS,
+    AGENT_INTEGRATION_LINKS,
     EXTERNAL_SECRETS_PROVIDER_FIELDS,
     WORKSPACE_INTEGRATION_FIELDS,
+    AgentIntegration,
+    AgentIntegrationName,
+    AirbyteIntegrationInput,
     AwsSecretsManagerConfigInput,
     AzureKeyVaultConfigInput,
     DatadogIntegrationInput,
+    DataHubIntegrationInput,
     ExternalSecretReferenceTestResult,
     ExternalSecretsProvider,
     ExternalSecretsProviderConfigInput,
     ExternalSecretsProviderName,
     FivetranIntegrationInput,
     GcpSecretManagerConfigInput,
+    HightouchIntegrationInput,
+    IncidentIoIntegrationInput,
     IntegrationConfigInput,
     IntegrationName,
     IntegrationTestResult,
+    LightdashIntegrationInput,
     LookerIntegrationInput,
+    MetabaseIntegrationInput,
+    NewRelicIntegrationInput,
+    OmniIntegrationInput,
+    PagerDutyIntegrationInput,
+    PowerBiIntegrationInput,
+    RootlyIntegrationInput,
+    SigmaIntegrationInput,
+    TableauIntegrationInput,
+    ThoughtSpotIntegrationInput,
     WorkspaceIntegration,
 )
 from paradime.apis.admin.transport import AdminTransport
@@ -35,6 +54,20 @@ IntegrationConfig = Union[
     LookerIntegrationInput,
     FivetranIntegrationInput,
     DatadogIntegrationInput,
+    TableauIntegrationInput,
+    PowerBiIntegrationInput,
+    DataHubIntegrationInput,
+    SigmaIntegrationInput,
+    ThoughtSpotIntegrationInput,
+    LightdashIntegrationInput,
+    OmniIntegrationInput,
+    MetabaseIntegrationInput,
+    AirbyteIntegrationInput,
+    HightouchIntegrationInput,
+    NewRelicIntegrationInput,
+    PagerDutyIntegrationInput,
+    IncidentIoIntegrationInput,
+    RootlyIntegrationInput,
 ]
 SecretsProviderConfig = Union[
     ExternalSecretsProviderConfigInput,
@@ -47,6 +80,20 @@ INTEGRATION_KEYS: Dict[Type[AdminInputModel], str] = {
     LookerIntegrationInput: "looker",
     FivetranIntegrationInput: "fivetran",
     DatadogIntegrationInput: "datadog",
+    TableauIntegrationInput: "tableau",
+    PowerBiIntegrationInput: "power_bi",
+    DataHubIntegrationInput: "datahub",
+    SigmaIntegrationInput: "sigma",
+    ThoughtSpotIntegrationInput: "thoughtspot",
+    LightdashIntegrationInput: "lightdash",
+    OmniIntegrationInput: "omni",
+    MetabaseIntegrationInput: "metabase",
+    AirbyteIntegrationInput: "airbyte",
+    HightouchIntegrationInput: "hightouch",
+    NewRelicIntegrationInput: "new_relic",
+    PagerDutyIntegrationInput: "pagerduty",
+    IncidentIoIntegrationInput: "incident_io",
+    RootlyIntegrationInput: "rootly",
 }
 SECRETS_PROVIDER_KEYS: Dict[Type[AdminInputModel], str] = {
     AwsSecretsManagerConfigInput: "aws",
@@ -68,7 +115,9 @@ def _wrap(
 
 class AdminIntegrationsClient:
     """
-    A workspace's Looker, Fivetran and Datadog integrations, and the external secret managers
+    A workspace's credential integrations (BI tools such as Looker, Tableau and Power BI, ETL
+    tools such as Fivetran and Airbyte, and observability tools such as Datadog and PagerDuty),
+    the integrations its DinoAI agents connect through Nango, and the external secret managers
     connection secrets can reference. Secrets are write-only.
     """
 
@@ -124,8 +173,9 @@ class AdminIntegrationsClient:
         nothing.
 
         Args:
-            config: One integration's settings, such as `LookerIntegrationInput`, or an
-                `IntegrationConfigInput`.
+            config: One integration's settings, such as `LookerIntegrationInput` or
+                `MetabaseIntegrationInput`, or an `IntegrationConfigInput`. A secret left out
+                keeps the saved one, unless an endpoint setting such as the host changes.
             workspace_uid (str, optional): The workspace to change, for a company API key.
 
         Returns:
@@ -207,6 +257,95 @@ class AdminIntegrationsClient:
             workspace_uid=workspace_uid,
         )
         return WorkspaceIntegration.parse_obj(response["disconnectIntegration"]["integration"])
+
+    def list_agent_integrations(
+        self,
+        *,
+        include_install_urls: bool = False,
+        workspace_uid: Optional[str] = None,
+        page_size: int = DEFAULT_PAGE_SIZE,
+    ) -> Iterator[AgentIntegration]:
+        """
+        Iterates over the integrations the workspace's DinoAI agents can connect through Nango,
+        connected or not, ordered by name. A `PENDING_USER_ACTION` one waits for a person to
+        connect it in a browser.
+
+        Args:
+            include_install_urls (bool): Also read `install_url`, a Nango Connect link a person
+                opens to connect a `PENDING_USER_ACTION` integration, and when it stops working.
+                Each read makes new links, which work for 30 minutes; anyone who opens one can
+                connect an account to the workspace's agents. Reading them needs
+                `integration_settings:write`; a key without it reads None in their place.
+            workspace_uid (str, optional): The workspace to read, for a company API key.
+            page_size (int): How many integrations to read per request, at most 500.
+
+        Returns:
+            Iterator[AgentIntegration]: The integrations, read a page at a time.
+        """
+
+        check_page_size(page_size)
+        install_fields = AGENT_INTEGRATION_INSTALL_FIELDS if include_install_urls else ""
+        query = f"""
+            query adminAgentIntegrations($workspaceUid: String, $first: Int, $after: String) {{
+                workspace(workspaceUid: $workspaceUid) {{
+                    agentIntegrations(first: $first, after: $after) {{
+                        edges {{
+                            node {{
+                                {AGENT_INTEGRATION_FIELDS}
+                                {install_fields}
+                            }}
+                        }}
+                        {CONNECTION_FIELDS}
+                    }}
+                }}
+            }}
+        """
+
+        def fetch_page(after: Optional[str]) -> Page[AgentIntegration]:
+            response = self.transport.execute(
+                query,
+                {"workspaceUid": workspace_uid, "first": page_size, "after": after},
+                workspace_uid=workspace_uid,
+                linked_fields=AGENT_INTEGRATION_LINKS if include_install_urls else (),
+            )
+            workspace = response["workspace"] or {}
+            return parse_page(workspace.get("agentIntegrations"), AgentIntegration.parse_obj)
+
+        return iterate_pages(fetch_page)
+
+    def disconnect_agent_integration(
+        self, name: AgentIntegrationName, *, workspace_uid: Optional[str] = None
+    ) -> AgentIntegration:
+        """
+        Disconnects one of the workspace's DinoAI agent integrations and deletes its Nango
+        connection. Disconnecting it again is not an error.
+
+        Args:
+            name (AgentIntegrationName): The integration.
+            workspace_uid (str, optional): The workspace to change, for a company API key.
+
+        Returns:
+            AgentIntegration: The integration, now disconnected.
+        """
+
+        query = f"""
+            mutation adminDisconnectAgentIntegration($input: DisconnectAgentIntegrationInput!) {{
+                disconnectAgentIntegration(input: $input) {{
+                    agentIntegration {{
+                        {AGENT_INTEGRATION_FIELDS}
+                    }}
+                }}
+            }}
+        """
+
+        response = self.transport.execute(
+            query,
+            {"input": {"name": AgentIntegrationName(name).value}},
+            workspace_uid=workspace_uid,
+        )
+        return AgentIntegration.parse_obj(
+            response["disconnectAgentIntegration"]["agentIntegration"]
+        )
 
     def list_external_secrets_providers(
         self, *, workspace_uid: Optional[str] = None, page_size: int = DEFAULT_PAGE_SIZE

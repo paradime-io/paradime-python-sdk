@@ -899,7 +899,10 @@ class Onboarding:
         for row in status.steps or []:
             state = row.status.value
             counts[state] = counts.get(state, 0) + 1
-            name = row.step.value + (f" {row.environment_slug}" if row.environment_slug else "")
+            target = row.environment_slug or (
+                row.agent_integration.value if row.agent_integration else None
+            )
+            name = row.step.value + (f" {target}" if target else "")
             note = f"{state:<19} {name}" + ("" if row.is_required else " (optional)")
             if row.install_url:
                 note += f" {row.install_url}"
