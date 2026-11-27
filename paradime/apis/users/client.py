@@ -155,7 +155,7 @@ class UsersClient:
     def list_seats(self, product: SeatProduct) -> SeatPool:
         """
         Retrieves the company's seat pool for a product, and which users of the
-        workspace hold a seat. Needs the users:read permission.
+        workspace hold a seat. Needs the users:admin:read permission.
 
         Args:
             product (SeatProduct): The seat product.
@@ -195,7 +195,7 @@ class UsersClient:
     def preview_seat_assignment(self, user_uid: str, product: SeatProduct) -> SeatAssignmentPreview:
         """
         What assigning a seat to a user would do: whether it buys a seat, and what that
-        costs today. Needs the users:write permission.
+        costs today. Needs the users:admin:write permission.
 
         Args:
             user_uid (str): The ID of the user.
@@ -241,7 +241,7 @@ class UsersClient:
         expected_seats_after: Optional[int] = None,
     ) -> SeatAssignment:
         """
-        Gives a user of the workspace a seat on a product. Needs the users:write
+        Gives a user of the workspace a seat on a product. Needs the users:admin:write
         permission, which can buy seats.
 
         When the pool is full nothing is bought and ``ParadimeAPIException`` is raised
@@ -297,7 +297,7 @@ class UsersClient:
     def unassign_seat(self, user_uid: str, product: SeatProduct) -> bool:
         """
         Takes back the seat of a user of the workspace; the seat stays in the pool.
-        Needs the users:write permission.
+        Needs the users:admin:write permission.
 
         Args:
             user_uid (str): The ID of the user.
